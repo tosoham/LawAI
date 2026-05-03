@@ -1,0 +1,9 @@
+{
+  "name": "LawAI",
+  "version": "1.0.0",
+  "description": "AI bot and agent for the Law firm",
+  "main": "index.js",
+  "repository": "git@github.com:tosoham/LawAI.git",
+  "author": "tosoham <todrsoham@gmail.com>",
+  "license": "MIT"
+}
