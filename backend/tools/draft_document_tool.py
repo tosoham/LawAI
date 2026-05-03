@@ -6,7 +6,7 @@ Generate legal documents like bail applications, petitions, and notices.
 
 from typing import Dict
 from .base_tool import BaseTool, ToolParameter, ToolResult
-from backend.services.llm_service import LLMService
+from services.llm_service import LLMService
 
 
 class DraftDocumentTool(BaseTool):

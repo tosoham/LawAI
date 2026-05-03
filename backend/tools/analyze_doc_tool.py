@@ -6,7 +6,7 @@ Analyze uploaded legal documents (PDF/text) for summaries, risks, and key clause
 
 from typing import Dict
 from .base_tool import BaseTool, ToolParameter, ToolResult
-from backend.services.llm_service import LLMService
+from services.llm_service import LLMService
 
 
 class AnalyzeDocumentTool(BaseTool):

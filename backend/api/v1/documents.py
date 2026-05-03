@@ -1,0 +1,268 @@
+"""
+Documents API Endpoints
+
+Endpoints for document drafting and analysis.
+"""
+
+from fastapi import APIRouter, HTTPException, status
+from pydantic import BaseModel, Field
+from typing import Dict, Any, Optional, List
+import logging
+
+from tools.registry import get_tool_registry
+
+logger = logging.getLogger(__name__)
+
+router = APIRouter(prefix="/documents", tags=["documents"])
+
+
+# Request Models
+class DraftDocumentRequest(BaseModel):
+    """Request model for document drafting"""
+    document_type: str = Field(
+        ...,
+        description="Type of document (bail_application|petition|notice)"
+    )
+    case_details: Dict[str, Any] = Field(
+        ...,
+        description="Case details for document generation"
+    )
+
+
+class AnalyzeDocumentRequest(BaseModel):
+    """Request model for document analysis"""
+    document_text: str = Field(
+        ...,
+        description="Full text of document to analyze"
+    )
+    analysis_type: str = Field(
+        default="full",
+        description="Type of analysis (summary|risks|key_clauses|full)"
+    )
+    document_type: str = Field(
+        default="other",
+        description="Type of document (contract|agreement|notice|petition|other)"
+    )
+
+
+class DocumentTemplatesResponse(BaseModel):
+    """Response model for document templates"""
+    templates: List[Dict[str, str]]
+
+
+class DraftDocumentResponse(BaseModel):
+    """Response model for drafted document"""
+    success: bool
+    document: Optional[str] = None
+    document_type: Optional[str] = None
+    case_details: Optional[Dict[str, Any]] = None
+    disclaimer: Optional[str] = None
+    error: Optional[str] = None
+
+
+class AnalyzeDocumentResponse(BaseModel):
+    """Response model for document analysis"""
+    success: bool
+    analysis: Optional[str] = None
+    analysis_type: Optional[str] = None
+    document_type: Optional[str] = None
+    document_length: Optional[int] = None
+    disclaimer: Optional[str] = None
+    error: Optional[str] = None
+
+
+@router.post("/draft", response_model=DraftDocumentResponse)
+async def draft_document(request: DraftDocumentRequest):
+    """
+    Draft a legal document.
+    
+    Generates professional legal documents like bail applications,
+    petitions, and notices based on provided case details.
+    
+    Args:
+        request: Document drafting request
+        
+    Returns:
+        Drafted document with metadata
+        
+    Raises:
+        HTTPException: If drafting fails
+    """
+    try:
+        logger.info(f"Draft document request: type={request.document_type}")
+        
+        # Get tool registry
+        registry = get_tool_registry()
+        draft_tool = registry.get_tool("draft_document")
+        
+        if not draft_tool:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Draft document tool not available"
+            )
+        
+        # Execute tool
+        result = await draft_tool.safe_execute(
+            document_type=request.document_type,
+            case_details=request.case_details
+        )
+        
+        if not result.success:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=result.error
+            )
+        
+        # Format response
+        return DraftDocumentResponse(
+            success=True,
+            document=result.data.get("document"),
+            document_type=result.data.get("document_type"),
+            case_details=result.data.get("case_details"),
+            disclaimer=result.data.get("disclaimer")
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error drafting document: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to draft document: {str(e)}"
+        )
+
+
+@router.post("/analyze", response_model=AnalyzeDocumentResponse)
+async def analyze_document(request: AnalyzeDocumentRequest):
+    """
+    Analyze a legal document.
+    
+    Provides comprehensive analysis including summaries, risk assessment,
+    and key clause extraction.
+    
+    Args:
+        request: Document analysis request
+        
+    Returns:
+        Document analysis with insights
+        
+    Raises:
+        HTTPException: If analysis fails
+    """
+    try:
+        logger.info(f"Analyze document request: type={request.analysis_type}, doc_type={request.document_type}")
+        
+        # Get tool registry
+        registry = get_tool_registry()
+        analyze_tool = registry.get_tool("analyze_document")
+        
+        if not analyze_tool:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Analyze document tool not available"
+            )
+        
+        # Execute tool
+        result = await analyze_tool.safe_execute(
+            document_text=request.document_text,
+            analysis_type=request.analysis_type,
+            document_type=request.document_type
+        )
+        
+        if not result.success:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=result.error
+            )
+        
+        # Format response
+        return AnalyzeDocumentResponse(
+            success=True,
+            analysis=result.data.get("analysis"),
+            analysis_type=result.data.get("analysis_type"),
+            document_type=result.data.get("document_type"),
+            document_length=result.data.get("document_length"),
+            disclaimer=result.data.get("disclaimer")
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error analyzing document: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to analyze document: {str(e)}"
+        )
+
+
+@router.get("/templates", response_model=DocumentTemplatesResponse)
+async def get_document_templates():
+    """
+    Get available document templates.
+    
+    Returns list of supported document types with descriptions.
+    
+    Returns:
+        List of document templates
+    """
+    templates = [
+        {
+            "type": "bail_application",
+            "name": "Bail Application",
+            "description": "Application for regular or anticipatory bail under BNSS",
+            "required_fields": [
+                "accused_name",
+                "fir_number",
+                "sections",
+                "facts",
+                "police_station"
+            ]
+        },
+        {
+            "type": "petition",
+            "name": "Petition",
+            "description": "General petition for various legal matters",
+            "required_fields": [
+                "petitioner_name",
+                "respondent_name",
+                "facts",
+                "relief_sought"
+            ]
+        },
+        {
+            "type": "notice",
+            "name": "Legal Notice",
+            "description": "Legal notice for various purposes",
+            "required_fields": [
+                "client_name",
+                "recipient_name",
+                "recipient_address",
+                "subject",
+                "facts",
+                "demands"
+            ]
+        }
+    ]
+    
+    return DocumentTemplatesResponse(templates=templates)
+
+
+@router.get("/health")
+async def health_check():
+    """
+    Health check endpoint for documents service.
+    
+    Returns:
+        Service status
+    """
+    registry = get_tool_registry()
+    
+    return {
+        "status": "healthy",
+        "tools_available": {
+            "draft_document": registry.has_tool("draft_document"),
+            "analyze_document": registry.has_tool("analyze_document")
+        }
+    }
+
+# Made with Bob

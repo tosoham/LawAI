@@ -45,9 +45,24 @@ app.add_middleware(
 # Import and include routers
 from api.v1.chat import router as chat_router
 from api.v1.search import router as search_router
+from api.v1.documents import router as documents_router
 
 app.include_router(chat_router, prefix="/api/v1")
 app.include_router(search_router, prefix="/api/v1")
+app.include_router(documents_router, prefix="/api/v1")
+
+# Initialize tools on startup
+from services.llm_service import llm_service
+from services.rag_service import RAGService
+from tools.registry import initialize_tools
+
+@app.on_event("startup")
+async def startup_event():
+    """Initialize tools on application startup"""
+    logger.info("Initializing MCP tools...")
+    rag_service = RAGService()
+    initialize_tools(llm_service, rag_service)
+    logger.info("MCP tools initialized successfully")
 
 
 @app.get("/")

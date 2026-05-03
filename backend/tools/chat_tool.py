@@ -6,7 +6,7 @@ General legal Q&A without RAG search - direct LLM interaction.
 
 from typing import Dict, List, Optional
 from .base_tool import BaseTool, ToolParameter, ToolResult
-from backend.services.llm_service import LLMService
+from services.llm_service import LLMService
 
 
 class ChatTool(BaseTool):
