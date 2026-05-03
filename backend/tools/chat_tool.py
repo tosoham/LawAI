@@ -4,6 +4,7 @@ Chat Tool
 General legal Q&A without RAG search - direct LLM interaction.
 """
 
+import asyncio
 from typing import Dict, List, Optional
 from .base_tool import BaseTool, ToolParameter, ToolResult
 from services.llm_service import LLMService
@@ -128,8 +129,8 @@ class ChatTool(BaseTool):
             # Create prompt
             prompt = self._create_prompt(message, context)
             
-            # Generate response
-            response = self.llm_service.generate(prompt=prompt)
+            # Generate response in thread pool (sync service)
+            response = await asyncio.to_thread(self.llm_service.generate, prompt=prompt)
             
             # Add disclaimer
             answer = response + "\n\n**DISCLAIMER**: This is AI-generated legal information for educational purposes only. Please consult a qualified lawyer for legal advice specific to your situation."

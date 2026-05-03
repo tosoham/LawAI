@@ -10,14 +10,15 @@ import ErrorMessage from '@/components/shared/ErrorMessage';
 import ReactMarkdown from 'react-markdown';
 
 const ANALYSIS_TYPES = [
-  { value: 'risk_analysis', label: 'Risk Analysis', description: 'Identify potential risks and problematic clauses' },
-  { value: 'clause_extraction', label: 'Clause Extraction', description: 'Extract and categorize key clauses' },
+  { value: 'risks', label: 'Risk Analysis', description: 'Identify potential risks and problematic clauses' },
+  { value: 'key_clauses', label: 'Clause Extraction', description: 'Extract and categorize key clauses' },
   { value: 'summary', label: 'Summary', description: 'Generate a concise summary of the document' },
+  { value: 'full', label: 'Full Analysis', description: 'Comprehensive analysis including all aspects' },
 ] as const;
 
 export const AnalyzeForm: React.FC = () => {
   const [documentText, setDocumentText] = useState('');
-  const [analysisType, setAnalysisType] = useState<typeof ANALYSIS_TYPES[number]['value']>('risk_analysis');
+  const [analysisType, setAnalysisType] = useState<typeof ANALYSIS_TYPES[number]['value']>('risks');
   const [showResults, setShowResults] = useState(false);
 
   const { analyzedDocument, isLoading, error, analyze, reset } = useDocuments();
@@ -31,7 +32,7 @@ export const AnalyzeForm: React.FC = () => {
     }
 
     await analyze({
-      text: documentText.trim(),
+      document_text: documentText.trim(),
       analysis_type: analysisType,
     });
     setShowResults(true);

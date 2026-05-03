@@ -1,0 +1,28 @@
+LawAI Health Check Report
+Generated: 2026-05-03 18:28:54
+================================================================================
+
+[FAIL] Backend API
+  Error connecting to backend: HTTPConnectionPool(host='localhost', port=8000): Read timed out. (read timeout=5)
+
+[PASS] ChromaDB Collections
+  All 4 collections present (27 total documents): {'bns_sections': 8, 'bnss_sections': 7, 'bsa_sections': 7, 'sc_judgements': 5}
+
+[FAIL] LLM Service (IBM watsonx.ai)
+  LLM service error: HTTPConnectionPool(host='localhost', port=8000): Read timed out. (read timeout=30)
+
+[FAIL] RAG Search Service
+  RAG service error: HTTPConnectionPool(host='localhost', port=8000): Read timed out. (read timeout=15)
+
+[FAIL] Agent Service (LangGraph)
+  Agent service error: HTTPConnectionPool(host='localhost', port=8000): Read timed out. (read timeout=30)
+
+[FAIL] Document Generation Service
+  Document service error: HTTPConnectionPool(host='localhost', port=8000): Read timed out. (read timeout=20)
+
+[FAIL] Streaming Endpoint
+  Streaming endpoint error: HTTPConnectionPool(host='localhost', port=8000): Read timed out. (read timeout=30)
+
+[FAIL] API Documentation
+  API docs error: HTTPConnectionPool(host='localhost', port=8000): Read timed out. (read timeout=5)
+

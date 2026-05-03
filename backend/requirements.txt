@@ -29,6 +29,8 @@ python-jose[cryptography]==3.3.0  # JWT tokens
 passlib[bcrypt]==1.7.4  # Password hashing
 python-dotenv==1.0.0  # Environment variables
 aiofiles==23.2.1  # Async file operations
+requests==2.31.0  # HTTP client for testing
+colorama==0.4.6  # Colored terminal output
 
 # Testing
 pytest==7.4.4

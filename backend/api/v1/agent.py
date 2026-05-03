@@ -66,7 +66,7 @@ async def process_query(request: AgentQueryRequest):
         logger.info(f"Received agent query: {request.query[:100]}...")
         
         agent_service = get_agent_service()
-        result = agent_service.process_query(request.query)
+        result = await agent_service.process_query(request.query)
         
         return AgentQueryResponse(
             response=result["response"],
@@ -81,6 +81,17 @@ async def process_query(request: AgentQueryRequest):
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to process query: {str(e)}"
         )
+
+
+@router.options("/query/stream")
+async def options_query_stream():
+    """
+    Handle OPTIONS preflight request for streaming endpoint.
+    
+    Returns:
+        Empty response with CORS headers (handled by CORSMiddleware)
+    """
+    return {}
 
 
 @router.post("/query/stream")

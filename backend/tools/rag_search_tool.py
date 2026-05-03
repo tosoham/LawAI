@@ -4,6 +4,7 @@ RAG Search Tool
 Search Indian legal corpus (BNS, BNSS, BSA, SC judgements) using RAG.
 """
 
+import asyncio
 from typing import Dict, Optional
 from .base_tool import BaseTool, ToolParameter, ToolResult
 from services.rag_service import RAGService
@@ -85,18 +86,20 @@ class RAGSearchTool(BaseTool):
             
             self.logger.info(f"RAG search: query='{query}', collection={collection}, top_k={top_k}")
             
-            # Perform RAG search
+            # Perform RAG search in thread pool (sync service)
             if collection == "all":
                 # Search across all collections
                 collections = ["bns_sections", "bnss_sections", "bsa_sections", "sc_judgements"]
-                result = self.rag_service.multi_collection_search(
+                result = await asyncio.to_thread(
+                    self.rag_service.multi_collection_search,
                     query=query,
                     collections=collections,
                     top_k_per_collection=max(1, top_k // len(collections))
                 )
             else:
                 # Search specific collection
-                result = self.rag_service.search_and_generate(
+                result = await asyncio.to_thread(
+                    self.rag_service.search_and_generate,
                     query=query,
                     collection=collection,
                     top_k=top_k

@@ -25,7 +25,6 @@ interface Message {
 export const ChatInterface: React.FC = () => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
-  const [sessionId] = useState(() => `session_${Date.now()}`);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   
   const { streamedContent, isLoading, isStreaming, error, queryStream, reset } = useAgent();
@@ -66,7 +65,6 @@ export const ChatInterface: React.FC = () => {
 
     await queryStream({
       query: input.trim(),
-      session_id: sessionId,
     });
   };
 
@@ -229,7 +227,6 @@ export const ChatInterface: React.FC = () => {
                 if (lastUserMessage) {
                   queryStream({
                     query: lastUserMessage.content,
-                    session_id: sessionId,
                   });
                 }
               }

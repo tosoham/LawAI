@@ -47,7 +47,7 @@ class AgentService:
         
         logger.info("AgentService initialized successfully")
     
-    def process_query(self, query: str) -> Dict[str, Any]:
+    async def process_query(self, query: str) -> Dict[str, Any]:
         """
         Process a user query through the agent.
         
@@ -64,7 +64,8 @@ class AgentService:
         try:
             logger.info(f"Processing query: {query[:100]}...")
             
-            result = self.agent.process(query)
+            # Agent.process is now async
+            result = await self.agent.process(query)
             
             logger.info(f"Query processed successfully. Intent: {result.get('intent')}")
             
@@ -92,9 +93,8 @@ class AgentService:
         try:
             logger.info(f"Processing query with streaming: {query[:100]}...")
             
-            # For now, process synchronously and yield the result
-            # In a full implementation, this would stream from the LLM
-            result = await asyncio.to_thread(self.agent.process, query)
+            # Process query asynchronously
+            result = await self.agent.process(query)
             
             response = result.get("response", "")
             

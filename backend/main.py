@@ -5,13 +5,16 @@ This is the main entry point for the LawAI backend API.
 It initializes the FastAPI application with CORS, middleware, and routes.
 """
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from fastapi.exceptions import RequestValidationError
+from starlette.exceptions import HTTPException as StarletteHTTPException
 import logging
 from typing import Dict, Any
 import os
 from dotenv import load_dotenv
+import json
 
 # Load environment variables
 load_dotenv()
@@ -32,15 +35,58 @@ app = FastAPI(
     redoc_url="/redoc"
 )
 
-# Configure CORS
+# Configure CORS - Must be added BEFORE including routers
 origins = os.getenv("CORS_ORIGINS", "http://localhost:3000").split(",")
+logger.info(f"Configuring CORS with origins: {origins}")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,
     allow_credentials=True,
-    allow_methods=["*"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
     allow_headers=["*"],
+    expose_headers=["*"],
 )
+
+# Add request logging middleware
+@app.middleware("http")
+async def log_requests(request: Request, call_next):
+    """Log all incoming requests with body for debugging"""
+    logger.info(f"Request: {request.method} {request.url.path}")
+    
+    # Log request body for POST requests
+    if request.method == "POST":
+        try:
+            body = await request.body()
+            if body:
+                try:
+                    body_json = json.loads(body)
+                    logger.info(f"Request body: {json.dumps(body_json, indent=2)}")
+                except json.JSONDecodeError:
+                    logger.info(f"Request body (raw): {body.decode()[:500]}")
+        except Exception as e:
+            logger.warning(f"Could not read request body: {e}")
+    
+    response = await call_next(request)
+    logger.info(f"Response status: {response.status_code}")
+    return response
+
+# Add validation error handler
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(request: Request, exc: RequestValidationError):
+    """Handle validation errors with detailed logging"""
+    logger.error(f"Validation error for {request.method} {request.url.path}")
+    logger.error(f"Validation errors: {exc.errors()}")
+    logger.error(f"Request body: {exc.body}")
+    
+    return JSONResponse(
+        status_code=422,
+        content={
+            "error": "Validation Error",
+            "message": "Request validation failed",
+            "details": exc.errors(),
+            "body": str(exc.body)
+        }
+    )
 
 # Import and include routers
 from api.v1.chat import router as chat_router
@@ -61,10 +107,17 @@ from tools.registry import initialize_tools
 @app.on_event("startup")
 async def startup_event():
     """Initialize tools on application startup"""
-    logger.info("Initializing MCP tools...")
-    rag_service = RAGService()
-    initialize_tools(llm_service, rag_service)
-    logger.info("MCP tools initialized successfully")
+    try:
+        logger.info("Starting LawAI backend...")
+        logger.info("Initializing MCP tools...")
+        rag_service = RAGService()
+        initialize_tools(llm_service, rag_service)
+        logger.info("MCP tools initialized successfully")
+        logger.info("LawAI backend ready!")
+    except Exception as e:
+        logger.error(f"Error during startup: {e}")
+        # Don't fail startup, allow health checks to work
+        logger.warning("Continuing with limited functionality")
 
 
 @app.get("/")
@@ -75,6 +128,21 @@ async def root() -> Dict[str, str]:
         "version": "1.0.0",
         "status": "operational",
         "docs": "/docs"
+    }
+
+
+@app.get("/health")
+async def health_check_root() -> Dict[str, str]:
+    """
+    Health check endpoint (root level)
+    
+    Returns:
+        Dict with status and version information
+    """
+    return {
+        "status": "healthy",
+        "version": "1.0.0",
+        "service": "LawAI Backend"
     }
 
 

@@ -82,7 +82,7 @@ class LegalAgent:
         # Compile graph
         return graph.compile()
     
-    def _classify_intent_node(self, state: AgentState) -> AgentState:
+    async def _classify_intent_node(self, state: AgentState) -> AgentState:
         """
         Node: Classify user intent.
         
@@ -107,7 +107,7 @@ class LegalAgent:
                 }
             )
         except Exception as e:
-            logger.error(f"Intent classification error: {e}")
+            logger.error(f"Intent classification error: {e}", exc_info=True)
             return set_error(state, f"Intent classification failed: {str(e)}")
     
     def _route_by_intent(self, state: AgentState) -> str:
@@ -124,7 +124,7 @@ class LegalAgent:
         logger.info(f"Routing to intent: {intent}")
         return intent
     
-    def _execute_rag_search_node(self, state: AgentState) -> AgentState:
+    async def _execute_rag_search_node(self, state: AgentState) -> AgentState:
         """
         Node: Execute RAG search tool.
         
@@ -140,7 +140,7 @@ class LegalAgent:
             
             logger.info(f"Executing RAG search for: {query[:50]}...")
             
-            result = tool.execute(query=query, top_k=5)
+            result = await tool.execute(query=query, top_k=5)
             
             return update_state(
                 state,
@@ -150,7 +150,7 @@ class LegalAgent:
             logger.error(f"RAG search execution error: {e}")
             return set_error(state, f"RAG search failed: {str(e)}")
     
-    def _execute_chat_node(self, state: AgentState) -> AgentState:
+    async def _execute_chat_node(self, state: AgentState) -> AgentState:
         """
         Node: Execute chat tool.
         
@@ -166,7 +166,7 @@ class LegalAgent:
             
             logger.info(f"Executing chat for: {query[:50]}...")
             
-            result = tool.execute(query=query, context="")
+            result = await tool.execute(message=query, context=[])
             
             return update_state(
                 state,
@@ -176,7 +176,7 @@ class LegalAgent:
             logger.error(f"Chat execution error: {e}")
             return set_error(state, f"Chat failed: {str(e)}")
     
-    def _execute_draft_node(self, state: AgentState) -> AgentState:
+    async def _execute_draft_node(self, state: AgentState) -> AgentState:
         """
         Node: Execute draft document tool.
         
@@ -194,7 +194,7 @@ class LegalAgent:
             
             # Extract document type and details from query
             # For now, use simple defaults
-            result = tool.execute(
+            result = await tool.execute(
                 document_type="bail_application",
                 case_details=query,
                 legal_provisions=""
@@ -208,7 +208,7 @@ class LegalAgent:
             logger.error(f"Draft document execution error: {e}")
             return set_error(state, f"Draft document failed: {str(e)}")
     
-    def _execute_analyze_node(self, state: AgentState) -> AgentState:
+    async def _execute_analyze_node(self, state: AgentState) -> AgentState:
         """
         Node: Execute analyze document tool.
         
@@ -226,9 +226,12 @@ class LegalAgent:
             
             # For now, return a message asking for document upload
             result = {
-                "analysis": "Please upload a document to analyze. Supported formats: PDF, DOCX",
-                "risks": [],
-                "recommendations": ["Upload document via the document upload endpoint"]
+                "success": True,
+                "data": {
+                    "analysis": "Please upload a document to analyze. Supported formats: PDF, DOCX",
+                    "risks": [],
+                    "recommendations": ["Upload document via the document upload endpoint"]
+                }
             }
             
             return update_state(
@@ -239,7 +242,7 @@ class LegalAgent:
             logger.error(f"Analyze document execution error: {e}")
             return set_error(state, f"Analyze document failed: {str(e)}")
     
-    def _format_response_node(self, state: AgentState) -> AgentState:
+    async def _format_response_node(self, state: AgentState) -> AgentState:
         """
         Node: Format final response from tool results.
         
@@ -278,13 +281,19 @@ class LegalAgent:
                 final_response=response
             )
         except Exception as e:
-            logger.error(f"Response formatting error: {e}")
+            logger.error(f"Response formatting error: {e}", exc_info=True)
             return set_error(state, f"Response formatting failed: {str(e)}")
     
     def _format_rag_response(self, result: Dict[str, Any]) -> str:
         """Format RAG search results."""
         if not result:
             return "No results found for your query."
+        
+        # Handle ToolResult object
+        if hasattr(result, 'success'):
+            if not result.success:
+                return f"Search failed: {result.error}"
+            result = result.data
         
         answer = result.get("answer", "")
         sources = result.get("sources", [])
@@ -299,12 +308,27 @@ class LegalAgent:
     
     def _format_chat_response(self, result: Dict[str, Any]) -> str:
         """Format chat results."""
-        return result.get("response", "I'm here to help with legal queries.")
+        if not result:
+            return "I'm here to help with legal queries."
+        
+        # Handle ToolResult object
+        if hasattr(result, 'success'):
+            if not result.success:
+                return f"Chat failed: {result.error}"
+            result = result.data
+        
+        return result.get("answer", "I'm here to help with legal queries.")
     
     def _format_draft_response(self, result: Dict[str, Any]) -> str:
         """Format draft document results."""
         if not result:
             return "Failed to generate document."
+        
+        # Handle ToolResult object
+        if hasattr(result, 'success'):
+            if not result.success:
+                return f"Draft generation failed: {result.error}"
+            result = result.data
         
         content = result.get("content", "")
         doc_type = result.get("document_type", "document")
@@ -315,6 +339,12 @@ class LegalAgent:
         """Format analyze document results."""
         if not result:
             return "Failed to analyze document."
+        
+        # Handle ToolResult object
+        if hasattr(result, 'success'):
+            if not result.success:
+                return f"Analysis failed: {result.error}"
+            result = result.data
         
         analysis = result.get("analysis", "")
         risks = result.get("risks", [])
@@ -334,7 +364,7 @@ class LegalAgent:
         
         return response
     
-    def process(self, query: str) -> Dict[str, Any]:
+    async def process(self, query: str) -> Dict[str, Any]:
         """
         Process a user query through the agent.
         
@@ -349,8 +379,8 @@ class LegalAgent:
         # Create initial state
         initial_state = create_initial_state(query)
         
-        # Run graph
-        final_state = self.graph.invoke(initial_state)
+        # Run graph asynchronously
+        final_state = await self.graph.ainvoke(initial_state)
         
         return {
             "response": final_state["final_response"],

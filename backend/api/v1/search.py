@@ -6,10 +6,10 @@ import logging
 from fastapi import APIRouter, HTTPException, status
 from typing import Dict, Any
 
-from backend.models.requests import RAGSearchRequest
-from backend.models.responses import RAGSearchResponse, Source, ErrorResponse
-from backend.services.rag_service import get_rag_service
-from backend.services.vector_service import VectorService
+from models.requests import RAGSearchRequest
+from models.responses import RAGSearchResponse, Source, ErrorResponse
+from services.rag_service import get_rag_service
+from services.vector_service import VectorService
 
 logger = logging.getLogger(__name__)
 
@@ -111,7 +111,7 @@ def list_collections() -> Dict[str, Any]:
         Dict with collection names and document counts
     """
     try:
-        from backend.services.vector_service import get_vector_service
+        from services.vector_service import get_vector_service
         
         vector_service = get_vector_service()
         collections = {}
