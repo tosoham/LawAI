@@ -86,11 +86,21 @@ class RAGSearchTool(BaseTool):
             self.logger.info(f"RAG search: query='{query}', collection={collection}, top_k={top_k}")
             
             # Perform RAG search
-            result = await self.rag_service.search(
-                query=query,
-                collection_name=collection if collection != "all" else None,
-                top_k=top_k
-            )
+            if collection == "all":
+                # Search across all collections
+                collections = ["bns_sections", "bnss_sections", "bsa_sections", "sc_judgements"]
+                result = self.rag_service.multi_collection_search(
+                    query=query,
+                    collections=collections,
+                    top_k_per_collection=max(1, top_k // len(collections))
+                )
+            else:
+                # Search specific collection
+                result = self.rag_service.search_and_generate(
+                    query=query,
+                    collection=collection,
+                    top_k=top_k
+                )
             
             if not result:
                 return ToolResult(
