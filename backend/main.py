@@ -44,8 +44,10 @@ app.add_middleware(
 
 # Import and include routers
 from api.v1.chat import router as chat_router
+from api.v1.search import router as search_router
 
 app.include_router(chat_router, prefix="/api/v1")
+app.include_router(search_router, prefix="/api/v1")
 
 
 @app.get("/")

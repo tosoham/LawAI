@@ -14,8 +14,10 @@ langgraph>=0.0.26
 langchain>=0.1.0
 langchain-core>=0.1.26,<0.2.0
 
-# Vector Database
+# Vector Database & Embeddings
 chromadb==0.4.22
+sentence-transformers==2.2.2
+numpy==1.24.3
 
 # Document Processing
 pypdf==3.17.4
