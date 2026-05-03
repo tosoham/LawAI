@@ -6,13 +6,13 @@ pydantic-settings==2.1.0
 python-multipart==0.0.6
 
 # IBM watsonx.ai Integration (CRITICAL - Non-negotiable)
-langchain-ibm==0.1.0
-ibm-watsonx-ai==0.2.0
+langchain-ibm>=0.1.0
+ibm-watsonx-ai>=0.1.8,<0.2.0
 
 # Agent Framework
-langgraph==0.0.26
-langchain==0.1.0
-langchain-core==0.1.0
+langgraph>=0.0.26
+langchain>=0.1.0
+langchain-core>=0.1.26,<0.2.0
 
 # Vector Database
 chromadb==0.4.22
