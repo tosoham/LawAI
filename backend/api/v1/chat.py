@@ -6,10 +6,10 @@ import logging
 from fastapi import APIRouter, HTTPException, status
 from fastapi.responses import StreamingResponse
 
-from backend.models.requests import ChatRequest
-from backend.models.responses import ChatResponse, ErrorResponse
-from backend.services.llm_service import llm_service
-from backend.services.streaming import stream_llm_response, create_streaming_response
+from models.requests import ChatRequest
+from models.responses import ChatResponse, ErrorResponse
+from services.llm_service import llm_service
+from services.streaming import stream_llm_response, create_streaming_response
 
 logger = logging.getLogger(__name__)
 
