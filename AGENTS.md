@@ -12,13 +12,13 @@ This file provides guidance to agents when working with code in this repository.
 
 ## Architecture
 LangGraph agent orchestrates 4 MCP tools:
-1. **rag_search** - Query Indian legal corpus (IPC, CrPC, SC judgements)
+1. **rag_search** - Query Indian legal corpus (BNS, BNSS, BSA, SC judgements)
 2. **draft_document** - Generate legal drafts (bail applications, petitions)
 3. **analyze_doc** - Extract and analyze uploaded legal documents (PDF)
 4. **chat** - General legal Q&A with context
 
 ## Core Demo Flows
-1. **Bail Application**: "Client arrested under IPC 302" → rag_search (CrPC 437/439) → draft_document → .docx download
+1. **Bail Application**: "Client arrested under BNS 103" → rag_search (BNSS 479/482) → draft_document → .docx download
 2. **Case Law Search**: "SC anticipatory bail rulings last 5 years" → rag_search → synthesized answer with citations
 3. **Document Analysis**: Upload rental agreement PDF → analyze_doc → risk summary (termination clauses, indemnity traps)
 
@@ -40,7 +40,7 @@ npm run dev
 ## Key Implementation Notes
 - **IBM watsonx.ai**: Use langchain-ibm for API integration (non-negotiable requirement)
 - **Streaming**: FastAPI StreamingResponse for token-by-token output
-- **RAG Collections**: Separate ChromaDB collections for IPC, CrPC, SC judgements
+- **RAG Collections**: Separate ChromaDB collections for BNS, BNSS, BSA, SC judgements
 - **Document Processing**: PDF text extraction for analyze_doc tool
 - **Agent Logic**: LangGraph state machine routes user intent to appropriate tool(s)
 
@@ -53,7 +53,7 @@ npm run dev
 ## Testing
 - Unit tests for each MCP tool
 - Integration tests for agent flows
-- Test with real IPC/CrPC sections and SC judgement samples
+- Test with real BNS/BNSS/BSA sections and SC judgement samples
 - Verify .docx generation and PDF parsing
 
 ## Security & Compliance
