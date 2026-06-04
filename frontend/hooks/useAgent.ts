@@ -48,17 +48,21 @@ export const useAgent = (): UseAgentResult => {
   }, []);
 
   const queryStream = useCallback(async (request: AgentQueryRequest) => {
+    console.log('[useAgent] Starting stream query:', request.query);
     setIsLoading(true);
     setError(null);
     setResponse(null);
     resetStream();
 
     try {
+      console.log('[useAgent] Calling API queryStream...');
       const stream = await api.agent.queryStream(request);
+      console.log('[useAgent] Stream received, starting to read...');
       setIsLoading(false);
       await startStream(stream);
+      console.log('[useAgent] Stream reading completed');
     } catch (err) {
-      console.error('Agent stream query error:', err);
+      console.error('[useAgent] Agent stream query error:', err);
       setError(err instanceof Error ? err.message : 'Stream query failed');
       setIsLoading(false);
     }

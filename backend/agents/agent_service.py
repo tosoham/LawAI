@@ -88,8 +88,10 @@ class AgentService:
             query: User query string
             
         Yields:
-            Response chunks as they are generated
+            Response chunks in SSE format
         """
+        import json
+        
         try:
             logger.info(f"Processing query with streaming: {query[:100]}...")
             
@@ -98,18 +100,24 @@ class AgentService:
             
             response = result.get("response", "")
             
-            # Simulate streaming by yielding chunks
+            # Stream response in SSE format with proper JSON structure
             chunk_size = 50
             for i in range(0, len(response), chunk_size):
                 chunk = response[i:i + chunk_size]
-                yield chunk
+                # Format as SSE with JSON payload matching frontend expectations
+                sse_data = json.dumps({"token": chunk})
+                yield f"data: {sse_data}\n\n"
                 await asyncio.sleep(0.05)  # Small delay for streaming effect
+            
+            # Send completion marker
+            yield f"data: [DONE]\n\n"
             
             logger.info("Streaming completed successfully")
             
         except Exception as e:
             logger.error(f"Error in streaming query: {e}", exc_info=True)
-            yield f"Error: {str(e)}"
+            error_data = json.dumps({"error": str(e)})
+            yield f"data: {error_data}\n\n"
     
     def get_agent_info(self) -> Dict[str, Any]:
         """
