@@ -20,8 +20,8 @@ See also: [plan.md](plan.md) (the rebuild plan) and [PROGRESS.md](PROGRESS.md) (
 - **AIML API** (`https://api.aimlapi.com/v1`), OpenAI-compatible, accessed with the `openai`
   SDK. Default model `gpt-4o-mini`. Env vars: `AIML_API_KEY`, `AIML_BASE_URL`, `AIML_MODEL`,
   `AIML_MAX_TOKENS`, `AIML_TEMPERATURE`.
-- **`backend/.env` has an empty `AIML_API_KEY`** — the user fills it in. Everything except
-  live LLM calls works without it.
+- **`backend/.env` holds a working `AIML_API_KEY`** (gitignored). Live generation, real token
+  streaming and the full e2e suite have all been verified against it.
 - The previous `backend/.env` contained a live IBM watsonx key and project id. Those were
   removed when the file was rewritten. `.env` is gitignored and was never committed, so no
   history scrub is needed.
@@ -62,9 +62,14 @@ Judgements come from `indiankanoon.org/doc/<id>/`, parsed with the `.doc_title`,
   unrelated Jayalalitha appeal; several landmark searches return a later order in the same
   matter instead of the judgement. Every id in the manifest was resolved and eyeballed, and
   ingestion re-verifies each page against `expect` tokens.
-- Four cases could not be verified (Bhajan Lal, Selvi, the 2017 Puttaswamy, the 2014
-  Mohd. Arif) and were **deliberately omitted**. Adding them means finding the correct
-  document ids by hand first.
+- Plain search returns *citing* cases, not the judgement. Indian Kanoon's `title:(...)` plus
+  `fromdate:`/`todate:` operators resolve landmarks exactly; that is how the last four were
+  found.
+- **Title tokens alone are not enough.** The first Bhajan Lal id matched "bhajanlal" and
+  "haryana" but was a 1992 *contempt petition* between the same parties. `expect_text` now
+  asserts a phrase from the actual holding appears in the body.
+- Some Indian Kanoon pages are **abridged**: Bhajan Lal returns ~27k chars ending near
+  paragraph 12, so its seven-category list (paragraph 102) is not in the corpus.
 - `robots.txt` lists ~3,900 disallowed document ids for generic agents; the script parses and
   honours that list, rate limits to one request per 2s, and caches HTML in `data/raw/`.
 
@@ -102,3 +107,18 @@ Judgements come from `indiankanoon.org/doc/<id>/`, parsed with the `.doc_title`,
   duplicated every singleton. Keep both on the `services.*` convention.
 - Live tests are marked `live` and skip without `AIML_API_KEY`. Plain `pytest` must stay green
   with no credentials.
+
+
+## Contract pitfalls found by live testing (do not regress these)
+
+- `frontend/lib/api.ts` is only tracked because the Python `lib/` ignore was anchored to
+  `/lib/`. Re-broadening it would silently drop the API client from the repo again.
+- The RAG endpoint is `POST /api/v1/search/rag` (`/search` kept as an alias). It accepts both
+  `bns` and `bns_sections` forms, and returns `{answer, sources[], query, num_sources}` —
+  **not** `results[]`.
+- Both streaming endpoints emit one SSE dialect: `data: {"token": ...}` lines terminated by
+  `data: [DONE]`. `frontend/lib/api.ts::readStream` only understands that shape.
+- `_format_analyze_response` and friends detect a tool payload via
+  `hasattr(result, "success")`, so agent nodes must return a `ToolResult`, never a bare dict.
+- Draft and analyse intents require an action verb. Without that guard, "Tell me about bail"
+  is answered by drafting a bail application.
