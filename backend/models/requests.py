@@ -62,8 +62,13 @@ class RAGSearchRequest(BaseModel):
     
     collection: Optional[str] = Field(
         None,
-        description="Specific collection to search (bns, bnss, bsa, judgements)",
-        pattern="^(bns|bnss|bsa|judgements)$"
+        description=(
+            "Collection to search. Accepts either the short alias "
+            "(bns, bnss, bsa, judgements) or the full collection name "
+            "(bns_sections, bnss_sections, bsa_sections, sc_judgements). "
+            "Omit to search across all collections."
+        ),
+        pattern="^(bns|bnss|bsa|judgements|bns_sections|bnss_sections|bsa_sections|sc_judgements)$"
     )
     
     top_k: int = Field(
@@ -107,6 +112,42 @@ class DraftDocumentRequest(BaseModel):
                     "sections": "BNS 103",
                     "facts": "First time offender, no criminal history"
                 }
+            }
+        }
+
+
+class ExportDocxRequest(BaseModel):
+    """Request model for rendering document text as a .docx file"""
+
+    content: str = Field(
+        ...,
+        description="Document text to render",
+        min_length=1
+    )
+
+    filename: str = Field(
+        default="document",
+        description="Base filename; the .docx suffix is added if missing",
+        max_length=200
+    )
+
+    title: Optional[str] = Field(
+        None,
+        description="Optional heading placed at the top of the document",
+        max_length=300
+    )
+
+    include_disclaimer: bool = Field(
+        default=True,
+        description="Append the AI-generated content disclaimer"
+    )
+
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "content": "IN THE COURT OF SESSIONS JUDGE\n\nBAIL APPLICATION...",
+                "filename": "bail_application_rajesh_kumar",
+                "title": "Bail Application"
             }
         }
 

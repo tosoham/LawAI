@@ -10,8 +10,11 @@ dist/
 downloads/
 eggs/
 .eggs/
-lib/
-lib64/
+# Anchored to the repo root: an unanchored "lib/" also matched frontend/lib/,
+# which silently kept the API client (frontend/lib/api.ts) out of version
+# control and left a fresh clone unable to build.
+/lib/
+/lib64/
 parts/
 sdist/
 var/

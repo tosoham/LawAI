@@ -121,6 +121,30 @@ class TestIntentClassifier:
             intent = classifier.classify(query)
             assert intent == IntentType.CHAT.value
     
+    @pytest.mark.parametrize("query", [
+        "Tell me about bail",
+        "What are the provisions for bail in BNSS?",
+        "Find Supreme Court judgements on anticipatory bail",
+        "Explain the petition process",
+        "What are the risks under a contract?",
+    ])
+    def test_legal_vocabulary_alone_does_not_mean_draft_or_analyse(self, query):
+        """
+        Regression: "bail", "petition", "contract" and "risks" are ordinary legal
+        vocabulary. Without an action verb they are questions about the law, not
+        requests to produce or inspect a document.
+        """
+        assert IntentClassifier().classify(query) == IntentType.RAG_SEARCH.value
+
+    @pytest.mark.parametrize("query,expected", [
+        ("Draft a bail application", IntentType.DRAFT_DOCUMENT.value),
+        ("Prepare a petition", IntentType.DRAFT_DOCUMENT.value),
+        ("Review this contract for risks", IntentType.ANALYZE_DOCUMENT.value),
+        ("Summarise the attached agreement", IntentType.ANALYZE_DOCUMENT.value),
+    ])
+    def test_action_verb_enables_document_intents(self, query, expected):
+        assert IntentClassifier().classify(query) == expected
+
     def test_classify_with_llm_fallback(self):
         """Test LLM fallback classification"""
         mock_llm = Mock()

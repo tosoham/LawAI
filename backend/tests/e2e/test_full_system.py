@@ -62,9 +62,10 @@ class TestE2ESystem:
         assert response.status_code == 200, f"Search failed: {response.text}"
         search_results = response.json()
         
-        assert "results" in search_results
-        assert len(search_results["results"]) > 0
-        print(f"✓ Found {len(search_results['results'])} relevant sections")
+        assert "answer" in search_results
+        assert "sources" in search_results
+        assert len(search_results["sources"]) > 0
+        print(f"✓ Found {len(search_results['sources'])} relevant sections")
         
         # Step 2: Draft bail application using agent
         print("Step 2: Drafting bail application...")
@@ -89,24 +90,42 @@ class TestE2ESystem:
         print("Step 3: Generating .docx document...")
         doc_payload = {
             "document_type": "bail_application",
-            "content": {
-                "client_name": "Rajesh Kumar",
-                "case_details": "Arrested under BNS Section 103",
-                "legal_grounds": draft_result["response"][:500]  # Use part of draft
+            "case_details": {
+                "accused_name": "Rajesh Kumar",
+                "fir_number": "FIR 42/2024",
+                "sections": "BNS 103",
+                "facts": "Arrested on 2024-01-15, no prior criminal record.",
+                "police_station": "Andheri PS"
             }
         }
-        
+
         response = requests.post(
             f"{BASE_URL}/api/v1/documents/draft",
             json=doc_payload,
-            timeout=30
+            timeout=TIMEOUT
         )
         assert response.status_code == 200, f"Document generation failed: {response.text}"
-        
-        # Verify it's a binary response (docx file)
+        drafted = response.json()
+        assert drafted["success"] is True
+        assert len(drafted["document"]) > 200
+        print(f"✓ Document drafted ({len(drafted['document'])} chars)")
+
+        # Step 4: Export the draft as a .docx the user can file
+        print("Step 4: Exporting .docx document...")
+        response = requests.post(
+            f"{BASE_URL}/api/v1/documents/export/docx",
+            json={
+                "content": drafted["document"],
+                "filename": "bail_application_rajesh_kumar",
+                "title": "Bail Application"
+            },
+            timeout=30
+        )
+        assert response.status_code == 200, f"Export failed: {response.text}"
         assert response.headers["content-type"] == "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-        assert len(response.content) > 1000  # Should be substantial
-        print(f"✓ Document generated ({len(response.content)} bytes)")
+        assert response.content[:2] == b"PK"  # .docx is a zip archive
+        assert len(response.content) > 1000
+        print(f"✓ Document exported ({len(response.content)} bytes)")
         
         print("✓✓✓ Bail Application Flow: PASSED")
     
@@ -135,19 +154,20 @@ class TestE2ESystem:
         assert response.status_code == 200
         results = response.json()
         
-        assert "results" in results
-        assert len(results["results"]) > 0
+        assert "answer" in results
+        assert "sources" in results
+        assert len(results["sources"]) > 0
         
         # Step 2: Verify citations and scores
         print("Step 2: Verifying citations and relevance scores...")
-        for result in results["results"]:
-            assert "content" in result
+        for result in results["sources"]:
+            assert "text" in result
             assert "metadata" in result
-            assert "score" in result
-            assert 0 <= result["score"] <= 1
-            print(f"  - Score: {result['score']:.3f}, Content: {result['content'][:80]}...")
-        
-        print(f"✓ Found {len(results['results'])} relevant judgements")
+            assert "relevance_score" in result
+            assert 0 <= result["relevance_score"] <= 1
+            print(f"  - Score: {result['relevance_score']:.3f}, Text: {result['text'][:80]}...")
+
+        print(f"✓ Found {len(results['sources'])} relevant judgements")
         
         # Step 3: Test export (simulate)
         print("Step 3: Testing export functionality...")
@@ -188,8 +208,9 @@ class TestE2ESystem:
         
         print("Step 1: Analyzing rental agreement...")
         analyze_payload = {
-            "text": sample_agreement,
-            "analysis_type": "risk_analysis"
+            "document_text": sample_agreement,
+            "analysis_type": "risks",
+            "document_type": "agreement"
         }
         
         response = requests.post(
@@ -228,7 +249,9 @@ class TestE2ESystem:
         print("Step 1: Sending initial chat query...")
         chat_payload = {
             "message": "Explain the concept of anticipatory bail in simple terms",
-            "session_id": session_id
+            "session_id": session_id,
+            # /chat streams SSE unless told otherwise; this step wants JSON.
+            "stream": False
         }
         
         response = requests.post(
@@ -247,7 +270,8 @@ class TestE2ESystem:
         print("Step 2: Sending follow-up query...")
         followup_payload = {
             "message": "What are the conditions for granting it?",
-            "session_id": session_id
+            "session_id": session_id,
+            "stream": False
         }
         
         response = requests.post(
@@ -270,7 +294,7 @@ class TestE2ESystem:
         }
         
         response = requests.post(
-            f"{BASE_URL}/api/v1/agent/stream",
+            f"{BASE_URL}/api/v1/agent/query/stream",
             json=stream_payload,
             stream=True,
             timeout=TIMEOUT
@@ -278,15 +302,23 @@ class TestE2ESystem:
         assert response.status_code == 200
         
         # Collect streamed chunks
+        # SSE contract: data: {"token": "..."} lines, terminated by data: [DONE]
         chunks = []
         for line in response.iter_lines():
-            if line:
-                try:
-                    data = json.loads(line.decode('utf-8').replace('data: ', ''))
-                    if data.get("type") == "token":
-                        chunks.append(data.get("content", ""))
-                except:
-                    pass
+            if not line:
+                continue
+            decoded = line.decode("utf-8")
+            if not decoded.startswith("data: "):
+                continue
+            payload = decoded[len("data: "):]
+            if payload == "[DONE]":
+                break
+            try:
+                data = json.loads(payload)
+            except json.JSONDecodeError:
+                continue
+            if "token" in data:
+                chunks.append(data["token"])
         
         full_response = "".join(chunks)
         assert len(full_response) > 20, "Streaming should return content"
@@ -395,7 +427,8 @@ class TestE2ESystem:
                 f"{BASE_URL}/api/v1/chat",
                 json={
                     "message": f"What is BNS Section {100 + i}?",
-                    "session_id": f"concurrent_test_{i}"
+                    "session_id": f"concurrent_test_{i}",
+                    "stream": False
                 },
                 timeout=TIMEOUT
             )

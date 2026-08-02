@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/search", tags=["search"])
 
 
-# Collection name mapping
+# Short aliases used by the API and shown in /search/collections.
 COLLECTION_MAP = {
     "bns": VectorService.BNS_COLLECTION,
     "bnss": VectorService.BNSS_COLLECTION,
@@ -24,9 +24,22 @@ COLLECTION_MAP = {
     "judgements": VectorService.SC_JUDGEMENTS_COLLECTION
 }
 
+# The frontend and the vector store itself refer to collections by their full
+# name ("bns_sections"), so accept either form rather than making callers
+# translate. Requests using the full name previously failed validation.
+COLLECTION_ALIASES = {
+    **COLLECTION_MAP,
+    **{full: full for full in COLLECTION_MAP.values()},
+}
+
+
+def resolve_collection(name: str) -> str:
+    """Map a short alias or a full collection name to the stored collection."""
+    return COLLECTION_ALIASES[name]
+
 
 @router.post(
-    "/",
+    "/rag",
     response_model=Dict[str, Any],
     responses={
         400: {"model": ErrorResponse},
@@ -35,6 +48,9 @@ COLLECTION_MAP = {
     summary="RAG Search",
     description="Perform semantic search across legal collections with AI-generated contextual answers"
 )
+# "/search/rag" is canonical (it is what the frontend calls); "/search" is kept
+# so older clients do not break.
+@router.post("", response_model=Dict[str, Any], include_in_schema=False)
 def rag_search(request: RAGSearchRequest) -> Dict[str, Any]:
     """
     Perform RAG (Retrieval-Augmented Generation) search
@@ -63,13 +79,13 @@ def rag_search(request: RAGSearchRequest) -> Dict[str, Any]:
         # Determine collection(s) to search
         if request.collection:
             # Search specific collection
-            if request.collection not in COLLECTION_MAP:
+            if request.collection not in COLLECTION_ALIASES:
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
-                    detail=f"Invalid collection: {request.collection}. Must be one of: {list(COLLECTION_MAP.keys())}"
+                    detail=f"Invalid collection: {request.collection}. Must be one of: {sorted(COLLECTION_ALIASES)}"
                 )
             
-            collection_name = COLLECTION_MAP[request.collection]
+            collection_name = resolve_collection(request.collection)
             result = rag_service.search_and_generate(
                 query=request.query,
                 collection=collection_name,

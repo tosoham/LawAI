@@ -15,42 +15,36 @@ async def stream_llm_response(
     include_metadata: bool = False
 ) -> AsyncIterator[str]:
     """
-    Format LLM streaming output for FastAPI StreamingResponse
-    
+    Format LLM streaming output for FastAPI StreamingResponse.
+
+    Emits the same SSE contract as ``AgentService.process_query_stream`` so that
+    both streaming endpoints can be consumed by one client parser:
+
+        data: {"token": "..."}   # zero or more
+        data: {"error": "..."}   # on failure
+        data: [DONE]             # always last
+
+    This previously emitted ``{"type": "token", "content": ...}``, which the
+    frontend's ``readStream`` (it reads ``parsed.token``) silently dropped, so
+    streaming chat rendered nothing.
+
     Args:
         llm_generator: Async generator yielding tokens from LLM
-        include_metadata: Whether to include metadata in stream
-        
+        include_metadata: Kept for backwards compatibility; ignored
+
     Yields:
         Formatted SSE (Server-Sent Events) strings
     """
     try:
-        # Send start event
-        if include_metadata:
-            yield f"data: {json.dumps({'type': 'start'})}\n\n"
-        
-        # Stream tokens
         async for token in llm_generator:
             if token:
-                # Format as SSE
-                data = {
-                    "type": "token",
-                    "content": token
-                }
-                yield f"data: {json.dumps(data)}\n\n"
-        
-        # Send end event
-        if include_metadata:
-            yield f"data: {json.dumps({'type': 'end'})}\n\n"
-            
+                yield f"data: {json.dumps({'token': token})}\n\n"
+
     except Exception as e:
         logger.error(f"Streaming error: {str(e)}")
-        # Send error event
-        error_data = {
-            "type": "error",
-            "message": str(e)
-        }
-        yield f"data: {json.dumps(error_data)}\n\n"
+        yield f"data: {json.dumps({'error': str(e)})}\n\n"
+
+    yield "data: [DONE]\n\n"
 
 
 async def stream_text_response(

@@ -41,7 +41,8 @@ export const SearchInterface: React.FC = () => {
       query: results.query,
       collection: results.collection,
       timestamp: new Date().toISOString(),
-      results: results.results,
+      answer: results.answer,
+      sources: results.sources,
     };
 
     const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
@@ -149,7 +150,7 @@ export const SearchInterface: React.FC = () => {
             <div className="flex items-center justify-between bg-white border border-gray-200 rounded-lg px-4 py-3">
               <div>
                 <p className="text-sm font-medium text-gray-900">
-                  Found {results.results.length} results for &ldquo;{results.query}&rdquo;
+                  Found {results.num_sources} sources for &ldquo;{results.query}&rdquo;
                 </p>
                 <p className="text-xs text-gray-600">
                   Collection: {COLLECTIONS.find((c) => c.value === results.collection)?.label}
@@ -166,14 +167,25 @@ export const SearchInterface: React.FC = () => {
               </button>
             </div>
 
-            {/* Results List */}
+            {/* Generated answer */}
+            {results.answer && (
+              <div className="bg-white border border-gray-200 rounded-lg px-4 py-3">
+                <h3 className="text-sm font-medium text-gray-900 mb-2">Answer</h3>
+                <div className="prose prose-sm max-w-none text-gray-800 whitespace-pre-wrap">
+                  {results.answer}
+                </div>
+              </div>
+            )}
+
+            {/* Sources */}
             <div className="space-y-3">
-              {results.results.map((result, index) => (
+              <h3 className="text-sm font-medium text-gray-900">Sources</h3>
+              {results.sources.map((source) => (
                 <SourceCard
-                  key={index}
-                  content={result.content}
-                  metadata={result.metadata}
-                  score={result.score}
+                  key={source.id}
+                  content={source.text}
+                  metadata={source.metadata}
+                  score={source.relevance_score}
                 />
               ))}
             </div>

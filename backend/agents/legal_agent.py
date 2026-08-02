@@ -10,6 +10,7 @@ from langgraph.graph import StateGraph, END
 
 from agents.state import AgentState, IntentType, update_state, set_error
 from agents.intent_classifier import IntentClassifier
+from tools.base_tool import ToolResult
 from tools.registry import ToolRegistry
 
 logger = logging.getLogger(__name__)
@@ -269,9 +270,12 @@ class LegalAgent:
             if tool is not None and len(document_text) >= self._MIN_INLINE_DOCUMENT_CHARS:
                 result = await tool.execute(document_text=document_text, analysis_type="full")
             else:
-                result = {
-                    "success": True,
-                    "data": {
+                # Must be a ToolResult, not a bare dict: _format_analyze_response
+                # detects the tool's payload via `hasattr(result, "success")`, and a
+                # dict fails that check, yielding an empty analysis.
+                result = ToolResult(
+                    success=True,
+                    data={
                         "analysis": (
                             "Please provide the document to analyse. You can paste its "
                             "text directly into your message, or upload a PDF/DOCX to "
@@ -283,7 +287,7 @@ class LegalAgent:
                             "Upload the file via POST /api/v1/documents/analyze",
                         ],
                     },
-                }
+                )
 
             return update_state(
                 state,

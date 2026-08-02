@@ -46,6 +46,22 @@ class IntentClassifier:
         ],
     }
     
+    # Producing or inspecting a document is something the user asks for with a
+    # verb. The supporting keywords above ("bail", "petition", "contract",
+    # "risks") are ordinary legal vocabulary that shows up just as often in
+    # questions *about* the law, so without one of these verbs those intents
+    # score nothing -- otherwise "Tell me about bail" is answered with a drafted
+    # bail application.
+    REQUIRED_TRIGGERS = {
+        IntentType.DRAFT_DOCUMENT: re.compile(
+            r'\b(draft|write|prepare|create|generate|make|file|send|issue)\b'
+        ),
+        IntentType.ANALYZE_DOCUMENT: re.compile(
+            r'\b(analyse|analyze|review|examine|assess|evaluate|check|summari[sz]e|'
+            r'go through|look (?:at|over)|vet)\b'
+        ),
+    }
+
     # Order used to resolve equal keyword scores; most specific intent first.
     _TIE_BREAK_ORDER = (
         IntentType.CHAT,
@@ -80,6 +96,9 @@ class IntentClassifier:
         scores = {intent: 0 for intent in IntentType}
         
         for intent, patterns in self.INTENT_PATTERNS.items():
+            trigger = self.REQUIRED_TRIGGERS.get(intent)
+            if trigger is not None and not trigger.search(query_lower):
+                continue
             for pattern in patterns:
                 if re.search(pattern, query_lower):
                     scores[intent] += 1
