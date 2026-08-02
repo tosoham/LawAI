@@ -14,6 +14,9 @@ class IntentType(str, Enum):
     CHAT = "chat"
     DRAFT_DOCUMENT = "draft_document"
     ANALYZE_DOCUMENT = "analyze_document"
+    #: Questions about recent or current case law. The corpus is a snapshot, so
+    #: these are answered by letting the model call live judiciary sources.
+    LIVE_RESEARCH = "live_research"
     UNKNOWN = "unknown"
 
 

@@ -15,6 +15,8 @@ LawAI is an AI-powered legal assistant for the Indian legal framework. A LangGra
 ### Key Features
 
 - 🔍 **RAG Search** - Query Indian legal corpus (BNS, BNSS, BSA, Supreme Court judgements)
+- 🛰️ **Live Case Law** - Fetch current judgements from authentic judiciary sources when a
+  question reaches past the local corpus; the model decides via function calling
 - 📝 **Draft Document** - Generate legal drafts (bail applications, petitions, notices)
 - 📄 **Analyze Document** - Extract and analyze uploaded legal documents (PDF/DOCX)
 - 💬 **Chat** - Context-aware legal Q&A with accurate citations

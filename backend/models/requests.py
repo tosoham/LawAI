@@ -114,6 +114,51 @@ class DraftDocumentRequest(BaseModel):
         })
 
 
+class LiveCaseLawRequest(BaseModel):
+    """Request model for searching live judiciary sources"""
+
+    query: str = Field(
+        ...,
+        description="What to search current case law for",
+        min_length=1,
+        max_length=500
+    )
+
+    court: str = Field(
+        default="supremecourt",
+        description="Which courts to search",
+        pattern="^(supremecourt|highcourts|tribunals|all)$"
+    )
+
+    from_date: str | None = Field(
+        None,
+        description="Earliest judgement date, as YYYY-MM-DD or a year",
+        max_length=10
+    )
+
+    to_date: str | None = Field(
+        None,
+        description="Latest judgement date, as YYYY-MM-DD or a year",
+        max_length=10
+    )
+
+    limit: int = Field(
+        default=5,
+        description="Maximum results to return",
+        ge=1,
+        le=20
+    )
+
+    model_config = ConfigDict(json_schema_extra={
+        "example": {
+            "query": "anticipatory bail economic offences",
+            "court": "supremecourt",
+            "from_date": "2026-01-01",
+            "limit": 5
+        }
+    })
+
+
 class ExportDocxRequest(BaseModel):
     """Request model for rendering document text as a .docx file"""
 

@@ -4,6 +4,7 @@ LangGraph Agent for LawAI
 Orchestrates tool execution based on user intent using LangGraph.
 """
 
+import asyncio
 import logging
 from typing import Any
 
@@ -25,7 +26,8 @@ class LegalAgent:
     def __init__(
         self,
         intent_classifier: IntentClassifier,
-        tool_registry: ToolRegistry
+        tool_registry: ToolRegistry,
+        llm_service=None,
     ):
         """
         Initialize legal agent.
@@ -33,9 +35,12 @@ class LegalAgent:
         Args:
             intent_classifier: Intent classification service
             tool_registry: Tool registry for accessing tools
+            llm_service: LLM service, required only for the live-research node,
+                which lets the model call tools for itself
         """
         self.intent_classifier = intent_classifier
         self.tool_registry = tool_registry
+        self.llm_service = llm_service
         self.graph = self._build_graph()
 
     def _build_graph(self) -> StateGraph:
@@ -54,6 +59,7 @@ class LegalAgent:
         graph.add_node("execute_chat", self._execute_chat_node)
         graph.add_node("execute_draft", self._execute_draft_node)
         graph.add_node("execute_analyze", self._execute_analyze_node)
+        graph.add_node("execute_live_research", self._execute_live_research_node)
         graph.add_node("format_response", self._format_response_node)
 
         # Set entry point
@@ -68,6 +74,7 @@ class LegalAgent:
                 IntentType.CHAT.value: "execute_chat",
                 IntentType.DRAFT_DOCUMENT.value: "execute_draft",
                 IntentType.ANALYZE_DOCUMENT.value: "execute_analyze",
+                IntentType.LIVE_RESEARCH.value: "execute_live_research",
                 IntentType.UNKNOWN.value: "execute_rag_search",  # Default to RAG
             }
         )
@@ -77,6 +84,7 @@ class LegalAgent:
         graph.add_edge("execute_chat", "format_response")
         graph.add_edge("execute_draft", "format_response")
         graph.add_edge("execute_analyze", "format_response")
+        graph.add_edge("execute_live_research", "format_response")
 
         # format_response goes to END
         graph.add_edge("format_response", END)
@@ -298,6 +306,88 @@ class LegalAgent:
             logger.error(f"Analyze document execution error: {e}")
             return set_error(state, f"Analyze document failed: {e!s}")
 
+    LIVE_RESEARCH_SYSTEM_PROMPT = (
+        "You are a legal research assistant for Indian law.\n\n"
+        "You have two kinds of source available:\n"
+        "1. search_local_corpus - a verified corpus holding the complete text of the "
+        "Bharatiya Nyaya Sanhita, Bharatiya Nagarik Suraksha Sanhita and Bharatiya "
+        "Sakshya Adhiniyam (2023), plus landmark Supreme Court judgements. Prefer it "
+        "for statutory provisions and settled law.\n"
+        "2. live_case_law_search and fetch_judgment - authentic judiciary sources "
+        "queried live. The corpus is a snapshot, so use these for recent, current or "
+        "dated judgements it cannot contain.\n\n"
+        "Start with whichever fits the question, and consult both when a recent "
+        "decision needs to be read against the statute. Cite the section or case you "
+        "rely on, give the court and date for judgements, and say plainly when the "
+        "sources do not settle the question. Never invent a citation."
+    )
+
+    async def _execute_live_research_node(self, state: AgentState) -> AgentState:
+        """
+        Node: answer using live judiciary sources, letting the model drive.
+
+        Unlike the other nodes, which call one predetermined tool, this hands the
+        model a set of tools and lets it decide what to consult -- the corpus, a
+        live search, or both -- because whether a question needs current data is
+        a judgement the classifier cannot reliably make on keywords alone.
+        """
+        try:
+            query = state["user_query"]
+            logger.info(f"Executing live research for: {query[:50]}...")
+
+            if self.llm_service is None:
+                return set_error(
+                    state, "Live research is unavailable: no LLM service configured"
+                )
+
+            from tools.live_case_law_tool import build_openai_tool_schemas
+
+            result = await asyncio.to_thread(
+                self.llm_service.generate_with_tools,
+                prompt=query,
+                tools=build_openai_tool_schemas(),
+                executor=self._run_research_tool,
+                system=self.LIVE_RESEARCH_SYSTEM_PROMPT,
+            )
+
+            return update_state(
+                state,
+                tool_results={"live_research": result},
+                metadata={
+                    **state.get("metadata", {}),
+                    "tools_invoked": [c["name"] for c in result.get("tool_calls", [])],
+                },
+            )
+        except Exception as e:
+            logger.error(f"Live research execution error: {e}", exc_info=True)
+            return set_error(state, f"Live research failed: {e!s}")
+
+    def _run_research_tool(self, name: str, arguments: dict) -> dict:
+        """
+        Execute a tool the model asked for.
+
+        Runs synchronously because it is already off the event loop, inside the
+        thread running ``generate_with_tools``.
+        """
+        tool = self.tool_registry.get_tool(
+            "rag_search" if name == "search_local_corpus" else name
+        )
+        if tool is None:
+            return {"success": False, "error": f"Unknown tool: {name}"}
+
+        if name == "search_local_corpus":
+            arguments = {
+                "query": arguments.get("query", ""),
+                "collection": arguments.get("collection"),
+                "top_k": 5,
+            }
+
+        result = asyncio.run(tool.safe_execute(**arguments))
+
+        if not result.success:
+            return {"success": False, "error": result.error}
+        return {"success": True, "data": result.data}
+
     async def _format_response_node(self, state: AgentState) -> AgentState:
         """
         Node: Format final response from tool results.
@@ -327,6 +417,10 @@ class LegalAgent:
                 response = self._format_chat_response(tool_results.get("chat", {}))
             elif IntentType.DRAFT_DOCUMENT.value in intent:
                 response = self._format_draft_response(tool_results.get("draft_document", {}))
+            elif IntentType.LIVE_RESEARCH.value in intent:
+                response = self._format_live_research_response(
+                    tool_results.get("live_research", {})
+                )
             elif IntentType.ANALYZE_DOCUMENT.value in intent:
                 response = self._format_analyze_response(tool_results.get("analyze_doc", {}))
             else:
@@ -391,6 +485,49 @@ class LegalAgent:
         doc_type = result.get("document_type", "document")
 
         return f"**Generated {doc_type}:**\n\n{content}\n\n*Note: This is an AI-generated draft. Please review with a legal professional.*"
+
+    def _format_live_research_response(self, result: dict[str, Any]) -> str:
+        """
+        Format a tool-assisted answer, listing the live authorities consulted.
+
+        Live results are retrieved rather than curated, so they are surfaced with
+        court, date and source URL and labelled as such.
+        """
+        if not result:
+            return "No research results available."
+
+        answer = result.get("content", "").strip()
+        if not answer:
+            answer = "I could not produce an answer from the available sources."
+
+        live_sources: list[str] = []
+        seen: set[str] = set()
+        for call in result.get("tool_calls", []):
+            data = (call.get("result") or {}).get("data") or {}
+            for hit in data.get("results", []):
+                url = hit.get("source_url")
+                if not url or url in seen:
+                    continue
+                seen.add(url)
+                bits = [b for b in (hit.get("title"), hit.get("court"), hit.get("date")) if b]
+                live_sources.append(f"- {' — '.join(bits)}\n  {url}")
+            if data.get("doc_id") and data.get("source_url") not in seen:
+                seen.add(data["source_url"])
+                bits = [b for b in (data.get("title"), data.get("date")) if b]
+                live_sources.append(f"- {' — '.join(bits)}\n  {data['source_url']}")
+
+        if live_sources:
+            answer += (
+                "\n\n**Live sources consulted** (retrieved from public judiciary "
+                "records, not the verified corpus — please confirm before relying "
+                "on them):\n" + "\n".join(live_sources[:8])
+            )
+
+        answer += (
+            "\n\n*DISCLAIMER: AI-generated legal information. Verify against the "
+            "official record and consult a qualified lawyer.*"
+        )
+        return answer
 
     def _format_analyze_response(self, result: dict[str, Any]) -> str:
         """Format analyze document results."""

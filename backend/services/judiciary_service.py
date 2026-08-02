@@ -1,0 +1,461 @@
+"""
+Live judiciary data access for LawAI.
+
+The ChromaDB corpus is a snapshot: it holds the complete 2023 codes and a
+curated set of landmark judgements, but nothing decided after ingestion. This
+service fetches current material from authentic public sources at query time so
+the agent can answer questions about recent case law.
+
+Sources
+-------
+Indian Kanoon (https://indiankanoon.org) - full-text search and judgement text
+covering the Supreme Court, High Courts and tribunals. Its robots.txt permits
+``/search/`` and ``/doc/`` for generic agents while listing several thousand
+individual documents as disallowed; that list is parsed and honoured.
+
+Operating rules
+---------------
+- Requests are rate limited and cached, because this is a free public service.
+- Every result carries its court, date and source URL. A live result is
+  unverified retrieved material, not curated corpus content, and callers are
+  expected to present it with attribution.
+- Failures are returned, never raised into the request path: if the source is
+  slow or unreachable the agent should fall back to the local corpus rather
+  than error.
+"""
+from __future__ import annotations
+
+import logging
+import os
+import re
+import threading
+import time
+from dataclasses import dataclass, field
+from datetime import UTC, date, datetime
+from typing import Any
+
+import requests
+from bs4 import BeautifulSoup
+
+logger = logging.getLogger(__name__)
+
+BASE_URL = "https://indiankanoon.org"
+USER_AGENT = "LawAI/1.0 (legal research assistant; +https://github.com/tosoham/LawAI)"
+
+DEFAULT_TIMEOUT = float(os.getenv("JUDICIARY_TIMEOUT_SECONDS", "20"))
+MIN_REQUEST_INTERVAL = float(os.getenv("JUDICIARY_MIN_REQUEST_INTERVAL", "1.0"))
+SEARCH_CACHE_TTL = float(os.getenv("JUDICIARY_SEARCH_CACHE_TTL", "900"))      # 15 min
+JUDGEMENT_CACHE_TTL = float(os.getenv("JUDICIARY_DOC_CACHE_TTL", "86400"))    # 24 h
+MAX_JUDGEMENT_CHARS = int(os.getenv("JUDICIARY_MAX_DOC_CHARS", "20000"))
+CACHE_MAX_ENTRIES = 256
+
+#: Courts the caller may target, mapped to Indian Kanoon's doctypes filter.
+COURTS: dict[str, str] = {
+    "supremecourt": "supremecourt",
+    "highcourts": "highcourts",
+    "tribunals": "tribunals",
+    "all": "",
+}
+
+
+def live_fetching_enabled() -> bool:
+    """
+    Whether live lookups are permitted.
+
+    Read at call time rather than import time so tests and deployments can flip
+    it without reimporting the module.
+    """
+    return os.getenv("ENABLE_LIVE_JUDICIARY", "true").strip().lower() not in {
+        "0", "false", "no", "off",
+    }
+
+
+@dataclass
+class JudgementResult:
+    """One search hit, with everything needed to cite it."""
+
+    doc_id: str
+    title: str
+    court: str
+    date: str
+    snippet: str
+    source_url: str
+    cited_by: int | None = None
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "doc_id": self.doc_id,
+            "title": self.title,
+            "court": self.court,
+            "date": self.date,
+            "snippet": self.snippet,
+            "source_url": self.source_url,
+            "cited_by": self.cited_by,
+            "source": "Indian Kanoon (live)",
+        }
+
+
+@dataclass
+class _CacheEntry:
+    value: Any
+    expires_at: float
+
+
+@dataclass
+class _Cache:
+    """Small TTL cache; live lookups are expensive and often repeated."""
+
+    ttl: float
+    entries: dict[str, _CacheEntry] = field(default_factory=dict)
+    lock: threading.Lock = field(default_factory=threading.Lock)
+
+    def get(self, key: str) -> Any | None:
+        with self.lock:
+            entry = self.entries.get(key)
+            if entry is None:
+                return None
+            if entry.expires_at < time.monotonic():
+                del self.entries[key]
+                return None
+            return entry.value
+
+    def set(self, key: str, value: Any) -> None:
+        with self.lock:
+            if len(self.entries) >= CACHE_MAX_ENTRIES:
+                oldest = min(self.entries, key=lambda k: self.entries[k].expires_at)
+                del self.entries[oldest]
+            self.entries[key] = _CacheEntry(value, time.monotonic() + self.ttl)
+
+    def clear(self) -> None:
+        with self.lock:
+            self.entries.clear()
+
+
+class JudiciaryService:
+    """Fetches current case law from authentic public judiciary sources."""
+
+    def __init__(self, session: requests.Session | None = None):
+        self.session = session or requests.Session()
+        self.session.headers.update({"User-Agent": USER_AGENT})
+        self._search_cache = _Cache(SEARCH_CACHE_TTL)
+        self._doc_cache = _Cache(JUDGEMENT_CACHE_TTL)
+        self._disallowed: set[str] | None = None
+        self._last_request_at = 0.0
+        self._request_lock = threading.Lock()
+
+    # -- politeness ------------------------------------------------------
+
+    def _throttle(self) -> None:
+        """Space out requests; this is a free public service."""
+        with self._request_lock:
+            elapsed = time.monotonic() - self._last_request_at
+            if elapsed < MIN_REQUEST_INTERVAL:
+                time.sleep(MIN_REQUEST_INTERVAL - elapsed)
+            self._last_request_at = time.monotonic()
+
+    def _load_disallowed(self) -> set[str]:
+        """Document ids robots.txt puts off limits for generic agents."""
+        if self._disallowed is not None:
+            return self._disallowed
+
+        disallowed: set[str] = set()
+        try:
+            self._throttle()
+            response = self.session.get(f"{BASE_URL}/robots.txt", timeout=DEFAULT_TIMEOUT)
+            response.raise_for_status()
+            applies = False
+            for line in response.text.splitlines():
+                line = line.strip()
+                if not line or line.startswith("#"):
+                    continue
+                lowered = line.lower()
+                if lowered.startswith("user-agent:"):
+                    applies = line.split(":", 1)[1].strip() == "*"
+                    continue
+                if applies and lowered.startswith("disallow:"):
+                    match = re.match(
+                        r"^/doc(?:fragment)?/+(\d+)", line.split(":", 1)[1].strip()
+                    )
+                    if match:
+                        disallowed.add(match.group(1))
+        except Exception as exc:
+            logger.warning(f"Could not read robots.txt ({exc}); proceeding cautiously")
+
+        self._disallowed = disallowed
+        logger.info(f"Judiciary source lists {len(disallowed)} disallowed documents")
+        return disallowed
+
+    def is_allowed(self, doc_id: str) -> bool:
+        return doc_id not in self._load_disallowed()
+
+    # -- helpers ---------------------------------------------------------
+
+    @staticmethod
+    def _format_date(value: str | date | None) -> str | None:
+        """Indian Kanoon expects D-M-YYYY."""
+        if value is None:
+            return None
+        if isinstance(value, date):
+            return f"{value.day}-{value.month}-{value.year}"
+        text = str(value).strip()
+        if not text:
+            return None
+        iso = re.fullmatch(r"(\d{4})-(\d{1,2})-(\d{1,2})", text)
+        if iso:
+            year, month, day = iso.groups()
+            return f"{int(day)}-{int(month)}-{year}"
+        if re.fullmatch(r"\d{4}", text):
+            return f"1-1-{text}"
+        return text
+
+    @staticmethod
+    def _split_title_and_date(title: str) -> tuple[str, str]:
+        """Search titles read 'X vs Y on 13 February, 2026'."""
+        match = re.search(r"\s+on\s+(\d{1,2}\s+\w+,\s*\d{4})\s*$", title)
+        if match:
+            return title[: match.start()].strip(), match.group(1).strip()
+        return title.strip(), ""
+
+    def _build_query(
+        self,
+        query: str,
+        court: str,
+        from_date: str | date | None,
+        to_date: str | date | None,
+    ) -> str:
+        parts = [query.strip()]
+        doctype = COURTS.get(court, "")
+        if doctype:
+            parts.append(f"doctypes:{doctype}")
+        start = self._format_date(from_date)
+        end = self._format_date(to_date)
+        if start:
+            parts.append(f"fromdate:{start}")
+        if end:
+            parts.append(f"todate:{end}")
+        elif start:
+            today = datetime.now(UTC).date()
+            parts.append(f"todate:{today.day}-{today.month}-{today.year}")
+        return " ".join(parts)
+
+    # -- public API ------------------------------------------------------
+
+    def search_case_law(
+        self,
+        query: str,
+        court: str = "supremecourt",
+        from_date: str | date | None = None,
+        to_date: str | date | None = None,
+        limit: int = 5,
+    ) -> dict[str, Any]:
+        """
+        Search current case law.
+
+        Returns a dict with ``success``; on success ``results`` is a list of
+        citable hits. Errors are reported, not raised, so the caller can fall
+        back to the local corpus.
+        """
+        if not live_fetching_enabled():
+            return {
+                "success": False,
+                "error": "Live judiciary lookups are disabled (ENABLE_LIVE_JUDICIARY=false)",
+                "results": [],
+            }
+
+        if not query or not query.strip():
+            return {"success": False, "error": "query is required", "results": []}
+
+        if court not in COURTS:
+            return {
+                "success": False,
+                "error": f"Unknown court {court!r}. Choose from {sorted(COURTS)}",
+                "results": [],
+            }
+
+        limit = max(1, min(int(limit), 20))
+        form_input = self._build_query(query, court, from_date, to_date)
+        cache_key = f"{form_input}|{limit}"
+
+        cached = self._search_cache.get(cache_key)
+        if cached is not None:
+            logger.info(f"Live case law search (cached): {form_input}")
+            return cached
+
+        try:
+            self._throttle()
+            logger.info(f"Live case law search: {form_input}")
+            response = self.session.get(
+                f"{BASE_URL}/search/",
+                params={"formInput": form_input},
+                timeout=DEFAULT_TIMEOUT,
+            )
+            response.raise_for_status()
+        except Exception as exc:
+            logger.error(f"Live case law search failed: {exc}")
+            return {"success": False, "error": str(exc), "results": []}
+
+        results = self._parse_search(response.text, limit)
+        payload = {
+            "success": True,
+            "query": query,
+            "court": court,
+            "search_expression": form_input,
+            "num_results": len(results),
+            "results": [r.to_dict() for r in results],
+            "retrieved_at": datetime.now(UTC).isoformat(),
+        }
+        self._search_cache.set(cache_key, payload)
+        return payload
+
+    def _parse_search(self, html: str, limit: int) -> list[JudgementResult]:
+        soup = BeautifulSoup(html, "html.parser")
+        results: list[JudgementResult] = []
+        seen: set[str] = set()
+
+        for block in soup.select(".result"):
+            link = block.select_one(".result_title a")
+            if link is None:
+                continue
+            match = re.search(r"/(\d+)/", link.get("href") or "")
+            if not match:
+                continue
+            doc_id = match.group(1)
+            if doc_id in seen or not self.is_allowed(doc_id):
+                continue
+            seen.add(doc_id)
+
+            title, judgement_date = self._split_title_and_date(
+                link.get_text(" ", strip=True)
+            )
+            source_el = block.select_one(".docsource")
+            snippet_el = block.select_one(".headline")
+
+            cited_by = None
+            for tag in block.select(".cite_tag"):
+                cited = re.search(r"Cited by (\d+)", tag.get_text(strip=True))
+                if cited:
+                    cited_by = int(cited.group(1))
+
+            results.append(
+                JudgementResult(
+                    doc_id=doc_id,
+                    title=title,
+                    court=source_el.get_text(strip=True) if source_el else "",
+                    date=judgement_date,
+                    snippet=(
+                        re.sub(r"\s+", " ", snippet_el.get_text(" ", strip=True))[:600]
+                        if snippet_el else ""
+                    ),
+                    source_url=f"{BASE_URL}/doc/{doc_id}/",
+                    cited_by=cited_by,
+                )
+            )
+            if len(results) >= limit:
+                break
+
+        return results
+
+    def fetch_judgment(self, doc_id: str, max_chars: int | None = None) -> dict[str, Any]:
+        """Fetch the text of one judgement by its Indian Kanoon document id."""
+        if not live_fetching_enabled():
+            return {
+                "success": False,
+                "error": "Live judiciary lookups are disabled (ENABLE_LIVE_JUDICIARY=false)",
+            }
+
+        doc_id = str(doc_id).strip()
+        if not doc_id.isdigit():
+            return {"success": False, "error": f"Invalid document id {doc_id!r}"}
+
+        if not self.is_allowed(doc_id):
+            return {
+                "success": False,
+                "error": f"Document {doc_id} is disallowed by the source's robots.txt",
+            }
+
+        limit = max_chars or MAX_JUDGEMENT_CHARS
+        cache_key = f"{doc_id}|{limit}"
+        cached = self._doc_cache.get(cache_key)
+        if cached is not None:
+            return cached
+
+        url = f"{BASE_URL}/doc/{doc_id}/"
+        try:
+            self._throttle()
+            logger.info(f"Fetching judgement {doc_id}")
+            response = self.session.get(url, timeout=DEFAULT_TIMEOUT)
+            response.raise_for_status()
+        except Exception as exc:
+            logger.error(f"Fetching judgement {doc_id} failed: {exc}")
+            return {"success": False, "error": str(exc)}
+
+        soup = BeautifulSoup(response.text, "html.parser")
+        title_el = soup.select_one(".doc_title")
+        body_el = soup.select_one(".judgments") or soup.select_one(".maindoc")
+        if title_el is None or body_el is None:
+            return {"success": False, "error": f"Could not parse judgement {doc_id}"}
+
+        raw_title = title_el.get_text(" ", strip=True)
+        title, judgement_date = self._split_title_and_date(raw_title)
+        text = re.sub(r"\n{3,}", "\n\n", body_el.get_text("\n", strip=True))
+        truncated = len(text) > limit
+        if truncated:
+            text = text[:limit].rsplit("\n", 1)[0] + "\n\n[Judgement truncated]"
+
+        citation_el = soup.select_one(".doc_citations")
+        bench_el = soup.select_one(".doc_bench")
+
+        payload = {
+            "success": True,
+            "doc_id": doc_id,
+            "title": title,
+            "date": judgement_date,
+            "citation": (
+                re.sub(r"^Equivalent citations:\s*", "",
+                       citation_el.get_text(" ", strip=True))
+                if citation_el else ""
+            ),
+            "bench": (
+                bench_el.get_text(" ", strip=True).replace("Bench:", "").strip()
+                if bench_el else ""
+            ),
+            "text": text,
+            "truncated": truncated,
+            "source_url": url,
+            "source": "Indian Kanoon (live)",
+            "retrieved_at": datetime.now(UTC).isoformat(),
+        }
+        self._doc_cache.set(cache_key, payload)
+        return payload
+
+    def health_check(self) -> dict[str, Any]:
+        """Report configuration without calling the source."""
+        return {
+            "enabled": live_fetching_enabled(),
+            "source": BASE_URL,
+            "timeout_seconds": DEFAULT_TIMEOUT,
+            "min_request_interval": MIN_REQUEST_INTERVAL,
+            "cached_searches": len(self._search_cache.entries),
+            "cached_judgements": len(self._doc_cache.entries),
+        }
+
+    def clear_caches(self) -> None:
+        self._search_cache.clear()
+        self._doc_cache.clear()
+
+
+_judiciary_service: JudiciaryService | None = None
+
+
+def get_judiciary_service() -> JudiciaryService:
+    """Get or create the global judiciary service instance."""
+    global _judiciary_service
+    if _judiciary_service is None:
+        _judiciary_service = JudiciaryService()
+    return _judiciary_service
+
+
+def reset_judiciary_service() -> None:
+    """Reset the singleton (useful for tests)."""
+    global _judiciary_service
+    _judiciary_service = None

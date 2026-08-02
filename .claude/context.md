@@ -123,3 +123,26 @@ Judgements come from `indiankanoon.org/doc/<id>/`, parsed with the `.doc_title`,
   `hasattr(result, "success")`, so agent nodes must return a `ToolResult`, never a bare dict.
 - Draft and analyse intents require an action verb. Without that guard, "Tell me about bail"
   is answered by drafting a bail application.
+
+
+## Live judiciary access (added after the corpus work)
+
+- `services/judiciary_service.py` queries Indian Kanoon at request time. Verified returning
+  **2026** judgements, which the corpus snapshot can never contain — that is the whole point
+  of the feature.
+- **AIML API supports OpenAI-style function calling** on `gpt-4o-mini`; confirmed with a real
+  `tool_calls` response. `LLMService.generate_with_tools` implements the loop (capped at
+  `MAX_TOOL_ROUNDS`, with a final toolless call so the model must answer).
+- The model is given three tools — `search_local_corpus`, `live_case_law_search`,
+  `fetch_judgment` — and picks. Observed calling **both** corpus and live search for
+  "what does BNS say about organised crime, and any recent rulings?".
+- Source policy checked: `indiankanoon.org` allows `/search/` and `/doc/` for generic agents
+  (only Baiduspider is barred from search) and lists ~3,900 individual documents as
+  disallowed — parsed and honoured. `sci.gov.in` allows everything but `/wp-admin`.
+  `indiacode.nic.in` **disallows `/discover` and `/simple-search`**, so never use its search;
+  direct document URLs are fine.
+- Search syntax that matters: plain queries return *citing* cases. Use
+  `title:(...)`, `doctypes:supremecourt`, `fromdate:D-M-YYYY`, `todate:D-M-YYYY`.
+- The service **fails soft by contract** — errors are returned, never raised — so the agent
+  falls back to the corpus rather than erroring. Keep it that way.
+- `ENABLE_LIVE_JUDICIARY=false` disables the whole path for offline work.

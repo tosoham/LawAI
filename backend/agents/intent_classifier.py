@@ -44,7 +44,21 @@ class IntentClassifier:
             r'\b(how are you|what can you do|help|assist)\b',
             r'\b(thank|thanks|appreciate)\b',
         ],
+        IntentType.LIVE_RESEARCH: [
+            r'\b(case ?laws?|judgements?|judgments?|rulings?|precedents?|verdicts?|orders?)\b',
+            r'\b(supreme court|high court|sc|hc|bench|tribunal)\b',
+            r'\b(held|decided|pronounce[ds]?|observed|delivered)\b',
+        ],
     }
+
+    # The corpus is a snapshot, so only questions that actually reach past it
+    # justify a live lookup: an explicit recency word, or a year at or after the
+    # 2023 codes. Without one of these, settled law is answered from the corpus.
+    RECENCY_TRIGGER = re.compile(
+        r'\b(recent(ly)?|latest|current(ly)?|new(est)?|this (year|month|week)|'
+        r'last (year|month|few years)|nowadays|these days|up ?to ?date|'
+        r'as of|since \d{4}|202[3-9]|20[3-9]\d)\b'
+    )
 
     # Producing or inspecting a document is something the user asks for with a
     # verb. The supporting keywords above ("bail", "petition", "contract",
@@ -60,11 +74,19 @@ class IntentClassifier:
             r'\b(analyse|analyze|review|examine|assess|evaluate|check|summari[sz]e|'
             r'go through|look (?:at|over)|vet)\b'
         ),
+        IntentType.LIVE_RESEARCH: RECENCY_TRIGGER,
     }
+
+    # How much a fired trigger contributes. RAG_SEARCH and LIVE_RESEARCH share
+    # case-law vocabulary on purpose, and recency is the only thing that tells
+    # them apart, so it has to outweigh a single shared keyword -- otherwise
+    # "current case law on BNS 111" is answered from the snapshot.
+    TRIGGER_WEIGHT: ClassVar[dict] = {IntentType.LIVE_RESEARCH: 2}
 
     # Order used to resolve equal keyword scores; most specific intent first.
     _TIE_BREAK_ORDER = (
         IntentType.CHAT,
+        IntentType.LIVE_RESEARCH,
         IntentType.DRAFT_DOCUMENT,
         IntentType.ANALYZE_DOCUMENT,
         IntentType.RAG_SEARCH,
@@ -97,8 +119,12 @@ class IntentClassifier:
 
         for intent, patterns in self.INTENT_PATTERNS.items():
             trigger = self.REQUIRED_TRIGGERS.get(intent)
-            if trigger is not None and not trigger.search(query_lower):
-                continue
+            if trigger is not None:
+                if not trigger.search(query_lower):
+                    continue
+                # A trigger is not merely a gate, it is the strongest single
+                # signal for these intents, so it scores too.
+                scores[intent] += self.TRIGGER_WEIGHT.get(intent, 1)
             for pattern in patterns:
                 if re.search(pattern, query_lower):
                     scores[intent] += 1

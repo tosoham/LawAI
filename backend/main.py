@@ -92,12 +92,14 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
 from api.v1.agent import router as agent_router
 from api.v1.chat import router as chat_router
 from api.v1.documents import router as documents_router
+from api.v1.research import router as research_router
 from api.v1.search import router as search_router
 
 app.include_router(chat_router, prefix="/api/v1")
 app.include_router(search_router, prefix="/api/v1")
 app.include_router(documents_router, prefix="/api/v1")
 app.include_router(agent_router, prefix="/api/v1")
+app.include_router(research_router, prefix="/api/v1")
 
 # Initialize tools on startup
 from services.llm_service import llm_service

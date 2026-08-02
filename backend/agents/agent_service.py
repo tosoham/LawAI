@@ -43,7 +43,8 @@ class AgentService:
         # Initialize agent
         self.agent = LegalAgent(
             intent_classifier=self.intent_classifier,
-            tool_registry=self.tool_registry
+            tool_registry=self.tool_registry,
+            llm_service=self.llm_service,
         )
 
         logger.info("AgentService initialized successfully")

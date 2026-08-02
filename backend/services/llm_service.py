@@ -9,9 +9,10 @@ The client is constructed lazily so that a missing/invalid API key does not cras
 the application at import time — health endpoints stay reachable and the error
 surfaces only when generation is actually attempted.
 """
+import json
 import logging
 import os
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Callable
 from typing import Any, Optional
 
 from dotenv import load_dotenv
@@ -36,6 +37,11 @@ _ALLOWED_GEN_KWARGS = {"max_tokens", "temperature", "top_p", "stop", "presence_p
 
 # Back-compat: the watsonx era used ``max_new_tokens``. Map it rather than break callers.
 _KWARG_ALIASES = {"max_new_tokens": "max_tokens"}
+
+# Bounds for tool-assisted generation: enough rounds to search then read a
+# result, and a cap on how much tool output is fed back per call.
+MAX_TOOL_ROUNDS = 4
+MAX_TOOL_RESULT_CHARS = 12000
 
 
 class LLMService:
@@ -193,6 +199,111 @@ class LLMService:
         except Exception as e:
             logger.error(f"Streaming generation failed: {e!s}")
             raise Exception(f"LLM streaming error: {e!s}") from e
+
+    def generate_with_tools(
+        self,
+        prompt: str,
+        tools: list[dict[str, Any]],
+        executor: Callable[[str, dict[str, Any]], Any],
+        system: str | None = None,
+        max_rounds: int = MAX_TOOL_ROUNDS,
+        **kwargs,
+    ) -> dict[str, Any]:
+        """
+        Answer a prompt, letting the model call tools when it needs to.
+
+        This is the escalation path for questions the static corpus cannot
+        answer -- the model decides whether to reach for live data rather than
+        the caller guessing up front.
+
+        Args:
+            prompt: The user's question
+            tools: OpenAI-format tool schemas
+            executor: Called as ``executor(name, arguments)`` for each tool call;
+                its return value is JSON-encoded back to the model
+            system: Optional system message
+            max_rounds: Cap on tool-calling round trips, so a model that keeps
+                asking for tools cannot loop forever
+            **kwargs: Generation overrides
+
+        Returns:
+            ``{"content": str, "tool_calls": [...], "rounds": int}`` where
+            ``tool_calls`` records what ran, so answers can be attributed.
+        """
+        messages: list[dict[str, Any]] = self._build_messages(prompt, system)
+        params = self._build_params(**kwargs)
+        invoked: list[dict[str, Any]] = []
+
+        try:
+            for round_index in range(max_rounds):
+                response = self.client.chat.completions.create(
+                    model=self.model_id,
+                    messages=messages,
+                    tools=tools,
+                    tool_choice="auto",
+                    **params,
+                )
+                message = response.choices[0].message
+
+                if not getattr(message, "tool_calls", None):
+                    return {
+                        "content": message.content or "",
+                        "tool_calls": invoked,
+                        "rounds": round_index,
+                    }
+
+                # Echo the assistant turn back verbatim; the API requires each
+                # tool result to reference the call that produced it.
+                messages.append({
+                    "role": "assistant",
+                    "content": message.content,
+                    "tool_calls": [
+                        {
+                            "id": call.id,
+                            "type": "function",
+                            "function": {
+                                "name": call.function.name,
+                                "arguments": call.function.arguments,
+                            },
+                        }
+                        for call in message.tool_calls
+                    ],
+                })
+
+                for call in message.tool_calls:
+                    name = call.function.name
+                    try:
+                        arguments = json.loads(call.function.arguments or "{}")
+                    except json.JSONDecodeError:
+                        arguments = {}
+
+                    logger.info(f"Tool call: {name}({arguments})")
+                    try:
+                        result = executor(name, arguments)
+                    except Exception as exc:
+                        logger.error(f"Tool {name} failed: {exc}")
+                        result = {"success": False, "error": str(exc)}
+
+                    invoked.append({"name": name, "arguments": arguments, "result": result})
+                    messages.append({
+                        "role": "tool",
+                        "tool_call_id": call.id,
+                        "content": json.dumps(result, default=str)[:MAX_TOOL_RESULT_CHARS],
+                    })
+
+            # Out of rounds: ask once more without tools so the model must answer.
+            final = self.client.chat.completions.create(
+                model=self.model_id, messages=messages, **params
+            )
+            return {
+                "content": final.choices[0].message.content or "",
+                "tool_calls": invoked,
+                "rounds": max_rounds,
+            }
+
+        except Exception as e:
+            logger.error(f"Tool-assisted generation failed: {e!s}")
+            raise Exception(f"LLM tool-calling error: {e!s}") from e
 
     def get_model_info(self) -> dict:
         """

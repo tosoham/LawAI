@@ -144,6 +144,28 @@ class TestIntentClassifier:
     def test_action_verb_enables_document_intents(self, query, expected):
         assert IntentClassifier().classify(query) == expected
 
+    @pytest.mark.parametrize("query", [
+        "Recent Supreme Court judgments on anticipatory bail",
+        "What are the latest rulings on default bail?",
+        "Supreme Court judgements on bail in 2026",
+        "Has the Supreme Court decided anything new on BNS this year?",
+        "Current case law on organised crime under BNS 111",
+        "latest High Court orders on electronic evidence",
+    ])
+    def test_recent_case_law_questions_go_live(self, query):
+        """The corpus is a snapshot, so recency questions must escalate."""
+        assert IntentClassifier().classify(query) == IntentType.LIVE_RESEARCH.value
+
+    @pytest.mark.parametrize("query", [
+        "Find Supreme Court judgements on anticipatory bail",
+        "What is BNS Section 103?",
+        "Explain the case law on circumstantial evidence",
+        "Tell me about bail",
+    ])
+    def test_settled_law_questions_stay_local(self, query):
+        """Without a recency signal, answer from the verified corpus."""
+        assert IntentClassifier().classify(query) == IntentType.RAG_SEARCH.value
+
     def test_classify_with_llm_fallback(self):
         """Test LLM fallback classification"""
         mock_llm = Mock()

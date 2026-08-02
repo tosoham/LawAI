@@ -182,6 +182,7 @@ def initialize_tools(
     from .analyze_doc_tool import AnalyzeDocumentTool
     from .chat_tool import ChatTool
     from .draft_document_tool import DraftDocumentTool
+    from .live_case_law_tool import FetchJudgmentTool, LiveCaseLawSearchTool
     from .rag_search_tool import RAGSearchTool
 
     registry = get_tool_registry()
@@ -194,6 +195,10 @@ def initialize_tools(
     registry.register_tool(ChatTool(llm_service))
     registry.register_tool(DraftDocumentTool(llm_service))
     registry.register_tool(AnalyzeDocumentTool(llm_service))
+
+    # Live judiciary access, for material newer than the corpus snapshot.
+    registry.register_tool(LiveCaseLawSearchTool())
+    registry.register_tool(FetchJudgmentTool())
 
     logger.info(f"Initialized {len(registry)} tools: {registry.list_tools()}")
 

@@ -3,8 +3,8 @@
 Rebuild to drop the hackathon's IBM watsonx.ai requirement and finish the project.
 Plan: [plan.md](plan.md) · Key facts: [context.md](context.md)
 
-**All four phases complete.** Suite: **105 passed, 28 skipped** (skips are live-LLM tests,
-which need `AIML_API_KEY`).
+**Six phases complete.** Suite: **211 passed, 0 skipped** (with `AIML_API_KEY` set and a
+server running for the e2e tests).
 
 ---
 
@@ -105,9 +105,29 @@ and Pydantic `class Config` → `ConfigDict`.
 
 ---
 
+## Phase 6 — Live judiciary integration ✅
+
+The corpus is a snapshot, so anything decided after ingestion was invisible. Added live
+access to authentic judiciary records, with the model deciding when to use it.
+
+- `services/judiciary_service.py` — robots-aware, rate-limited, TTL-cached client returning
+  citable hits (court, date, source URL). Fails soft so an outage degrades to the corpus.
+- `LLMService.generate_with_tools` — real OpenAI-style function calling against AIML API.
+- `tools/live_case_law_tool.py` — `live_case_law_search`, `fetch_judgment`, plus the schema
+  for `search_local_corpus` so the model can choose between verified and live sources.
+- New `live_research` intent + agent node, gated on recency signals; 29/29 classification
+  cases correct including the previously fixed ones.
+- `/api/v1/research/*` endpoints for direct access.
+
+Verified live: "most recent Supreme Court judgments on anticipatory bail in 2026" returns
+February–May 2026 decisions with source URLs, and a hybrid question calls **both**
+`search_local_corpus` (BNS 111 text) and `live_case_law_search`.
+
+---
+
 ## Current state
 
-- **154 passed, 0 skipped, 0 failed** — including live LLM calls and 8 e2e tests against a
+- **211 passed, 0 skipped, 0 failed** — including live LLM calls and 8 e2e tests against a
   running server.
 - `ruff check .` clean; frontend lint, `tsc --noEmit` and `next build` all clean.
 - Corpus: 358 BNS + 531 BNSS + 170 BSA sections + **30** Supreme Court judgements
