@@ -316,10 +316,14 @@ def parse_act(pdf_path: Path, spec: ActSpec) -> List[ParsedSection]:
 
             unmatched_notes += assign_titles(margin_lines, section_tops)
 
+    # Unaligned lines are expected: they are notes continuing from the previous
+    # page, and in BNSS the long arrangement-of-sections index at the front has
+    # no section bodies to attach to at all. Only worth reporting at debug level,
+    # since the meaningful signal is how many sections ended up untitled.
     if unmatched_notes:
-        logger.info(
-            f"{spec.short_name}: {unmatched_notes} marginal notes could not be aligned "
-            "to a section start (continuation notes from the previous page)"
+        logger.debug(
+            f"{spec.short_name}: {unmatched_notes} marginal note lines had no section "
+            "start above them (front-matter index and cross-page continuations)"
         )
     return sections
 

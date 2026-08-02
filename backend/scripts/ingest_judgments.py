@@ -64,8 +64,13 @@ class JudgementSpec:
     case_name: str
     year: str
     subject: str
+    #: Tokens that must appear in the page title, ignoring case and punctuation.
     expect: Tuple[str, ...]
     relevant_sections: str = ""
+    #: Phrases that must appear in the body. Party names alone are not enough to
+    #: identify a decision -- an earlier attempt at Bhajan Lal matched the title
+    #: but fetched a later contempt petition in the same matter.
+    expect_text: Tuple[str, ...] = ()
 
 
 # Every doc_id below was resolved by search and confirmed against the page title.
@@ -124,6 +129,13 @@ JUDGEMENTS: Tuple[JudgementSpec, ...] = (
     JudgementSpec("10239019", "Lalita Kumari v. Government of Uttar Pradesh", "2013",
                   "Registration of FIR is mandatory for cognizable offences",
                   ("lalitakumari",), "BNSS 173"),
+    # 1992 AIR 604, decided 21 November 1990. Note that Indian Kanoon serves an
+    # abridged version of this one (~27k chars, ending around paragraph 12), so
+    # the seven-category list at paragraph 102 is not in the stored text.
+    JudgementSpec("1033637", "State of Haryana v. Bhajan Lal", "1990",
+                  "Quashing of criminal proceedings and mala fide prosecution",
+                  ("bhajanlal", "haryana"), "BNSS 528",
+                  expect_text=("mala fide",)),
 
     # --- Evidence ---------------------------------------------------------
     JudgementSpec("13149785", "Sharad Birdhichand Sarda v. State of Maharashtra", "1984",
@@ -132,6 +144,9 @@ JUDGEMENTS: Tuple[JudgementSpec, ...] = (
     JudgementSpec("1938988", "Nandini Satpathy v. P.L. Dani", "1978",
                   "Right against self-incrimination during interrogation",
                   ("nandinisatpathy",), "BSA 23"),
+    JudgementSpec("338008", "Selvi v. State of Karnataka", "2010",
+                  "Narcoanalysis, polygraph and brain mapping without consent are "
+                  "unconstitutional", ("selvi", "karnataka"), "BSA 23"),
     JudgementSpec("187283766", "Anvar P.V. v. P.K. Basheer", "2014",
                   "Admissibility of electronic evidence and certification",
                   ("anvar", "basheer"), "BSA 63"),
@@ -146,13 +161,17 @@ JUDGEMENTS: Tuple[JudgementSpec, ...] = (
     JudgementSpec("545301", "Machhi Singh v. State of Punjab", "1983",
                   "Guidelines applying the rarest of rare doctrine",
                   ("machhisingh",), "BNS 103"),
+    JudgementSpec("80457116", "Mohd. Arif @ Ashfaq v. Registrar, Supreme Court of India",
+                  "2014", "Open-court hearing for review petitions in death sentence cases",
+                  ("mohdarif",), "BNS 103"),
 
     # --- Constitutional backdrop -----------------------------------------
     JudgementSpec("1766147", "Maneka Gandhi v. Union of India", "1978",
                   "Procedure established by law must be fair, just and reasonable",
                   ("manekagandhi",), ""),
-    JudgementSpec("116396036", "Justice K.S. Puttaswamy (Retd.) v. Union of India", "2015",
-                  "Reference on the right to privacy", ("puttaswamy",), ""),
+    JudgementSpec("91938676", "Justice K.S. Puttaswamy (Retd.) v. Union of India", "2017",
+                  "Nine-judge bench holding privacy a fundamental right",
+                  ("puttaswamy",), ""),
     JudgementSpec("110813550", "Shreya Singhal v. Union of India", "2015",
                   "Section 66A IT Act struck down; online free speech",
                   ("shreyasinghal",), ""),
@@ -249,6 +268,17 @@ def parse_judgement(html: str, spec: JudgementSpec) -> Optional[Dict[str, Any]]:
         return None
 
     text = re.sub(r"\n{3,}", "\n\n", body_el.get_text("\n", strip=True))
+
+    # Confirm the body really is the decision we mean, not another proceeding
+    # between the same parties.
+    missing_text = [p for p in spec.expect_text if p.lower() not in text.lower()]
+    if missing_text:
+        logger.error(
+            f"{spec.case_name}: body does not contain {missing_text} - "
+            "refusing to store a possibly incorrect decision"
+        )
+        return None
+
     if len(text) > MAX_JUDGEMENT_CHARS:
         text = text[:MAX_JUDGEMENT_CHARS].rsplit("\n", 1)[0] + "\n\n[Judgement truncated]"
 

@@ -197,3 +197,60 @@ class TestIngestedCorpus:
             assert meta["case_name"] and meta["year"]
             assert meta["court"] == "Supreme Court of India"
             assert meta["source_url"].startswith("https://indiankanoon.org/doc/")
+
+    def test_every_manifest_entry_was_ingested(self):
+        """A skipped judgement means a document id drifted; fail rather than shrink."""
+        path = PROCESSED_DIR / "sc_judgements.json"
+        if not path.exists():
+            pytest.skip("judgements not ingested")
+        records = json.loads(path.read_text())
+        ingest_judgments = _load_script("ingest_judgments")
+        assert len(records) == len(ingest_judgments.JUDGEMENTS)
+
+    def test_landmark_authorities_are_present(self):
+        path = PROCESSED_DIR / "sc_judgements.json"
+        if not path.exists():
+            pytest.skip("judgements not ingested")
+        names = " | ".join(r["metadata"]["case_name"] for r in json.loads(path.read_text()))
+        for expected in ("Bhajan Lal", "Selvi", "Puttaswamy", "Mohd. Arif",
+                         "Sushila Aggarwal", "Lalita Kumari", "Arnesh Kumar"):
+            assert expected in names, f"{expected} missing from the judgement corpus"
+
+
+class TestJudgementVerification:
+    """Identity checks that stop the wrong authority being stored."""
+
+    @staticmethod
+    def _page(title: str, body: str) -> str:
+        return (
+            f'<div class="doc_title">{title}</div>'
+            f'<div class="doc_citations">Equivalent citations: 1992 AIR 604</div>'
+            f'<div class="doc_bench">Bench: Some Judge</div>'
+            f'<div class="judgments">{body}</div>'
+        )
+
+    def _spec(self, **kw):
+        ingest_judgments = _load_script("ingest_judgments")
+        defaults = dict(doc_id="1", case_name="Test v. State", year="1990",
+                        subject="s", expect=("test",))
+        defaults.update(kw)
+        return ingest_judgments.JudgementSpec(**defaults)
+
+    def test_accepts_a_matching_page(self):
+        ingest_judgments = _load_script("ingest_judgments")
+        html = self._page("Test vs State on 1 January, 1990", "the holding mentions mala fide conduct")
+        record = ingest_judgments.parse_judgement(html, self._spec(expect_text=("mala fide",)))
+        assert record is not None
+        assert record["metadata"]["case_name"] == "Test v. State"
+
+    def test_rejects_a_different_case_with_the_same_parties(self):
+        """Regression: the first Bhajan Lal id matched by title but was a later
+        contempt petition in the same matter."""
+        ingest_judgments = _load_script("ingest_judgments")
+        html = self._page("Test vs State on 1 January, 1992", "contempt petition dismissed, no costs")
+        assert ingest_judgments.parse_judgement(html, self._spec(expect_text=("mala fide",))) is None
+
+    def test_rejects_a_title_mismatch(self):
+        ingest_judgments = _load_script("ingest_judgments")
+        html = self._page("Someone Else vs Another on 1 January, 1990", "body text")
+        assert ingest_judgments.parse_judgement(html, self._spec()) is None
