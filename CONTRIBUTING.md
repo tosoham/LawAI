@@ -32,7 +32,8 @@ Thank you for your interest in contributing to LawAI! This document provides gui
 - Python 3.10+
 - Node.js 18+
 - Git
-- IBM watsonx.ai account (for Phase 2+)
+- An AIML API key (https://aimlapi.com) — required only for features that call the LLM;
+  the app starts and its tests pass without one
 
 ### Initial Setup
 
