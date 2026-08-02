@@ -35,10 +35,15 @@ This document defines the master rulebook for all development work on the LawAI 
 
 ---
 
-## 3. Tech Stack (LOCKED)
+## 3. Tech Stack
 
 ### Core Technologies
-- **LLM**: IBM watsonx.ai Granite-13b-chat-v2 via langchain-ibm
+- **LLM**: AIML API (OpenAI-compatible endpoint), default model `gpt-4o-mini`, via the `openai` SDK
+
+  > Historical note: this was IBM watsonx.ai Granite-13b-chat-v2 while the project was a
+  > hackathon entry, where that provider was a competition requirement. That constraint no
+  > longer applies and the provider was swapped; the LLM layer is isolated behind
+  > `services/llm_service.py`, so changing it again means rewriting only that module.
 - **Agent Framework**: LangGraph for complex workflows and state management
 - **Vector DB**: ChromaDB (local deployment, no cloud setup)
 - **Backend**: FastAPI with async/await and StreamingResponse
@@ -308,7 +313,7 @@ LawAI/
 │   │   └── responses.py    # API response models
 │   ├── services/           # Business logic services
 │   │   ├── __init__.py
-│   │   ├── llm_service.py  # IBM watsonx.ai integration
+│   │   ├── llm_service.py  # AIML API (OpenAI-compatible) integration
 │   │   └── vector_db.py    # ChromaDB operations
 │   ├── api/                # API routes
 │   │   ├── __init__.py

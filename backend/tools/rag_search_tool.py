@@ -136,5 +136,3 @@ class RAGSearchTool(BaseTool):
                 success=False,
                 error=f"RAG search failed: {str(e)}"
             )
-
-# Made with Bob

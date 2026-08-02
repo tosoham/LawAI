@@ -208,5 +208,3 @@ def get_vector_service() -> VectorService:
     if _vector_service is None:
         _vector_service = VectorService()
     return _vector_service
-
-# Made with Bob

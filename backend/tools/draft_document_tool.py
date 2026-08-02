@@ -380,5 +380,3 @@ Generate the complete document now:"""
                 success=False,
                 error=f"Document drafting failed: {str(e)}"
             )
-
-# Made with Bob

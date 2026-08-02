@@ -255,5 +255,3 @@ export const DraftForm: React.FC = () => {
 };
 
 export default DraftForm;
-
-// Made with Bob

@@ -94,5 +94,3 @@ export const useDocuments = (): UseDocumentsResult => {
 };
 
 export default useDocuments;
-
-// Made with Bob

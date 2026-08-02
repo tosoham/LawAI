@@ -191,5 +191,3 @@ async def get_agent_info():
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to get agent info: {str(e)}"
         )
-
-# Made with Bob

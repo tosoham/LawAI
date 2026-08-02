@@ -4,5 +4,3 @@ module.exports = {
     autoprefixer: {},
   },
 }
-
-// Made with Bob

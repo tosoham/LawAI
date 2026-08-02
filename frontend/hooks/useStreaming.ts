@@ -62,5 +62,3 @@ export const useStreaming = (): UseStreamingResult => {
 };
 
 export default useStreaming;
-
-// Made with Bob

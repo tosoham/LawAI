@@ -154,6 +154,3 @@ def _get_collection_description(collection_key: str) -> str:
         "judgements": "Supreme Court of India Judgements"
     }
     return descriptions.get(collection_key, "Legal collection")
-
-
-# Made with Bob

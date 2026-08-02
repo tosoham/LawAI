@@ -149,7 +149,7 @@ export const SearchInterface: React.FC = () => {
             <div className="flex items-center justify-between bg-white border border-gray-200 rounded-lg px-4 py-3">
               <div>
                 <p className="text-sm font-medium text-gray-900">
-                  Found {results.results.length} results for "{results.query}"
+                  Found {results.results.length} results for &ldquo;{results.query}&rdquo;
                 </p>
                 <p className="text-xs text-gray-600">
                   Collection: {COLLECTIONS.find((c) => c.value === results.collection)?.label}
@@ -226,5 +226,3 @@ export const SearchInterface: React.FC = () => {
 };
 
 export default SearchInterface;
-
-// Made with Bob

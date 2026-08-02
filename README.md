@@ -10,7 +10,7 @@
 
 ## 🎯 Overview
 
-LawAI is an advanced AI-powered legal assistant system designed specifically for the Indian legal framework. It leverages IBM watsonx.ai's Granite-13b-chat-v2 model, LangGraph for agent orchestration, and ChromaDB for vector search to provide intelligent legal assistance.
+LawAI is an AI-powered legal assistant for the Indian legal framework. A LangGraph agent classifies intent and routes to one of four tools, backed by an LLM served through AIML API and a ChromaDB vector store holding the **full text of the 2023 criminal codes** — 358 BNS, 531 BNSS and 170 BSA sections parsed from the official Ministry of Home Affairs gazette PDFs, plus 27 landmark Supreme Court judgements.
 
 ### Key Features
 
@@ -32,7 +32,7 @@ LawAI is an advanced AI-powered legal assistant system designed specifically for
 
 ### Tech Stack
 
-- **LLM**: IBM watsonx.ai - Granite-13b-chat-v2
+- **LLM**: AIML API (OpenAI-compatible), default `gpt-4o-mini`
 - **Agent Framework**: LangGraph for complex workflows
 - **Vector DB**: ChromaDB (local deployment)
 - **Backend**: FastAPI with async/await and streaming
@@ -65,7 +65,7 @@ LawAI is an advanced AI-powered legal assistant system designed specifically for
 │         └──────────────────┼──────────────────┘        │
 │                            ▼                             │
 │  ┌────────────────────────────────────────────────┐    │
-│  │         IBM watsonx.ai (Granite-13b)           │    │
+│  │       AIML API (OpenAI-compatible LLM)         │    │
 │  └────────────────────────────────────────────────┘    │
 │                            │                             │
 │                            ▼                             │
@@ -83,7 +83,7 @@ LawAI is an advanced AI-powered legal assistant system designed specifically for
 
 - Python 3.10+
 - Node.js 18+
-- IBM watsonx.ai account and credentials
+- An AIML API key (https://aimlapi.com)
 
 ### Backend Setup
 
@@ -100,7 +100,10 @@ pip install -r requirements.txt
 
 # Copy environment file and configure
 cp .env.example .env
-# Edit .env with your IBM watsonx.ai credentials
+# Edit .env and set AIML_API_KEY
+
+# Seed the vector database with the legal corpus
+python scripts/init_vector_db.py
 
 # Run development server
 uvicorn main:app --reload
@@ -134,8 +137,6 @@ Frontend will be available at `http://localhost:3000`
 - [Complete Implementation Plan](docs/COMPLETE_IMPLEMENTATION_PLAN.md)
 - [Agent Guidelines](AGENTS.md)
 - [Development Rules](RULES.md)
-- [IBM watsonx.ai Setup Guide](docs/setup/IBM_WATSONX_SETUP.md) *(Coming in Phase 2)*
-- [Data Collection Guide](docs/setup/DATA_COLLECTION_GUIDE.md) *(Coming in Phase 3)*
 
 ---
 
@@ -152,9 +153,12 @@ pytest
 # Run with coverage
 pytest --cov=backend --cov-report=html
 
-# Run specific test file
-pytest tests/test_main.py -v
+# Run a specific test file or test
+pytest tests/unit/test_tools.py -v
+pytest tests/unit/test_tools.py::TestRAGSearchTool -v
 ```
+
+Tests that call the live AIML API are skipped unless `AIML_API_KEY` is set.
 
 ### Frontend Tests
 
@@ -209,9 +213,17 @@ System:
 
 ## 📋 Project Status
 
-**Current Phase**: Phase 1 - Project Foundation & Setup ✅
+Backend, frontend, agent orchestration and the legal corpus are all in place.
 
-See [COMPLETE_IMPLEMENTATION_PLAN.md](docs/COMPLETE_IMPLEMENTATION_PLAN.md) for detailed roadmap.
+| Collection | Source | Records |
+|---|---|---|
+| `bns_sections` | MHA gazette PDF | 358 |
+| `bnss_sections` | MHA gazette PDF | 531 |
+| `bsa_sections` | MHA gazette PDF | 170 |
+| `sc_judgements` | Indian Kanoon (curated) | 27 |
+
+See [COMPLETE_IMPLEMENTATION_PLAN.md](docs/COMPLETE_IMPLEMENTATION_PLAN.md) for the roadmap
+and [CLAUDE.md](CLAUDE.md) for architecture notes.
 
 ---
 
@@ -265,7 +277,8 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## 🙏 Acknowledgments
 
-- IBM watsonx.ai for Granite-13b-chat-v2 model
+- Ministry of Home Affairs for the official gazette texts of the 2023 codes
+- Indian Kanoon for public access to Supreme Court judgements
 - LangChain and LangGraph for agent framework
 - ChromaDB for vector database
 - FastAPI and Next.js communities

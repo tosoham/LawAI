@@ -120,5 +120,3 @@ async def handle_stream_error(
     }
     
     yield f"data: {json.dumps(error_data)}\n\n"
-
-# Made with Bob

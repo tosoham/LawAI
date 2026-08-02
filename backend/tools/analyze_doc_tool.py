@@ -240,5 +240,3 @@ COMPREHENSIVE ANALYSIS:"""
                 success=False,
                 error=f"Document analysis failed: {str(e)}"
             )
-
-# Made with Bob

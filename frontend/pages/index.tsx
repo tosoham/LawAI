@@ -5,6 +5,7 @@
 
 import React, { useState } from 'react';
 import Head from 'next/head';
+import Link from 'next/link';
 import ChatInterface from '@/components/chat/ChatInterface';
 import SearchInterface from '@/components/search/SearchInterface';
 import DraftForm from '@/components/documents/DraftForm';
@@ -135,12 +136,12 @@ export default function Home() {
               <div className="flex items-center space-x-4">
                 <span>© 2024 LawAI</span>
                 <span className="hidden sm:inline">•</span>
-                <span>Powered by IBM watsonx.ai</span>
+                <span>BNS &bull; BNSS &bull; BSA (2023)</span>
               </div>
               <div className="flex items-center space-x-4 mt-2 sm:mt-0">
-                <a href="/demo" className="hover:text-primary-600 transition-colors">
+                <Link href="/demo" className="hover:text-primary-600 transition-colors">
                   Demo
-                </a>
+                </Link>
                 <span>•</span>
                 <a href="https://github.com/tosoham/LawAI" target="_blank" rel="noopener noreferrer" className="hover:text-primary-600 transition-colors">
                   GitHub
@@ -160,5 +161,3 @@ export default function Home() {
     </>
   );
 }
-
-// Made with Bob

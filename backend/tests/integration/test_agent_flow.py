@@ -299,5 +299,3 @@ class TestAgentPerformance:
         assert len(results) == len(queries)
         for result in results:
             assert result["error"] is None or result["response"] is not None
-
-# Made with Bob

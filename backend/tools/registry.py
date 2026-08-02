@@ -198,5 +198,3 @@ def initialize_tools(
     logger.info(f"Initialized {len(registry)} tools: {registry.list_tools()}")
     
     return registry
-
-# Made with Bob

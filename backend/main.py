@@ -232,5 +232,3 @@ if __name__ == "__main__":
         reload=reload,
         log_level=os.getenv("LOG_LEVEL", "info").lower()
     )
-
-# Made with Bob

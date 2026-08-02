@@ -136,5 +136,3 @@ export const LegalDisclaimer: React.FC<LegalDisclaimerProps> = ({
 };
 
 export default LegalDisclaimer;
-
-// Made with Bob

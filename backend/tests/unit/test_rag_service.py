@@ -227,6 +227,3 @@ class TestRAGServiceIntegration:
         
         assert sources[0]['relevance_score'] == 1.0  # 1 - 0.0
         assert sources[1]['relevance_score'] == 0.5  # 1 - 0.5
-
-
-# Made with Bob

@@ -88,5 +88,3 @@ export const useAgent = (): UseAgentResult => {
 };
 
 export default useAgent;
-
-// Made with Bob

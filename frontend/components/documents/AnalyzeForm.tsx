@@ -252,5 +252,3 @@ export const AnalyzeForm: React.FC = () => {
 };
 
 export default AnalyzeForm;
-
-// Made with Bob

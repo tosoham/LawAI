@@ -154,5 +154,3 @@ class ChatTool(BaseTool):
                 success=False,
                 error=f"Chat failed: {str(e)}"
             )
-
-# Made with Bob

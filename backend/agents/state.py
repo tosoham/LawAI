@@ -117,5 +117,3 @@ def set_error(
     new_state = state.copy()
     new_state["error"] = error
     return new_state
-
-# Made with Bob

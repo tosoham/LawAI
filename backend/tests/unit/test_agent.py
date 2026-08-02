@@ -203,6 +203,20 @@ class TestLegalAgent:
         classifier.get_intent_description.return_value = "Search legal information"
         return classifier
     
+    @pytest.mark.parametrize("query,expected", [
+        ("Draft an anticipatory bail application under BNSS 482", "bail_application"),
+        ("Draft a rental agreement between two parties", "agreement"),
+        ("Prepare a contract for services", "agreement"),
+        ("File a writ petition in the High Court", "petition"),
+        ("Draft a legal notice", "notice"),
+        # The document being drafted wins over its subject matter.
+        ("Send a legal notice for breach of contract", "notice"),
+        # No recognisable keyword falls back to the most common request.
+        ("Draft something for my client", "bail_application"),
+    ])
+    def test_infer_document_type(self, query, expected):
+        assert LegalAgent._infer_document_type(query) == expected
+
     def test_agent_initialization(self, mock_classifier, mock_tools):
         """Test agent initialization"""
         agent = LegalAgent(mock_classifier, mock_tools)
@@ -307,5 +321,3 @@ class TestAgentService:
             
             assert "status" in health
             assert "components" in health
-
-# Made with Bob

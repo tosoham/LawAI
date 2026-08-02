@@ -181,5 +181,3 @@ class BaseTool(ABC):
     def __repr__(self) -> str:
         """Detailed representation"""
         return f"<Tool name='{self.name}' description='{self.description}'>"
-
-# Made with Bob

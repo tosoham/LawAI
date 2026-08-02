@@ -210,5 +210,3 @@ def reset_agent_service():
     """Reset the agent service singleton (useful for testing)."""
     global _agent_service_instance
     _agent_service_instance = None
-
-# Made with Bob

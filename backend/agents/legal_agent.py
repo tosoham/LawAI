@@ -209,17 +209,19 @@ class LegalAgent:
             logger.error(f"Draft document execution error: {e}")
             return set_error(state, f"Draft document failed: {str(e)}")
     
-    # Keyword -> document type, checked in order so that more specific phrases win.
+    # Keyword -> document type, checked in order. Words that name the document
+    # being drafted come before words that merely describe its subject matter,
+    # so "legal notice for breach of contract" is a notice, not an agreement.
     _DOCUMENT_TYPE_KEYWORDS = (
-        ("agreement", "agreement"),
-        ("contract", "agreement"),
-        ("mou", "agreement"),
-        ("lease", "agreement"),
+        ("bail", "bail_application"),
         ("notice", "notice"),
         ("petition", "petition"),
         ("writ", "petition"),
         ("appeal", "petition"),
-        ("bail", "bail_application"),
+        ("agreement", "agreement"),
+        ("contract", "agreement"),
+        ("mou", "agreement"),
+        ("lease", "agreement"),
     )
 
     @classmethod
@@ -438,5 +440,3 @@ class LegalAgent:
             "metadata": final_state.get("metadata", {}),
             "error": final_state.get("error")
         }
-
-# Made with Bob

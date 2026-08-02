@@ -35,5 +35,3 @@ module.exports = {
   },
   plugins: [],
 }
-
-// Made with Bob

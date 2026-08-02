@@ -268,5 +268,3 @@ export const ChatInterface: React.FC = () => {
 };
 
 export default ChatInterface;
-
-// Made with Bob

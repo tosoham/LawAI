@@ -136,5 +136,3 @@ def test_rag_search():
 
 if __name__ == "__main__":
     test_rag_search()
-
-# Made with Bob

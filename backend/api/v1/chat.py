@@ -133,5 +133,3 @@ async def health():
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail=f"Service unhealthy: {str(e)}"
         )
-
-# Made with Bob

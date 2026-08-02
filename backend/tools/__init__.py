@@ -29,5 +29,3 @@ __all__ = [
     "get_tool_registry",
     "initialize_tools",
 ]
-
-# Made with Bob

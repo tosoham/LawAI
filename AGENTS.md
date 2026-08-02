@@ -1,63 +1,44 @@
 # AGENTS.md
 
-This file provides guidance to agents when working with code in this repository.
+Guidance for AI coding agents working in this repository.
 
-## Project Overview
-**LawAI** - Multi-agent Indian legal AI system for lawyers, courts, and public
-- **LLM**: IBM watsonx.ai with Granite-13b-chat-v2 (via langchain-ibm)
-- **Agent Framework**: LangGraph for orchestration
-- **Vector DB**: ChromaDB (local, no cloud setup)
-- **Backend**: FastAPI with StreamingResponse for real-time tokens
-- **Frontend**: Next.js (deploy to Vercel)
+**[CLAUDE.md](CLAUDE.md) is the authoritative guide** — architecture, commands, and the
+non-obvious behaviours worth knowing before changing anything. Read it first. This file
+covers only the domain rules that sit on top of it.
 
-## Architecture
-LangGraph agent orchestrates 4 MCP tools:
-1. **rag_search** - Query Indian legal corpus (BNS, BNSS, BSA, SC judgements)
-2. **draft_document** - Generate legal drafts (bail applications, petitions)
-3. **analyze_doc** - Extract and analyze uploaded legal documents (PDF)
-4. **chat** - General legal Q&A with context
+## Project
 
-## Core Demo Flows
-1. **Bail Application**: "Client arrested under BNS 103" → rag_search (BNSS 479/482) → draft_document → .docx download
-2. **Case Law Search**: "SC anticipatory bail rulings last 5 years" → rag_search → synthesized answer with citations
-3. **Document Analysis**: Upload rental agreement PDF → analyze_doc → risk summary (termination clauses, indemnity traps)
+LawAI is a multi-agent Indian legal AI system. A LangGraph agent classifies intent and routes
+to one of four tools (`rag_search`, `chat`, `draft_document`, `analyze_doc`) backed by an LLM
+served through **AIML API** and a ChromaDB store of the post-2023 Indian legal codes.
 
-## Development Commands
-```bash
-# Backend (FastAPI)
-pip install -r requirements.txt
-uvicorn main:app --reload
+## Hard requirements
 
-# Frontend (Next.js)
-cd frontend
-npm install
-npm run dev
+- **Legal framework is the 2023 codes, not the pre-2023 ones.** BNS replaces the IPC, BNSS
+  replaces the CrPC, BSA replaces the Evidence Act. Never cite IPC/CrPC/Evidence Act sections
+  as current law.
+- **Citations must be accurate.** Format: "Section 103, Bharatiya Nyaya Sanhita, 2023";
+  case law as "Case Name v. Case Name, (Year) Citation". A wrong section number or a
+  misattributed judgement is a serious defect, not a cosmetic one — prefer omitting a
+  citation to guessing it.
+- **Every AI-generated answer or document carries a disclaimer.** The backend appends one in
+  `RAGService` and the tools; the frontend must surface the `LegalDisclaimer` component.
+- **No PII in the vector database.** Sanitise uploads before processing.
 
-# Vector DB setup
-# ChromaDB runs locally - no separate setup needed
-```
+## Corpus
 
-## Key Implementation Notes
-- **IBM watsonx.ai**: Use langchain-ibm for API integration (non-negotiable requirement)
-- **Streaming**: FastAPI StreamingResponse for token-by-token output
-- **RAG Collections**: Separate ChromaDB collections for BNS, BNSS, BSA, SC judgements
-- **Document Processing**: PDF text extraction for analyze_doc tool
-- **Agent Logic**: LangGraph state machine routes user intent to appropriate tool(s)
+The vector store holds verbatim official text, not summaries: 358 BNS, 531 BNSS and 170 BSA
+sections parsed from the Ministry of Home Affairs gazette PDFs, plus 27 curated Supreme Court
+judgements. Regenerate with `scripts/ingest_legal_acts.py` and `scripts/ingest_judgments.py`,
+then reseed with `scripts/init_vector_db.py`.
 
-## Code Style
-- Python: PEP 8, type hints, docstrings
-- TypeScript/Next.js: Standard Next.js conventions
-- API: RESTful endpoints, proper error handling
-- Legal Domain: Accurate citation formats, Indian legal terminology
+When adding judgements, pin the document id and give `expect` tokens so ingestion verifies it
+fetched the right case. Searching by name alone returns the wrong authority often enough to
+matter — see the note at the top of `scripts/ingest_judgments.py`.
 
-## Testing
-- Unit tests for each MCP tool
-- Integration tests for agent flows
-- Test with real BNS/BNSS/BSA sections and SC judgement samples
-- Verify .docx generation and PDF parsing
+## Code style
 
-## Security & Compliance
-- No PII storage in vector DB
-- Sanitize user uploads before processing
-- Rate limiting on API endpoints
-- Legal disclaimer in UI (AI-generated content)
+- Python: PEP 8, type hints, docstrings, module-level `logger = logging.getLogger(__name__)`.
+- TypeScript: standard Next.js conventions (Pages Router, not App Router).
+- Keep `backend/models/` and the mirrored types in `frontend/lib/api.ts` in sync.
+- Write tests alongside features; run `pytest` from `backend/`.

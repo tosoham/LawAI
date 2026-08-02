@@ -88,5 +88,3 @@ export const SourceCard: React.FC<SourceCardProps> = ({
 };
 
 export default SourceCard;
-
-// Made with Bob

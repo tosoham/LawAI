@@ -51,5 +51,3 @@ export const useSearch = (): UseSearchResult => {
 };
 
 export default useSearch;
-
-// Made with Bob

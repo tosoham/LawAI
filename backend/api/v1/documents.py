@@ -226,5 +226,3 @@ async def health_check():
             "analyze_document": registry.has_tool("analyze_document")
         }
     }
-
-# Made with Bob

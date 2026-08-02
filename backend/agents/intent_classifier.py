@@ -193,5 +193,3 @@ def get_intent_classifier(llm_service: Optional[LLMService] = None) -> IntentCla
     if _classifier_instance is None:
         _classifier_instance = IntentClassifier(llm_service)
     return _classifier_instance
-
-# Made with Bob

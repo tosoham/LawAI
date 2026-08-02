@@ -1,8 +1,42 @@
 # LawAI - Complete Implementation Plan
 
-**Last Updated**: 2026-05-03  
-**Status**: Planning Phase  
+**Last Updated**: 2026-08-03
+**Status**: Historical planning document — superseded in part, see below
 **Approach**: Iterative, phased development with testing after each phase
+
+---
+
+> ## ⚠️ What actually shipped differs from this plan
+>
+> This document records the original plan and is kept for context. Two things have since
+> changed, so read it with these corrections in mind. **[CLAUDE.md](../CLAUDE.md) describes
+> the system as it actually is.**
+>
+> **1. The LLM provider is no longer IBM watsonx.ai.** Phase 2 below specifies watsonx.ai
+> with Granite-13b-chat-v2 and `langchain-ibm`, which was a hackathon requirement. That
+> constraint no longer applies. The system now calls **AIML API** (an OpenAI-compatible
+> endpoint, default model `gpt-4o-mini`) through the `openai` SDK. Everything is isolated in
+> `backend/services/llm_service.py`. `scripts/setup_ibm_watsonx.py` and
+> `docs/setup/IBM_WATSONX_SETUP.md` referenced below were never created and never will be.
+>
+> **2. Phase 3's data collection was implemented differently — and its targets were met.**
+> The planned `collect_legal_data.py` / `process_legal_data.py` / `import_data.py` scripts
+> do not exist. The equivalent pipeline is:
+>
+> | Planned | Actual |
+> |---|---|
+> | `scripts/collect_legal_data.py` | `backend/scripts/ingest_legal_acts.py` (downloads + parses the MHA gazette PDFs) |
+> | `scripts/process_legal_data.py` | same script; writes `data/processed/*.json` |
+> | `scripts/import_data.py` | `backend/scripts/init_vector_db.py` (chunks + embeds) |
+> | — | `backend/scripts/ingest_judgments.py` (curated Supreme Court judgements) |
+> | `backend/services/vector_db.py` | `backend/services/vector_service.py` |
+>
+> Collection names are `bns_sections`, `bnss_sections`, `bsa_sections`, `sc_judgements`.
+>
+> Phase 3's volume criteria are met: **358 BNS** (target 300+), **531 BNSS** (target 500+),
+> **170 BSA** (target 150+). Judgements are **27** against a 50+ target — deliberately, as
+> each is verified by document id rather than resolved by search, which returns the wrong
+> authority often enough to matter for citations.
 
 ---
 

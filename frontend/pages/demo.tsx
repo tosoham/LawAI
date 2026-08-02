@@ -98,8 +98,8 @@ const FEATURES = [
     icon: '⚡',
   },
   {
-    title: 'IBM watsonx.ai',
-    description: 'Powered by Granite-13b-chat-v2 model',
+    title: '2023 Legal Framework',
+    description: 'Full text of BNS, BNSS and BSA with Supreme Court authority',
     icon: '🧠',
   },
 ];
@@ -145,7 +145,7 @@ export default function Demo() {
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
             <h2 className="text-4xl font-bold mb-4">Welcome to LawAI</h2>
             <p className="text-xl text-primary-100 mb-8 max-w-3xl mx-auto">
-              Multi-agent Indian legal AI system powered by IBM watsonx.ai. Explore our features through interactive demos below.
+              Multi-agent Indian legal AI system built on the 2023 criminal codes. Explore our features through interactive demos below.
             </p>
             <div className="flex flex-wrap justify-center gap-4">
               <div className="bg-white/10 backdrop-blur-sm rounded-lg px-6 py-3">
@@ -282,7 +282,7 @@ export default function Demo() {
         <footer className="bg-white border-t border-gray-200 py-8">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
             <p className="text-sm text-gray-600">
-              © 2024 LawAI • Powered by IBM watsonx.ai • 
+              © 2024 LawAI • BNS, BNSS &amp; BSA (2023) • 
               <a href="https://github.com/tosoham/LawAI" target="_blank" rel="noopener noreferrer" className="text-primary-600 hover:text-primary-700 ml-1">
                 GitHub
               </a>
@@ -293,5 +293,3 @@ export default function Demo() {
     </>
   );
 }
-
-// Made with Bob
