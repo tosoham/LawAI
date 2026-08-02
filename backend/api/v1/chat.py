@@ -1,10 +1,10 @@
 """
 Chat endpoint for LawAI
-Handles conversational interactions with IBM watsonx.ai
+Handles conversational interactions with the configured AIML API model
 """
+import asyncio
 import logging
 from fastapi import APIRouter, HTTPException, status
-from fastapi.responses import StreamingResponse
 
 from models.requests import ChatRequest
 from models.responses import ChatResponse, ErrorResponse
@@ -24,7 +24,7 @@ router = APIRouter(prefix="/chat", tags=["chat"])
         500: {"model": ErrorResponse}
     },
     summary="Chat with LawAI",
-    description="Send a message and get a response from IBM Granite model"
+    description="Send a message and get a response from the configured legal AI model"
 )
 async def chat(request: ChatRequest):
     """
@@ -47,18 +47,17 @@ async def chat(request: ChatRequest):
         if request.context:
             prompt = f"Context: {request.context}\n\nQuestion: {request.message}"
         
-        # Add legal domain instruction
+        # Legal domain instruction, sent as a proper system message
         system_prompt = (
             "You are a legal AI assistant specializing in Indian law. "
             "Provide accurate, helpful responses based on BNS, BNSS, BSA, and Indian case law. "
-            "Always cite relevant sections and cases when applicable.\n\n"
+            "Always cite relevant sections and cases when applicable."
         )
-        full_prompt = system_prompt + prompt
-        
+
         # Prepare generation parameters
         gen_kwargs = {}
         if request.max_tokens:
-            gen_kwargs["max_new_tokens"] = request.max_tokens
+            gen_kwargs["max_tokens"] = request.max_tokens
         if request.temperature:
             gen_kwargs["temperature"] = request.temperature
         
@@ -69,7 +68,9 @@ async def chat(request: ChatRequest):
             # Create async generator for streaming
             async def generate():
                 try:
-                    async for token in llm_service.generate_stream(full_prompt, **gen_kwargs):
+                    async for token in llm_service.generate_stream(
+                        prompt, system=system_prompt, **gen_kwargs
+                    ):
                         yield token
                 except Exception as e:
                     logger.error(f"Streaming generation error: {str(e)}")
@@ -83,8 +84,10 @@ async def chat(request: ChatRequest):
         else:
             logger.info("Non-streaming response requested")
             
-            # Generate complete response
-            response_text = llm_service.generate(full_prompt, **gen_kwargs)
+            # Generate complete response (offloaded so the event loop stays free)
+            response_text = await asyncio.to_thread(
+                llm_service.generate, prompt, system=system_prompt, **gen_kwargs
+            )
             
             # Return structured response
             return ChatResponse(
@@ -118,9 +121,11 @@ async def health():
         return {
             "status": "healthy",
             "service": "chat",
+            "provider": model_info["provider"],
             "model": model_info["model_id"],
             "max_tokens": model_info["max_tokens"],
-            "temperature": model_info["temperature"]
+            "temperature": model_info["temperature"],
+            "configured": llm_service.health_check()["configured"]
         }
     except Exception as e:
         logger.error(f"Health check failed: {str(e)}")

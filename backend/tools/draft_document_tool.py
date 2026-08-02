@@ -4,6 +4,7 @@ Draft Document Tool
 Generate legal documents like bail applications, petitions, and notices.
 """
 
+import asyncio
 from typing import Dict
 from .base_tool import BaseTool, ToolParameter, ToolResult
 from services.llm_service import LLMService
@@ -36,7 +37,8 @@ class DraftDocumentTool(BaseTool):
         self.templates = {
             "bail_application": self._get_bail_template(),
             "petition": self._get_petition_template(),
-            "notice": self._get_notice_template()
+            "notice": self._get_notice_template(),
+            "agreement": self._get_agreement_template()
         }
     
     @property
@@ -53,7 +55,7 @@ class DraftDocumentTool(BaseTool):
             "document_type": ToolParameter(
                 name="document_type",
                 type="string",
-                description="Type of document (bail_application|petition|notice)",
+                description="Type of document (bail_application|petition|notice|agreement)",
                 required=True
             ),
             "case_details": ToolParameter(
@@ -193,6 +195,83 @@ Advocate
 [ADDRESS]
 Date: [DATE]"""
     
+    def _get_agreement_template(self) -> str:
+        """Get agreement/contract template"""
+        return """Draft a comprehensive agreement with the following structure:
+
+[AGREEMENT TITLE]
+
+This Agreement is made and executed at [PLACE] on this [DATE].
+
+BETWEEN
+
+[FIRST_PARTY_NAME], [FIRST_PARTY_DESCRIPTION], residing at/having its registered
+office at [FIRST_PARTY_ADDRESS] (hereinafter referred to as the "First Party",
+which expression shall, unless repugnant to the context, include its successors
+and permitted assigns) of the ONE PART;
+
+AND
+
+[SECOND_PARTY_NAME], [SECOND_PARTY_DESCRIPTION], residing at/having its registered
+office at [SECOND_PARTY_ADDRESS] (hereinafter referred to as the "Second Party",
+which expression shall, unless repugnant to the context, include its successors
+and permitted assigns) of the OTHER PART.
+
+WHEREAS:
+[RECITALS]
+
+NOW THEREFORE, in consideration of the mutual covenants contained herein, the
+parties agree as follows:
+
+1. DEFINITIONS AND INTERPRETATION:
+[DEFINITIONS]
+
+2. SCOPE AND OBLIGATIONS:
+[SCOPE_OF_AGREEMENT]
+
+3. CONSIDERATION AND PAYMENT TERMS:
+[PAYMENT_TERMS]
+
+4. TERM AND RENEWAL:
+[TERM_DETAILS]
+
+5. REPRESENTATIONS AND WARRANTIES:
+[REPRESENTATIONS]
+
+6. CONFIDENTIALITY:
+[CONFIDENTIALITY_TERMS]
+
+7. INDEMNITY:
+[INDEMNITY_TERMS]
+
+8. TERMINATION:
+[TERMINATION_CLAUSES]
+
+9. DISPUTE RESOLUTION AND ARBITRATION:
+Any dispute arising out of or in connection with this Agreement shall be referred
+to arbitration under the Arbitration and Conciliation Act, 1996. The seat of
+arbitration shall be [SEAT].
+
+10. GOVERNING LAW AND JURISDICTION:
+This Agreement shall be governed by the laws of India and the courts at [JURISDICTION]
+shall have exclusive jurisdiction.
+
+11. MISCELLANEOUS:
+[MISCELLANEOUS_CLAUSES]
+
+IN WITNESS WHEREOF, the parties have executed this Agreement on the day, month and
+year first written above.
+
+For and on behalf of                    For and on behalf of
+[FIRST_PARTY_NAME]                      [SECOND_PARTY_NAME]
+
+_____________________                   _____________________
+(Authorised Signatory)                  (Authorised Signatory)
+
+WITNESSES:
+1. _____________________
+2. _____________________"""
+
     def _create_prompt(self, document_type: str, case_details: Dict) -> str:
         """
         Create prompt for document generation.
@@ -274,8 +353,8 @@ Generate the complete document now:"""
             # Create prompt
             prompt = self._create_prompt(document_type, case_details)
             
-            # Generate document
-            document = self.llm_service.generate(prompt=prompt)
+            # Generate document (offloaded so the event loop is not blocked)
+            document = await asyncio.to_thread(self.llm_service.generate, prompt=prompt)
             
             # Add metadata
             result_data = {

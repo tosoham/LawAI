@@ -5,14 +5,14 @@ Tests for agent state, intent classifier, and agent graph.
 """
 
 import pytest
-from unittest.mock import Mock, patch, MagicMock
-from backend.agents.state import (
-    AgentState, IntentType, create_initial_state, 
+from unittest.mock import Mock, patch, AsyncMock
+from agents.state import (
+    IntentType, create_initial_state, 
     update_state, add_message, set_error
 )
-from backend.agents.intent_classifier import IntentClassifier
-from backend.agents.legal_agent import LegalAgent
-from backend.agents.agent_service import AgentService
+from agents.intent_classifier import IntentClassifier
+from agents.legal_agent import LegalAgent
+from agents.agent_service import AgentService
 
 
 class TestAgentState:
@@ -153,6 +153,7 @@ class TestLegalAgent:
         
         # Mock RAG search tool
         mock_rag_tool = Mock()
+        mock_rag_tool.execute = AsyncMock()
         mock_rag_tool.execute.return_value = {
             "answer": "Test RAG answer",
             "sources": [{"metadata": {"source": "BNS Section 103"}}]
@@ -160,19 +161,22 @@ class TestLegalAgent:
         
         # Mock chat tool
         mock_chat_tool = Mock()
+        mock_chat_tool.execute = AsyncMock()
         mock_chat_tool.execute.return_value = {
             "response": "Test chat response"
         }
         
         # Mock draft tool
         mock_draft_tool = Mock()
+        mock_draft_tool.execute = AsyncMock()
         mock_draft_tool.execute.return_value = {
-            "content": "Test draft content",
+            "document": "Test draft content",
             "document_type": "bail_application"
         }
         
         # Mock analyze tool
         mock_analyze_tool = Mock()
+        mock_analyze_tool.execute = AsyncMock()
         mock_analyze_tool.execute.return_value = {
             "analysis": "Test analysis",
             "risks": ["Risk 1"],
@@ -207,44 +211,48 @@ class TestLegalAgent:
         assert agent.tool_registry == mock_tools
         assert agent.graph is not None
     
-    def test_agent_process_rag_search(self, mock_classifier, mock_tools):
+    @pytest.mark.asyncio
+    async def test_agent_process_rag_search(self, mock_classifier, mock_tools):
         """Test agent processing RAG search query"""
         mock_classifier.classify.return_value = IntentType.RAG_SEARCH.value
         agent = LegalAgent(mock_classifier, mock_tools)
         
-        result = agent.process("What are bail provisions?")
+        result = await agent.process("What are bail provisions?")
         
         assert "response" in result
         assert result["intent"] == IntentType.RAG_SEARCH.value
         assert "Test RAG answer" in result["response"]
     
-    def test_agent_process_chat(self, mock_classifier, mock_tools):
+    @pytest.mark.asyncio
+    async def test_agent_process_chat(self, mock_classifier, mock_tools):
         """Test agent processing chat query"""
         mock_classifier.classify.return_value = IntentType.CHAT.value
         agent = LegalAgent(mock_classifier, mock_tools)
         
-        result = agent.process("Hello, how are you?")
+        result = await agent.process("Hello, how are you?")
         
         assert "response" in result
         assert result["intent"] == IntentType.CHAT.value
     
-    def test_agent_process_draft(self, mock_classifier, mock_tools):
+    @pytest.mark.asyncio
+    async def test_agent_process_draft(self, mock_classifier, mock_tools):
         """Test agent processing draft document query"""
         mock_classifier.classify.return_value = IntentType.DRAFT_DOCUMENT.value
         agent = LegalAgent(mock_classifier, mock_tools)
         
-        result = agent.process("Draft a bail application")
+        result = await agent.process("Draft a bail application")
         
         assert "response" in result
         assert result["intent"] == IntentType.DRAFT_DOCUMENT.value
         assert "draft" in result["response"].lower()
     
-    def test_agent_error_handling(self, mock_classifier, mock_tools):
+    @pytest.mark.asyncio
+    async def test_agent_error_handling(self, mock_classifier, mock_tools):
         """Test agent error handling"""
         mock_classifier.classify.side_effect = Exception("Classification error")
         agent = LegalAgent(mock_classifier, mock_tools)
         
-        result = agent.process("test query")
+        result = await agent.process("test query")
         
         assert result["error"] is not None
 
@@ -256,6 +264,7 @@ class TestAgentService:
     def mock_agent(self):
         """Create mock agent"""
         agent = Mock()
+        agent.process = AsyncMock()
         agent.process.return_value = {
             "response": "Test response",
             "intent": "rag_search",
@@ -266,22 +275,23 @@ class TestAgentService:
     
     def test_agent_service_initialization(self):
         """Test agent service initialization"""
-        with patch('backend.agents.agent_service.LegalAgent'):
+        with patch('agents.agent_service.LegalAgent'):
             service = AgentService()
             assert service.agent is not None
     
-    def test_process_query(self, mock_agent):
+    @pytest.mark.asyncio
+    async def test_process_query(self, mock_agent):
         """Test processing query through service"""
-        with patch('backend.agents.agent_service.LegalAgent', return_value=mock_agent):
+        with patch('agents.agent_service.LegalAgent', return_value=mock_agent):
             service = AgentService()
-            result = service.process_query("test query")
+            result = await service.process_query("test query")
             
             assert result["response"] == "Test response"
             assert result["intent"] == "rag_search"
     
     def test_get_agent_info(self):
         """Test getting agent info"""
-        with patch('backend.agents.agent_service.LegalAgent'):
+        with patch('agents.agent_service.LegalAgent'):
             service = AgentService()
             info = service.get_agent_info()
             
@@ -291,7 +301,7 @@ class TestAgentService:
     
     def test_health_check(self):
         """Test agent health check"""
-        with patch('backend.agents.agent_service.LegalAgent'):
+        with patch('agents.agent_service.LegalAgent'):
             service = AgentService()
             health = service.health_check()
             

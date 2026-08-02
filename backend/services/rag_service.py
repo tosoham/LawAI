@@ -4,7 +4,7 @@ Combines vector search with LLM for contextual legal responses
 """
 import logging
 from typing import List, Dict, Any, Optional
-from .vector_service import get_vector_service, VectorService
+from .vector_service import get_vector_service
 from .llm_service import llm_service
 
 logger = logging.getLogger(__name__)
@@ -75,7 +75,9 @@ class RAGService:
                 'id': doc_id,
                 'text': doc[:200] + "..." if len(doc) > 200 else doc,  # Truncate for response
                 'metadata': meta,
-                'relevance_score': float(1 - distance) if distance else 0.0  # Convert distance to similarity
+                # Cosine distance -> similarity. Must test for None, not truthiness:
+                # a distance of 0.0 is a *perfect* match and would otherwise score 0.0.
+                'relevance_score': float(1 - distance) if distance is not None else 0.0
             }
             sources.append(source)
         
@@ -224,14 +226,6 @@ ANSWER:"""
                     'query': query,
                     'collections': collections
                 }
-            
-            # Combine results
-            combined_results = {
-                'documents': all_documents,
-                'metadatas': all_metadatas,
-                'distances': all_distances,
-                'ids': all_ids
-            }
             
             # Sort by relevance (distance)
             sorted_indices = sorted(range(len(all_distances)), key=lambda i: all_distances[i])

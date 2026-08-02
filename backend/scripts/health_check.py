@@ -11,8 +11,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 import requests
-import json
-from typing import Dict, List, Tuple
+from typing import List, Tuple
 from datetime import datetime
 import chromadb
 from colorama import init, Fore, Style
@@ -90,7 +89,7 @@ class HealthChecker:
             return False, f"ChromaDB error: {str(e)}"
     
     def check_llm_service(self) -> Tuple[bool, str]:
-        """Check LLM service (IBM watsonx.ai)"""
+        """Check LLM service (AIML API)"""
         try:
             # Test via chat endpoint
             response = requests.post(
@@ -261,7 +260,7 @@ def main():
     # Run all checks
     checker.check("Backend API", checker.check_backend_api)
     checker.check("ChromaDB Collections", checker.check_chromadb)
-    checker.check("LLM Service (IBM watsonx.ai)", checker.check_llm_service)
+    checker.check("LLM Service (AIML API)", checker.check_llm_service)
     checker.check("RAG Search Service", checker.check_rag_service)
     checker.check("Agent Service (LangGraph)", checker.check_agent_service)
     checker.check("Document Generation Service", checker.check_document_service)
@@ -274,7 +273,7 @@ def main():
     # Save report to file
     report_file = Path("health_check_report.txt")
     with open(report_file, "w") as f:
-        f.write(f"LawAI Health Check Report\n")
+        f.write("LawAI Health Check Report\n")
         f.write(f"Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
         f.write(f"{'=' * 80}\n\n")
         

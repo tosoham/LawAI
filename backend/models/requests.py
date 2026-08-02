@@ -1,7 +1,7 @@
 """
 Request models for LawAI API
 """
-from typing import Optional, List
+from typing import Any, Dict, Optional
 from pydantic import BaseModel, Field
 
 
@@ -83,61 +83,61 @@ class RAGSearchRequest(BaseModel):
         }
 
 
-class DocumentAnalysisRequest(BaseModel):
-    """Request model for document analysis endpoint"""
-    
-    file_path: str = Field(
-        ...,
-        description="Path to uploaded document"
-    )
-    
-    analysis_type: str = Field(
-        default="general",
-        description="Type of analysis to perform",
-        pattern="^(general|risk|summary|clauses)$"
-    )
-    
-    class Config:
-        json_schema_extra = {
-            "example": {
-                "file_path": "/tmp/rental_agreement.pdf",
-                "analysis_type": "risk"
-            }
-        }
-
-
 class DraftDocumentRequest(BaseModel):
     """Request model for document drafting endpoint"""
-    
+
     document_type: str = Field(
         ...,
         description="Type of document to draft",
         pattern="^(bail_application|petition|notice|agreement)$"
     )
-    
-    details: dict = Field(
+
+    case_details: Dict[str, Any] = Field(
         ...,
-        description="Details required for drafting"
+        description="Case details used to populate the document"
     )
-    
-    format: str = Field(
-        default="docx",
-        description="Output format",
-        pattern="^(docx|pdf|txt)$"
-    )
-    
+
     class Config:
         json_schema_extra = {
             "example": {
                 "document_type": "bail_application",
-                "details": {
+                "case_details": {
                     "accused_name": "John Doe",
-                    "case_number": "CR-123/2024",
-                    "sections": ["BNS 103"],
-                    "grounds": "First time offender, no criminal history"
-                },
-                "format": "docx"
+                    "fir_number": "CR-123/2024",
+                    "sections": "BNS 103",
+                    "facts": "First time offender, no criminal history"
+                }
             }
         }
 
-# Made with Bob
+
+class AnalyzeDocumentRequest(BaseModel):
+    """Request model for document analysis endpoint"""
+
+    document_text: str = Field(
+        ...,
+        description="Full text of the document to analyse",
+        min_length=1
+    )
+
+    analysis_type: str = Field(
+        default="full",
+        description="Type of analysis to perform",
+        pattern="^(summary|risks|key_clauses|full)$"
+    )
+
+    document_type: str = Field(
+        default="other",
+        description="Type of document being analysed",
+        pattern="^(contract|agreement|notice|petition|other)$"
+    )
+
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "document_text": "This Rental Agreement is made on...",
+                "analysis_type": "risks",
+                "document_type": "agreement"
+            }
+        }
+

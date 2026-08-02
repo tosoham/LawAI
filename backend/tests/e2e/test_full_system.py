@@ -6,10 +6,7 @@ Tests complete user flows with real API calls (not mocked)
 import pytest
 import requests
 import json
-import time
-from typing import Dict, Any, List
 import os
-from pathlib import Path
 
 # Test configuration
 BASE_URL = os.getenv("API_BASE_URL", "http://localhost:8000")

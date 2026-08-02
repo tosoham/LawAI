@@ -5,10 +5,10 @@ Orchestrates tool execution based on user intent using LangGraph.
 """
 
 import logging
-from typing import Dict, Any, Literal
+from typing import Dict, Any
 from langgraph.graph import StateGraph, END
 
-from agents.state import AgentState, IntentType, update_state, add_message, set_error
+from agents.state import AgentState, IntentType, update_state, set_error
 from agents.intent_classifier import IntentClassifier
 from tools.registry import ToolRegistry
 
@@ -190,14 +190,15 @@ class LegalAgent:
             tool = self.tool_registry.get_tool("draft_document")
             query = state["user_query"]
             
-            logger.info(f"Executing draft document for: {query[:50]}...")
-            
-            # Extract document type and details from query
-            # For now, use simple defaults
+            document_type = self._infer_document_type(query)
+
+            logger.info(
+                f"Executing draft document ({document_type}) for: {query[:50]}..."
+            )
+
             result = await tool.execute(
-                document_type="bail_application",
-                case_details=query,
-                legal_provisions=""
+                document_type=document_type,
+                case_details={"request": query},
             )
             
             return update_state(
@@ -208,6 +209,39 @@ class LegalAgent:
             logger.error(f"Draft document execution error: {e}")
             return set_error(state, f"Draft document failed: {str(e)}")
     
+    # Keyword -> document type, checked in order so that more specific phrases win.
+    _DOCUMENT_TYPE_KEYWORDS = (
+        ("agreement", "agreement"),
+        ("contract", "agreement"),
+        ("mou", "agreement"),
+        ("lease", "agreement"),
+        ("notice", "notice"),
+        ("petition", "petition"),
+        ("writ", "petition"),
+        ("appeal", "petition"),
+        ("bail", "bail_application"),
+    )
+
+    @classmethod
+    def _infer_document_type(cls, query: str) -> str:
+        """
+        Infer which document the user wants drafted.
+
+        The agent graph has no structured input, so the type is derived from the
+        query text; bail applications remain the default because they are the most
+        common request in this domain.
+        """
+        query_lower = query.lower()
+        for keyword, document_type in cls._DOCUMENT_TYPE_KEYWORDS:
+            if keyword in query_lower:
+                return document_type
+        return "bail_application"
+
+    # Queries at least this long are treated as pasted document text rather than a
+    # request to analyse a document that has not been supplied yet. Matches the
+    # minimum length AnalyzeDocumentTool itself enforces.
+    _MIN_INLINE_DOCUMENT_CHARS = 100
+
     async def _execute_analyze_node(self, state: AgentState) -> AgentState:
         """
         Node: Execute analyze document tool.
@@ -219,21 +253,36 @@ class LegalAgent:
             Updated state with tool results
         """
         try:
-            tool = self.tool_registry.get_tool("analyze_doc")
+            tool = self.tool_registry.get_tool("analyze_document")
             query = state["user_query"]
-            
+
             logger.info(f"Executing analyze document for: {query[:50]}...")
-            
-            # For now, return a message asking for document upload
-            result = {
-                "success": True,
-                "data": {
-                    "analysis": "Please upload a document to analyze. Supported formats: PDF, DOCX",
-                    "risks": [],
-                    "recommendations": ["Upload document via the document upload endpoint"]
+
+            # The agent graph has no file-upload channel, so the only document text
+            # available is whatever the user pasted into the query. Anything long
+            # enough to plausibly be a document is analysed directly; shorter inputs
+            # are a request to analyse something not yet provided.
+            document_text = query.strip()
+
+            if tool is not None and len(document_text) >= self._MIN_INLINE_DOCUMENT_CHARS:
+                result = await tool.execute(document_text=document_text, analysis_type="full")
+            else:
+                result = {
+                    "success": True,
+                    "data": {
+                        "analysis": (
+                            "Please provide the document to analyse. You can paste its "
+                            "text directly into your message, or upload a PDF/DOCX to "
+                            "the /api/v1/documents/analyze endpoint."
+                        ),
+                        "risks": [],
+                        "recommendations": [
+                            "Paste the document text into your message, or",
+                            "Upload the file via POST /api/v1/documents/analyze",
+                        ],
+                    },
                 }
-            }
-            
+
             return update_state(
                 state,
                 tool_results={"analyze_doc": result}
@@ -330,7 +379,8 @@ class LegalAgent:
                 return f"Draft generation failed: {result.error}"
             result = result.data
         
-        content = result.get("content", "")
+        # DraftDocumentTool returns the drafted text under "document".
+        content = result.get("document") or result.get("content", "")
         doc_type = result.get("document_type", "document")
         
         return f"**Generated {doc_type}:**\n\n{content}\n\n*Note: This is an AI-generated draft. Please review with a legal professional.*"

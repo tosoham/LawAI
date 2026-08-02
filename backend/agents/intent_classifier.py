@@ -46,6 +46,15 @@ class IntentClassifier:
         ],
     }
     
+    # Order used to resolve equal keyword scores; most specific intent first.
+    _TIE_BREAK_ORDER = (
+        IntentType.CHAT,
+        IntentType.DRAFT_DOCUMENT,
+        IntentType.ANALYZE_DOCUMENT,
+        IntentType.RAG_SEARCH,
+        IntentType.UNKNOWN,
+    )
+
     def __init__(self, llm_service: Optional[LLMService] = None):
         """
         Initialize intent classifier.
@@ -77,12 +86,15 @@ class IntentClassifier:
         
         # Get intent with highest score
         max_score = max(scores.values())
-        
+
         if max_score > 0:
-            # Find intent with max score
-            for intent, score in scores.items():
-                if score == max_score:
-                    logger.info(f"Classified intent: {intent.value} (score: {score})")
+            # Break ties by specificity. RAG_SEARCH's patterns are deliberately broad
+            # (they include generic question words like "what"), and it is already the
+            # fallback below, so it must lose ties to the narrower intents — otherwise
+            # "what can you help me with?" would be sent to vector search.
+            for intent in self._TIE_BREAK_ORDER:
+                if scores[intent] == max_score:
+                    logger.info(f"Classified intent: {intent.value} (score: {max_score})")
                     return intent.value
         
         # Fallback to LLM classification if available

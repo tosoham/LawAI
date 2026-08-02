@@ -7,7 +7,7 @@ from fastapi import APIRouter, HTTPException, status
 from typing import Dict, Any
 
 from models.requests import RAGSearchRequest
-from models.responses import RAGSearchResponse, Source, ErrorResponse
+from models.responses import ErrorResponse
 from services.rag_service import get_rag_service
 from services.vector_service import VectorService
 
@@ -42,7 +42,7 @@ def rag_search(request: RAGSearchRequest) -> Dict[str, Any]:
     This endpoint:
     1. Searches the specified legal collection using semantic similarity
     2. Retrieves relevant legal provisions/cases
-    3. Generates a contextual answer using IBM watsonx.ai
+    3. Generates a contextual answer using the configured AIML API model
     4. Returns the answer with source citations
     
     Args:

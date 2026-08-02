@@ -2,8 +2,8 @@
 Unit tests for RAG Service
 """
 import pytest
-from unittest.mock import Mock, patch, MagicMock
-from backend.services.rag_service import RAGService, get_rag_service
+from unittest.mock import Mock, patch
+from services.rag_service import RAGService, get_rag_service
 
 
 class TestRAGService:
@@ -47,8 +47,8 @@ class TestRAGService:
     @pytest.fixture
     def rag_service(self, mock_vector_service, mock_llm_service):
         """Create RAG service with mocked dependencies"""
-        with patch('backend.services.rag_service.get_vector_service', return_value=mock_vector_service):
-            with patch('backend.services.rag_service.llm_service', mock_llm_service):
+        with patch('services.rag_service.get_vector_service', return_value=mock_vector_service):
+            with patch('services.rag_service.llm_service', mock_llm_service):
                 service = RAGService()
                 return service
     
@@ -103,7 +103,7 @@ class TestRAGService:
         
         assert query in prompt
         assert context in prompt
-        assert 'legal AI assistant' in prompt.lower()
+        assert 'legal ai assistant' in prompt.lower()
         assert 'disclaimer' in prompt.lower()
     
     def test_search_and_generate_success(self, rag_service, mock_vector_service, mock_llm_service):
@@ -180,8 +180,8 @@ class TestRAGService:
     
     def test_get_rag_service_singleton(self):
         """Test that get_rag_service returns singleton"""
-        with patch('backend.services.rag_service.get_vector_service'):
-            with patch('backend.services.rag_service.llm_service'):
+        with patch('services.rag_service.get_vector_service'):
+            with patch('services.rag_service.llm_service'):
                 service1 = get_rag_service()
                 service2 = get_rag_service()
                 

@@ -39,7 +39,7 @@ class ChatResponse(BaseModel):
                         "score": 0.95
                     }
                 ],
-                "model": "ibm/granite-13b-chat-v2",
+                "model": "gpt-4o-mini",
                 "timestamp": "2024-01-01T12:00:00"
             }
         }
@@ -71,55 +71,45 @@ class RAGSearchResponse(BaseModel):
         }
 
 
-class DocumentAnalysisResponse(BaseModel):
-    """Response model for document analysis endpoint"""
-    
-    file_name: str = Field(..., description="Analyzed file name")
-    analysis_type: str = Field(..., description="Type of analysis performed")
-    summary: str = Field(..., description="Analysis summary")
-    key_points: List[str] = Field(..., description="Key points identified")
-    risks: Optional[List[str]] = Field(None, description="Identified risks")
-    recommendations: Optional[List[str]] = Field(None, description="Recommendations")
-    
-    class Config:
-        json_schema_extra = {
-            "example": {
-                "file_name": "rental_agreement.pdf",
-                "analysis_type": "risk",
-                "summary": "Standard rental agreement with some concerning clauses",
-                "key_points": [
-                    "11-month lease term",
-                    "Security deposit: 3 months rent"
-                ],
-                "risks": [
-                    "Broad indemnity clause in favor of landlord",
-                    "Unilateral termination rights"
-                ],
-                "recommendations": [
-                    "Negotiate indemnity clause",
-                    "Add notice period for termination"
-                ]
-            }
-        }
-
-
 class DraftDocumentResponse(BaseModel):
     """Response model for document drafting endpoint"""
-    
-    document_type: str = Field(..., description="Type of document drafted")
-    file_path: str = Field(..., description="Path to generated document")
-    format: str = Field(..., description="Document format")
-    preview: Optional[str] = Field(None, description="Text preview of document")
-    
-    class Config:
-        json_schema_extra = {
-            "example": {
-                "document_type": "bail_application",
-                "file_path": "/tmp/bail_application_123.docx",
-                "format": "docx",
-                "preview": "IN THE COURT OF...\n\nBail Application under Section 479 BNSS..."
-            }
-        }
+
+    success: bool = Field(..., description="Whether drafting succeeded")
+    document: Optional[str] = Field(None, description="The drafted document text")
+    document_type: Optional[str] = Field(None, description="Type of document drafted")
+    case_details: Optional[Dict[str, Any]] = Field(None, description="Case details used")
+    disclaimer: Optional[str] = Field(None, description="AI-generated content disclaimer")
+    error: Optional[str] = Field(None, description="Error message if drafting failed")
+
+
+class AnalyzeDocumentResponse(BaseModel):
+    """Response model for document analysis endpoint"""
+
+    success: bool = Field(..., description="Whether analysis succeeded")
+    analysis: Optional[str] = Field(None, description="Analysis output")
+    analysis_type: Optional[str] = Field(None, description="Type of analysis performed")
+    document_type: Optional[str] = Field(None, description="Type of document analysed")
+    document_length: Optional[int] = Field(None, description="Length of analysed text")
+    disclaimer: Optional[str] = Field(None, description="AI-generated content disclaimer")
+    error: Optional[str] = Field(None, description="Error message if analysis failed")
+
+
+class DocumentTemplate(BaseModel):
+    """A single document template offered by the drafting tool"""
+
+    type: str = Field(..., description="Template identifier used in draft requests")
+    name: str = Field(..., description="Human-readable template name")
+    description: str = Field(..., description="What the template is for")
+    required_fields: List[str] = Field(
+        default_factory=list,
+        description="Case-detail keys the template expects"
+    )
+
+
+class DocumentTemplatesResponse(BaseModel):
+    """Response model listing the available document templates"""
+
+    templates: List[DocumentTemplate] = Field(..., description="Available templates")
 
 
 class ErrorResponse(BaseModel):
@@ -154,9 +144,7 @@ class HealthResponse(BaseModel):
             "example": {
                 "status": "healthy",
                 "version": "1.0.0",
-                "model": "ibm/granite-13b-chat-v2",
+                "model": "gpt-4o-mini",
                 "timestamp": "2024-01-01T12:00:00"
             }
         }
-
-# Made with Bob

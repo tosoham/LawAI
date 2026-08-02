@@ -4,6 +4,7 @@ Analyze Document Tool
 Analyze uploaded legal documents (PDF/text) for summaries, risks, and key clauses.
 """
 
+import asyncio
 from typing import Dict
 from .base_tool import BaseTool, ToolParameter, ToolResult
 from services.llm_service import LLMService
@@ -211,7 +212,7 @@ COMPREHENSIVE ANALYSIS:"""
                 prompt = self._create_full_analysis_prompt(document_text, document_type)
             
             # Generate analysis
-            analysis = self.llm_service.generate(prompt=prompt)
+            analysis = await asyncio.to_thread(self.llm_service.generate, prompt=prompt)
             
             # Format result
             result_data = {

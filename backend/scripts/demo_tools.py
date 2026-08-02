@@ -10,7 +10,6 @@ Demonstrates all MCP tools with realistic examples:
 
 import asyncio
 import sys
-import os
 from pathlib import Path
 
 # Add backend to path
@@ -19,7 +18,7 @@ sys.path.insert(0, str(backend_path))
 
 from services.llm_service import llm_service
 from services.rag_service import RAGService
-from tools.registry import initialize_tools, get_tool_registry
+from tools.registry import initialize_tools
 import logging
 
 # Configure logging

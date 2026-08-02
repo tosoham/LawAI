@@ -5,70 +5,19 @@ Endpoints for document drafting and analysis.
 """
 
 from fastapi import APIRouter, HTTPException, status
-from pydantic import BaseModel, Field
-from typing import Dict, Any, Optional, List
 import logging
 
+from models.requests import AnalyzeDocumentRequest, DraftDocumentRequest
+from models.responses import (
+    AnalyzeDocumentResponse,
+    DocumentTemplatesResponse,
+    DraftDocumentResponse,
+)
 from tools.registry import get_tool_registry
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/documents", tags=["documents"])
-
-
-# Request Models
-class DraftDocumentRequest(BaseModel):
-    """Request model for document drafting"""
-    document_type: str = Field(
-        ...,
-        description="Type of document (bail_application|petition|notice)"
-    )
-    case_details: Dict[str, Any] = Field(
-        ...,
-        description="Case details for document generation"
-    )
-
-
-class AnalyzeDocumentRequest(BaseModel):
-    """Request model for document analysis"""
-    document_text: str = Field(
-        ...,
-        description="Full text of document to analyze"
-    )
-    analysis_type: str = Field(
-        default="full",
-        description="Type of analysis (summary|risks|key_clauses|full)"
-    )
-    document_type: str = Field(
-        default="other",
-        description="Type of document (contract|agreement|notice|petition|other)"
-    )
-
-
-class DocumentTemplatesResponse(BaseModel):
-    """Response model for document templates"""
-    templates: List[Dict[str, str]]
-
-
-class DraftDocumentResponse(BaseModel):
-    """Response model for drafted document"""
-    success: bool
-    document: Optional[str] = None
-    document_type: Optional[str] = None
-    case_details: Optional[Dict[str, Any]] = None
-    disclaimer: Optional[str] = None
-    error: Optional[str] = None
-
-
-class AnalyzeDocumentResponse(BaseModel):
-    """Response model for document analysis"""
-    success: bool
-    analysis: Optional[str] = None
-    analysis_type: Optional[str] = None
-    document_type: Optional[str] = None
-    document_length: Optional[int] = None
-    disclaimer: Optional[str] = None
-    error: Optional[str] = None
 
 
 @router.post("/draft", response_model=DraftDocumentResponse)
@@ -240,6 +189,19 @@ async def get_document_templates():
                 "subject",
                 "facts",
                 "demands"
+            ]
+        },
+        {
+            "type": "agreement",
+            "name": "Agreement / Contract",
+            "description": "Commercial agreement governed by Indian law",
+            "required_fields": [
+                "first_party_name",
+                "second_party_name",
+                "scope_of_agreement",
+                "payment_terms",
+                "term_details",
+                "jurisdiction"
             ]
         }
     ]

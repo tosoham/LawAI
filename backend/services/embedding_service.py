@@ -5,7 +5,6 @@ Uses sentence-transformers for fast, local embeddings
 import logging
 from typing import List, Optional
 from sentence_transformers import SentenceTransformer
-import numpy as np
 
 logger = logging.getLogger(__name__)
 

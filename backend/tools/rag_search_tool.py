@@ -5,7 +5,7 @@ Search Indian legal corpus (BNS, BNSS, BSA, SC judgements) using RAG.
 """
 
 import asyncio
-from typing import Dict, Optional
+from typing import Dict
 from .base_tool import BaseTool, ToolParameter, ToolResult
 from services.rag_service import RAGService
 

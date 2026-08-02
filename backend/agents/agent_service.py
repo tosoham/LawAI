@@ -110,7 +110,7 @@ class AgentService:
                 await asyncio.sleep(0.05)  # Small delay for streaming effect
             
             # Send completion marker
-            yield f"data: [DONE]\n\n"
+            yield "data: [DONE]\n\n"
             
             logger.info("Streaming completed successfully")
             
@@ -135,7 +135,7 @@ class AgentService:
                 "draft_document",
                 "analyze_document"
             ],
-            "llm_model": "granite-13b-chat-v2",
+            "llm_model": self.llm_service.get_model_info()["model_id"],
             "version": "1.0.0"
         }
     

@@ -1,197 +1,297 @@
 """
 Unit tests for LLM Service
-Tests IBM watsonx.ai integration and streaming functionality
+Tests the AIML API (OpenAI-compatible) integration and streaming functionality
 """
 import pytest
-from unittest.mock import Mock, patch, AsyncMock
-import os
-from backend.services.llm_service import LLMService, llm_service
+from unittest.mock import Mock, patch, MagicMock
+
+from services.llm_service import LLMService
 
 
-class TestLLMService:
-    """Test suite for LLM Service"""
-    
-    @pytest.fixture
-    def mock_env_vars(self, monkeypatch):
-        """Mock environment variables for testing"""
-        monkeypatch.setenv("IBM_WATSONX_API_KEY", "test_api_key")
-        monkeypatch.setenv("IBM_WATSONX_PROJECT_ID", "test_project_id")
-        monkeypatch.setenv("IBM_WATSONX_URL", "https://test.ibm.com")
-        monkeypatch.setenv("IBM_WATSONX_MODEL", "ibm/granite-13b-chat-v2")
-        monkeypatch.setenv("IBM_WATSONX_MAX_TOKENS", "2048")
-        monkeypatch.setenv("IBM_WATSONX_TEMPERATURE", "0.7")
-    
-    @patch('backend.services.llm_service.WatsonxLLM')
-    def test_llm_service_initialization(self, mock_watsonx, mock_env_vars):
-        """Test LLM service initializes correctly with credentials"""
-        # Reset singleton
-        LLMService._instance = None
-        LLMService._llm = None
-        
-        # Create service
+def _reset_singleton():
+    """Clear the singleton so each test builds a fresh service from env."""
+    LLMService._instance = None
+    LLMService._initialized = False
+
+
+def _chat_completion(content: str) -> Mock:
+    """Build a mock mirroring the shape of an OpenAI chat-completion response."""
+    message = Mock()
+    message.content = content
+    choice = Mock()
+    choice.message = message
+    response = Mock()
+    response.choices = [choice]
+    return response
+
+
+def _stream_chunk(content) -> Mock:
+    """Build a mock mirroring one streamed chat-completion chunk."""
+    delta = Mock()
+    delta.content = content
+    choice = Mock()
+    choice.delta = delta
+    chunk = Mock()
+    chunk.choices = [choice]
+    return chunk
+
+
+@pytest.fixture
+def mock_env_vars(monkeypatch):
+    """Provide AIML API configuration for testing"""
+    monkeypatch.setenv("AIML_API_KEY", "test_api_key")
+    monkeypatch.setenv("AIML_BASE_URL", "https://api.aimlapi.com/v1")
+    monkeypatch.setenv("AIML_MODEL", "gpt-4o-mini")
+    monkeypatch.setenv("AIML_MAX_TOKENS", "2048")
+    monkeypatch.setenv("AIML_TEMPERATURE", "0.7")
+    _reset_singleton()
+    yield
+    _reset_singleton()
+
+
+class TestLLMServiceConfiguration:
+    """Configuration and lifecycle"""
+
+    def test_reads_configuration_from_environment(self, mock_env_vars):
         service = LLMService()
-        
-        # Verify WatsonxLLM was called with correct parameters
-        mock_watsonx.assert_called_once()
-        call_kwargs = mock_watsonx.call_args[1]
-        
-        assert call_kwargs['model_id'] == "ibm/granite-13b-chat-v2"
-        assert call_kwargs['url'] == "https://test.ibm.com"
-        assert call_kwargs['apikey'] == "test_api_key"
-        assert call_kwargs['project_id'] == "test_project_id"
-        assert 'params' in call_kwargs
-        assert call_kwargs['params']['max_new_tokens'] == 2048
-        assert call_kwargs['params']['temperature'] == 0.7
-    
-    @patch('backend.services.llm_service.WatsonxLLM')
-    def test_llm_service_singleton(self, mock_watsonx, mock_env_vars):
-        """Test that LLM service follows singleton pattern"""
-        # Reset singleton
-        LLMService._instance = None
-        LLMService._llm = None
-        
-        service1 = LLMService()
-        service2 = LLMService()
-        
-        # Should be the same instance
-        assert service1 is service2
-        
-        # WatsonxLLM should only be initialized once
-        assert mock_watsonx.call_count == 1
-    
-    def test_llm_service_missing_credentials(self, monkeypatch):
-        """Test that service raises error when credentials are missing"""
-        # Reset singleton
-        LLMService._instance = None
-        LLMService._llm = None
-        
-        # Clear environment variables
-        monkeypatch.delenv("IBM_WATSONX_API_KEY", raising=False)
-        monkeypatch.delenv("IBM_WATSONX_PROJECT_ID", raising=False)
-        monkeypatch.delenv("IBM_WATSONX_URL", raising=False)
-        
-        with pytest.raises(ValueError, match="Missing required IBM watsonx.ai credentials"):
-            LLMService()
-    
-    @patch('backend.services.llm_service.WatsonxLLM')
-    def test_generate_basic(self, mock_watsonx, mock_env_vars):
-        """Test basic text generation"""
-        # Reset singleton
-        LLMService._instance = None
-        LLMService._llm = None
-        
-        # Mock LLM response
-        mock_llm_instance = Mock()
-        mock_llm_instance.invoke.return_value = "This is a test response"
-        mock_watsonx.return_value = mock_llm_instance
-        
+
+        assert service.api_key == "test_api_key"
+        assert service.base_url == "https://api.aimlapi.com/v1"
+        assert service.model_id == "gpt-4o-mini"
+        assert service.max_tokens == 2048
+        assert service.temperature == 0.7
+
+    def test_applies_defaults_when_optional_vars_absent(self, monkeypatch):
+        monkeypatch.setenv("AIML_API_KEY", "test_api_key")
+        for var in ("AIML_BASE_URL", "AIML_MODEL", "AIML_MAX_TOKENS", "AIML_TEMPERATURE"):
+            monkeypatch.delenv(var, raising=False)
+        _reset_singleton()
+
         service = LLMService()
-        response = service.generate("Test prompt")
-        
-        assert response == "This is a test response"
-        mock_llm_instance.invoke.assert_called_once_with("Test prompt")
-    
-    @patch('backend.services.llm_service.WatsonxLLM')
-    def test_generate_with_kwargs(self, mock_watsonx, mock_env_vars):
-        """Test generation with additional parameters"""
-        # Reset singleton
-        LLMService._instance = None
-        LLMService._llm = None
-        
-        mock_llm_instance = Mock()
-        mock_llm_instance.invoke.return_value = "Response with custom params"
-        mock_watsonx.return_value = mock_llm_instance
-        
+
+        assert service.base_url == "https://api.aimlapi.com/v1"
+        assert service.model_id == "gpt-4o-mini"
+        assert service.max_tokens == 2048
+        assert service.temperature == 0.7
+        _reset_singleton()
+
+    def test_singleton_pattern(self, mock_env_vars):
+        assert LLMService() is LLMService()
+
+    @patch("services.llm_service.OpenAI")
+    def test_client_is_built_lazily_and_cached(self, mock_openai, mock_env_vars):
         service = LLMService()
-        response = service.generate("Test prompt", max_new_tokens=100, temperature=0.5)
-        
-        assert response == "Response with custom params"
-        mock_llm_instance.invoke.assert_called_once_with(
-            "Test prompt",
-            max_new_tokens=100,
-            temperature=0.5
+
+        # Constructing the service must not touch the provider.
+        mock_openai.assert_not_called()
+
+        first, second = service.client, service.client
+
+        mock_openai.assert_called_once_with(
+            api_key="test_api_key", base_url="https://api.aimlapi.com/v1"
         )
-    
-    @patch('backend.services.llm_service.WatsonxLLM')
-    def test_generate_error_handling(self, mock_watsonx, mock_env_vars):
-        """Test error handling in generation"""
-        # Reset singleton
-        LLMService._instance = None
-        LLMService._llm = None
-        
-        mock_llm_instance = Mock()
-        mock_llm_instance.invoke.side_effect = Exception("API Error")
-        mock_watsonx.return_value = mock_llm_instance
-        
-        service = LLMService()
-        
+        assert first is second
+
+    def test_missing_api_key_does_not_raise_at_construction(self, monkeypatch):
+        """A missing key must not crash import/startup — only actual use should fail."""
+        monkeypatch.delenv("AIML_API_KEY", raising=False)
+        _reset_singleton()
+
+        service = LLMService()  # must not raise
+
+        assert service.health_check()["configured"] is False
+        with pytest.raises(ValueError, match="Missing AIML API credentials"):
+            _ = service.client
+        _reset_singleton()
+
+
+class TestGenerate:
+    """Synchronous generation"""
+
+    @patch("services.llm_service.OpenAI")
+    def test_generate_basic(self, mock_openai, mock_env_vars):
+        client = MagicMock()
+        client.chat.completions.create.return_value = _chat_completion("This is a test response")
+        mock_openai.return_value = client
+
+        response = LLMService().generate("Test prompt")
+
+        assert response == "This is a test response"
+        kwargs = client.chat.completions.create.call_args[1]
+        assert kwargs["model"] == "gpt-4o-mini"
+        assert kwargs["messages"] == [{"role": "user", "content": "Test prompt"}]
+        assert kwargs["max_tokens"] == 2048
+        assert kwargs["temperature"] == 0.7
+
+    @patch("services.llm_service.OpenAI")
+    def test_generate_with_system_prompt(self, mock_openai, mock_env_vars):
+        client = MagicMock()
+        client.chat.completions.create.return_value = _chat_completion("ok")
+        mock_openai.return_value = client
+
+        LLMService().generate("Question", system="You are a legal assistant")
+
+        assert client.chat.completions.create.call_args[1]["messages"] == [
+            {"role": "system", "content": "You are a legal assistant"},
+            {"role": "user", "content": "Question"},
+        ]
+
+    @patch("services.llm_service.OpenAI")
+    def test_generate_overrides_defaults(self, mock_openai, mock_env_vars):
+        client = MagicMock()
+        client.chat.completions.create.return_value = _chat_completion("Response")
+        mock_openai.return_value = client
+
+        LLMService().generate("Test prompt", max_tokens=100, temperature=0.5)
+
+        kwargs = client.chat.completions.create.call_args[1]
+        assert kwargs["max_tokens"] == 100
+        assert kwargs["temperature"] == 0.5
+
+    @patch("services.llm_service.OpenAI")
+    def test_legacy_max_new_tokens_alias_is_translated(self, mock_openai, mock_env_vars):
+        """Watsonx-era callers passed max_new_tokens; it must map to max_tokens."""
+        client = MagicMock()
+        client.chat.completions.create.return_value = _chat_completion("Response")
+        mock_openai.return_value = client
+
+        LLMService().generate("Test prompt", max_new_tokens=321)
+
+        kwargs = client.chat.completions.create.call_args[1]
+        assert kwargs["max_tokens"] == 321
+        assert "max_new_tokens" not in kwargs
+
+    @patch("services.llm_service.OpenAI")
+    def test_unsupported_kwargs_are_dropped(self, mock_openai, mock_env_vars):
+        """An unknown kwarg must not be forwarded and turned into a provider 400."""
+        client = MagicMock()
+        client.chat.completions.create.return_value = _chat_completion("Response")
+        mock_openai.return_value = client
+
+        LLMService().generate("Test prompt", decoding_method="greedy")
+
+        assert "decoding_method" not in client.chat.completions.create.call_args[1]
+
+    @patch("services.llm_service.OpenAI")
+    def test_none_content_returns_empty_string(self, mock_openai, mock_env_vars):
+        client = MagicMock()
+        client.chat.completions.create.return_value = _chat_completion(None)
+        mock_openai.return_value = client
+
+        assert LLMService().generate("Test prompt") == ""
+
+    @patch("services.llm_service.OpenAI")
+    def test_generate_error_handling(self, mock_openai, mock_env_vars):
+        client = MagicMock()
+        client.chat.completions.create.side_effect = Exception("API Error")
+        mock_openai.return_value = client
+
         with pytest.raises(Exception, match="LLM generation error"):
-            service.generate("Test prompt")
-    
+            LLMService().generate("Test prompt")
+
+
+class TestGenerateStream:
+    """Streaming generation"""
+
+    @staticmethod
+    def _async_stream(chunks):
+        async def _stream():
+            for chunk in chunks:
+                yield chunk
+        return _stream()
+
     @pytest.mark.asyncio
-    @patch('backend.services.llm_service.WatsonxLLM')
-    async def test_generate_stream(self, mock_watsonx, mock_env_vars):
-        """Test streaming generation"""
-        # Reset singleton
-        LLMService._instance = None
-        LLMService._llm = None
-        
-        # Mock streaming response
-        mock_llm_instance = Mock()
-        mock_llm_instance.stream.return_value = iter(["Hello", " ", "world", "!"])
-        mock_watsonx.return_value = mock_llm_instance
-        
-        service = LLMService()
-        
-        # Collect streamed tokens
-        tokens = []
-        async for token in service.generate_stream("Test prompt"):
-            tokens.append(token)
-        
+    @patch("services.llm_service.AsyncOpenAI")
+    async def test_generate_stream(self, mock_async_openai, mock_env_vars):
+        chunks = [_stream_chunk(c) for c in ["Hello", " ", "world", "!"]]
+        client = MagicMock()
+
+        async def create(**kwargs):
+            return self._async_stream(chunks)
+
+        client.chat.completions.create = create
+        mock_async_openai.return_value = client
+
+        tokens = [t async for t in LLMService().generate_stream("Test prompt")]
+
         assert tokens == ["Hello", " ", "world", "!"]
-        mock_llm_instance.stream.assert_called_once_with("Test prompt")
-    
+
     @pytest.mark.asyncio
-    @patch('backend.services.llm_service.WatsonxLLM')
-    async def test_generate_stream_error_handling(self, mock_watsonx, mock_env_vars):
-        """Test error handling in streaming"""
-        # Reset singleton
-        LLMService._instance = None
-        LLMService._llm = None
-        
-        mock_llm_instance = Mock()
-        mock_llm_instance.stream.side_effect = Exception("Streaming error")
-        mock_watsonx.return_value = mock_llm_instance
-        
-        service = LLMService()
-        
+    @patch("services.llm_service.AsyncOpenAI")
+    async def test_stream_skips_empty_deltas(self, mock_async_openai, mock_env_vars):
+        """Role-only/keepalive chunks carry a None delta and must be skipped."""
+        chunks = [_stream_chunk(None), _stream_chunk("real"), _stream_chunk("")]
+        client = MagicMock()
+
+        async def create(**kwargs):
+            return self._async_stream(chunks)
+
+        client.chat.completions.create = create
+        mock_async_openai.return_value = client
+
+        tokens = [t async for t in LLMService().generate_stream("Test prompt")]
+
+        assert tokens == ["real"]
+
+    @pytest.mark.asyncio
+    @patch("services.llm_service.AsyncOpenAI")
+    async def test_stream_requests_streaming_mode(self, mock_async_openai, mock_env_vars):
+        captured = {}
+        client = MagicMock()
+
+        async def create(**kwargs):
+            captured.update(kwargs)
+            return self._async_stream([_stream_chunk("x")])
+
+        client.chat.completions.create = create
+        mock_async_openai.return_value = client
+
+        [t async for t in LLMService().generate_stream("Test prompt")]
+
+        assert captured["stream"] is True
+        assert captured["model"] == "gpt-4o-mini"
+
+    @pytest.mark.asyncio
+    @patch("services.llm_service.AsyncOpenAI")
+    async def test_generate_stream_error_handling(self, mock_async_openai, mock_env_vars):
+        client = MagicMock()
+
+        async def create(**kwargs):
+            raise Exception("Streaming error")
+
+        client.chat.completions.create = create
+        mock_async_openai.return_value = client
+
         with pytest.raises(Exception, match="LLM streaming error"):
-            async for _ in service.generate_stream("Test prompt"):
+            async for _ in LLMService().generate_stream("Test prompt"):
                 pass
-    
-    @patch('backend.services.llm_service.WatsonxLLM')
-    def test_get_model_info(self, mock_watsonx, mock_env_vars):
-        """Test getting model information"""
-        # Reset singleton
-        LLMService._instance = None
-        LLMService._llm = None
-        
-        service = LLMService()
-        info = service.get_model_info()
-        
-        assert info['model_id'] == "ibm/granite-13b-chat-v2"
-        assert info['max_tokens'] == 2048
-        assert info['temperature'] == 0.7
-        assert info['url'] == "https://test.ibm.com"
+
+
+class TestModelInfo:
+    """Introspection helpers used by health/info endpoints"""
+
+    def test_get_model_info(self, mock_env_vars):
+        info = LLMService().get_model_info()
+
+        assert info["model_id"] == "gpt-4o-mini"
+        assert info["max_tokens"] == 2048
+        assert info["temperature"] == 0.7
+        assert info["url"] == "https://api.aimlapi.com/v1"
+        assert info["provider"] == "AIML API"
+
+    def test_health_check_reports_configured(self, mock_env_vars):
+        health = LLMService().health_check()
+
+        assert health["configured"] is True
+        assert health["provider"] == "AIML API"
+        assert health["model"] == "gpt-4o-mini"
 
 
 class TestGlobalLLMService:
-    """Test the global llm_service instance"""
-    
+    """The module-level singleton other modules import"""
+
     def test_global_instance_exists(self):
-        """Test that global llm_service instance is created"""
-        from backend.services.llm_service import llm_service
+        from services.llm_service import llm_service
+
         assert llm_service is not None
         assert isinstance(llm_service, LLMService)
-
-# Made with Bob

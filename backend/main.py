@@ -184,7 +184,7 @@ async def api_info() -> Dict[str, Any]:
             "BNSS": "Bharatiya Nagarik Suraksha Sanhita, 2023",
             "BSA": "Bharatiya Sakshya Adhiniyam, 2023"
         },
-        "llm": "IBM watsonx.ai - Granite-13b-chat-v2",
+        "llm": llm_service.get_model_info(),
         "agent_framework": "LangGraph",
         "vector_db": "ChromaDB"
     }

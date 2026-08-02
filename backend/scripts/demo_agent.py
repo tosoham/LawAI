@@ -69,7 +69,7 @@ def main():
         logger.info("Services initialized successfully")
     except Exception as e:
         logger.error(f"Failed to initialize services: {e}")
-        print(f"\nError: Could not initialize services. Please check your .env configuration.")
+        print("\nError: Could not initialize services. Please check your .env configuration.")
         print(f"Details: {e}")
         return
     
@@ -195,10 +195,10 @@ def main():
         print(f"Status: {info['status']}")
         print(f"LLM Model: {info['llm_model']}")
         print(f"Version: {info['version']}")
-        print(f"\nAvailable Tools:")
+        print("\nAvailable Tools:")
         for tool in info['available_tools']:
             print(f"  - {tool}")
-        print(f"\nSupported Intents:")
+        print("\nSupported Intents:")
         for intent in info['supported_intents']:
             print(f"  - {intent}")
         print_separator()
@@ -215,7 +215,7 @@ def main():
         health = agent_service.health_check()
         print(f"Overall Status: {health['status']}")
         print(f"Tools Count: {health['tools_count']}")
-        print(f"\nComponent Health:")
+        print("\nComponent Health:")
         for component, status in health.get('components', {}).items():
             print(f"  - {component}: {status}")
         print_separator()

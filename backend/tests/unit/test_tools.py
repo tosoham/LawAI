@@ -6,13 +6,13 @@ chat, draft document, and analyze document tools.
 """
 
 import pytest
-from unittest.mock import Mock, AsyncMock, patch
+from unittest.mock import Mock
 from tools.base_tool import BaseTool, ToolParameter, ToolResult
 from tools.rag_search_tool import RAGSearchTool
 from tools.chat_tool import ChatTool
 from tools.draft_document_tool import DraftDocumentTool
 from tools.analyze_doc_tool import AnalyzeDocumentTool
-from tools.registry import ToolRegistry, get_tool_registry, initialize_tools
+from tools.registry import ToolRegistry
 
 
 # Test Base Tool
