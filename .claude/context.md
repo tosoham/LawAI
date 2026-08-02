@@ -78,7 +78,7 @@ Judgements come from `indiankanoon.org/doc/<id>/`, parsed with the `.doc_title`,
 - Embeddings: `all-MiniLM-L6-v2`, 384-dim, **~256-token window**. This is why documents are
   chunked (~1200 chars, 150 overlap) before embedding — otherwise a 60k-char judgement is
   represented by its first paragraph and can never match a query about its holding.
-- 1,086 source documents → 3,128 chunks. Chunks keep `parent_id`, `chunk_index`,
+- 1,089 source documents → 3,320 chunks. Chunks keep `parent_id`, `chunk_index`,
   `chunk_count` so a hit is citable back to its section or case.
 - Verified working: "punishment for murder" → BNS 103; "how long can an undertrial be
   detained" → BNSS 479; "admissibility of electronic records" → BSA 63; "can anticipatory
@@ -96,9 +96,9 @@ Judgements come from `indiankanoon.org/doc/<id>/`, parsed with the `.doc_title`,
   project runs without re-fetching from mha.gov.in and indiankanoon.org.
 - The old `.gitignore` rule `data/raw/*.pdf` did not match subdirectories; it is now
   `data/raw/`.
-- `ruff check` reports ~400 findings, nearly all pre-existing style/modernisation items
-  (UP/BLE/RUF categories). Only real correctness findings were fixed. A cosmetic sweep should
-  be its own commit so it does not bury functional changes.
+- `ruff check .` is clean. Rules are pinned in `backend/pyproject.toml` because ruff's
+  defaults widen every release — 0.1.14 flagged a handful, 0.16 flagged ~1,300 on identical
+  code. Do not rely on ruff defaults here.
 
 ## Testing
 
@@ -106,7 +106,8 @@ Judgements come from `indiankanoon.org/doc/<id>/`, parsed with the `.doc_title`,
   while the app imported `services.*` — the same module under two names, which would have
   duplicated every singleton. Keep both on the `services.*` convention.
 - Live tests are marked `live` and skip without `AIML_API_KEY`. Plain `pytest` must stay green
-  with no credentials.
+  with no credentials; with a key and a server running it is 154 passed, 0 skipped.
+- The 8 e2e tests need a server: `./venv/bin/python -m uvicorn main:app --port 8000`.
 
 
 ## Contract pitfalls found by live testing (do not regress these)
