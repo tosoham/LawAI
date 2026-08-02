@@ -5,23 +5,24 @@ General legal Q&A without RAG search - direct LLM interaction.
 """
 
 import asyncio
-from typing import Dict, List, Optional
-from .base_tool import BaseTool, ToolParameter, ToolResult
+
 from services.llm_service import LLMService
+
+from .base_tool import BaseTool, ToolParameter, ToolResult
 
 
 class ChatTool(BaseTool):
     """
     Tool for general legal Q&A using LLM directly.
-    
+
     Provides conversational legal assistance without RAG retrieval.
     Useful for general legal concepts, explanations, and discussions.
     """
-    
+
     def __init__(self, llm_service: LLMService):
         """
         Initialize chat tool.
-        
+
         Args:
             llm_service: LLM service instance
         """
@@ -33,17 +34,17 @@ class ChatTool(BaseTool):
             "Explain the doctrine of res judicata",
             "What are the essential elements of a valid contract?"
         ]
-    
+
     @property
     def name(self) -> str:
         return "chat"
-    
+
     @property
     def description(self) -> str:
         return "General legal Q&A and explanations without document retrieval"
-    
+
     @property
-    def parameters(self) -> Dict[str, ToolParameter]:
+    def parameters(self) -> dict[str, ToolParameter]:
         return {
             "message": ToolParameter(
                 name="message",
@@ -59,15 +60,15 @@ class ChatTool(BaseTool):
                 default=[]
             )
         }
-    
-    def _create_prompt(self, message: str, context: Optional[List[Dict]] = None) -> str:
+
+    def _create_prompt(self, message: str, context: list[dict] | None = None) -> str:
         """
         Create prompt for LLM with message and optional context.
-        
+
         Args:
             message: User's message
             context: Optional conversation history
-            
+
         Returns:
             Formatted prompt
         """
@@ -77,7 +78,7 @@ class ChatTool(BaseTool):
             "Use proper legal terminology and cite relevant laws when applicable.",
             ""
         ]
-        
+
         # Add conversation context if provided
         if context:
             prompt_parts.append("CONVERSATION HISTORY:")
@@ -86,7 +87,7 @@ class ChatTool(BaseTool):
                 content = msg.get("content", "")
                 prompt_parts.append(f"{role.upper()}: {content}")
             prompt_parts.append("")
-        
+
         # Add current message
         prompt_parts.extend([
             "USER QUESTION:",
@@ -100,41 +101,41 @@ class ChatTool(BaseTool):
             "",
             "ANSWER:"
         ])
-        
+
         return "\n".join(prompt_parts)
-    
+
     async def execute(self, **kwargs) -> ToolResult:
         """
         Execute chat interaction.
-        
+
         Args:
             message: User's message
             context: Optional conversation context
-            
+
         Returns:
             ToolResult with AI response
         """
         try:
             message = kwargs.get("message")
             context = kwargs.get("context", [])
-            
+
             if not message:
                 return ToolResult(
                     success=False,
                     error="Message is required"
                 )
-            
+
             self.logger.info(f"Chat: message='{message[:50]}...', context_length={len(context)}")
-            
+
             # Create prompt
             prompt = self._create_prompt(message, context)
-            
+
             # Generate response in thread pool (sync service)
             response = await asyncio.to_thread(self.llm_service.generate, prompt=prompt)
-            
+
             # Add disclaimer
             answer = response + "\n\n**DISCLAIMER**: This is AI-generated legal information for educational purposes only. Please consult a qualified lawyer for legal advice specific to your situation."
-            
+
             return ToolResult(
                 success=True,
                 data={
@@ -147,10 +148,10 @@ class ChatTool(BaseTool):
                     "context_length": len(context)
                 }
             )
-            
+
         except Exception as e:
             self.logger.error(f"Chat failed: {e}", exc_info=True)
             return ToolResult(
                 success=False,
-                error=f"Chat failed: {str(e)}"
+                error=f"Chat failed: {e!s}"
             )

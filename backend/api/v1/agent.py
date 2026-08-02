@@ -4,11 +4,12 @@ Agent API Endpoints
 FastAPI routes for LangGraph agent interactions.
 """
 
+import logging
+from typing import Any
+
 from fastapi import APIRouter, HTTPException, status
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
-from typing import Optional, Dict, Any
-import logging
 
 from agents.agent_service import get_agent_service
 
@@ -28,14 +29,14 @@ class AgentQueryResponse(BaseModel):
     """Response model for agent query"""
     response: str = Field(..., description="Agent response")
     intent: str = Field(..., description="Classified intent")
-    metadata: Dict[str, Any] = Field(default_factory=dict, description="Additional metadata")
-    error: Optional[str] = Field(None, description="Error message if any")
+    metadata: dict[str, Any] = Field(default_factory=dict, description="Additional metadata")
+    error: str | None = Field(None, description="Error message if any")
 
 
 class AgentHealthResponse(BaseModel):
     """Response model for agent health check"""
     status: str = Field(..., description="Health status")
-    components: Dict[str, str] = Field(default_factory=dict, description="Component health")
+    components: dict[str, str] = Field(default_factory=dict, description="Component health")
     tools_count: int = Field(..., description="Number of registered tools")
 
 
@@ -52,42 +53,42 @@ class AgentInfoResponse(BaseModel):
 async def process_query(request: AgentQueryRequest):
     """
     Process a user query through the agent.
-    
+
     Args:
         request: Agent query request
-        
+
     Returns:
         Agent response with intent and metadata
-        
+
     Raises:
         HTTPException: If query processing fails
     """
     try:
         logger.info(f"Received agent query: {request.query[:100]}...")
-        
+
         agent_service = get_agent_service()
         result = await agent_service.process_query(request.query)
-        
+
         return AgentQueryResponse(
             response=result["response"],
             intent=result["intent"],
             metadata=result.get("metadata", {}),
             error=result.get("error")
         )
-        
+
     except Exception as e:
         logger.error(f"Error processing agent query: {e}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to process query: {str(e)}"
-        )
+            detail=f"Failed to process query: {e!s}"
+        ) from e
 
 
 @router.options("/query/stream")
 async def options_query_stream():
     """
     Handle OPTIONS preflight request for streaming endpoint.
-    
+
     Returns:
         Empty response with CORS headers (handled by CORSMiddleware)
     """
@@ -98,29 +99,29 @@ async def options_query_stream():
 async def process_query_stream(request: AgentQueryRequest):
     """
     Process a user query with streaming response.
-    
+
     Args:
         request: Agent query request
-        
+
     Returns:
         Streaming response with agent output
-        
+
     Raises:
         HTTPException: If query processing fails
     """
     try:
         logger.info(f"Received streaming agent query: {request.query[:100]}...")
-        
+
         agent_service = get_agent_service()
-        
+
         async def generate():
             try:
                 async for chunk in agent_service.process_query_stream(request.query):
                     yield chunk
             except Exception as e:
                 logger.error(f"Error in streaming: {e}")
-                yield f"\n\nError: {str(e)}"
-        
+                yield f"\n\nError: {e!s}"
+
         return StreamingResponse(
             generate(),
             media_type="text/event-stream",
@@ -129,33 +130,33 @@ async def process_query_stream(request: AgentQueryRequest):
                 "Connection": "keep-alive",
             }
         )
-        
+
     except Exception as e:
         logger.error(f"Error setting up streaming: {e}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to setup streaming: {str(e)}"
-        )
+            detail=f"Failed to setup streaming: {e!s}"
+        ) from e
 
 
 @router.get("/health", response_model=AgentHealthResponse)
 async def health_check():
     """
     Check agent health status.
-    
+
     Returns:
         Health status of agent and components
     """
     try:
         agent_service = get_agent_service()
         health = agent_service.health_check()
-        
+
         return AgentHealthResponse(
             status=health["status"],
             components=health.get("components", {}),
             tools_count=health.get("tools_count", 0)
         )
-        
+
     except Exception as e:
         logger.error(f"Health check failed: {e}", exc_info=True)
         return AgentHealthResponse(
@@ -169,14 +170,14 @@ async def health_check():
 async def get_agent_info():
     """
     Get agent information.
-    
+
     Returns:
         Agent information including tools and capabilities
     """
     try:
         agent_service = get_agent_service()
         info = agent_service.get_agent_info()
-        
+
         return AgentInfoResponse(
             status=info["status"],
             available_tools=info["available_tools"],
@@ -184,10 +185,10 @@ async def get_agent_info():
             llm_model=info["llm_model"],
             version=info["version"]
         )
-        
+
     except Exception as e:
         logger.error(f"Failed to get agent info: {e}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to get agent info: {str(e)}"
-        )
+            detail=f"Failed to get agent info: {e!s}"
+        ) from e

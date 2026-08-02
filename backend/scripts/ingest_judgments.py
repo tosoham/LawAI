@@ -33,7 +33,7 @@ import sys
 import time
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Set, Tuple
+from typing import Any
 
 import requests
 from bs4 import BeautifulSoup
@@ -65,16 +65,16 @@ class JudgementSpec:
     year: str
     subject: str
     #: Tokens that must appear in the page title, ignoring case and punctuation.
-    expect: Tuple[str, ...]
+    expect: tuple[str, ...]
     relevant_sections: str = ""
     #: Phrases that must appear in the body. Party names alone are not enough to
     #: identify a decision -- an earlier attempt at Bhajan Lal matched the title
     #: but fetched a later contempt petition in the same matter.
-    expect_text: Tuple[str, ...] = ()
+    expect_text: tuple[str, ...] = ()
 
 
 # Every doc_id below was resolved by search and confirmed against the page title.
-JUDGEMENTS: Tuple[JudgementSpec, ...] = (
+JUDGEMENTS: tuple[JudgementSpec, ...] = (
     # --- Arrest, bail and personal liberty -------------------------------
     JudgementSpec("2982624", "Arnesh Kumar v. State of Bihar", "2014",
                   "Arrest guidelines and notice of appearance", ("arneshkumar", "bihar"),
@@ -186,18 +186,18 @@ def normalise_key(value: str) -> str:
     return re.sub(r"[^a-z0-9]", "", value.lower())
 
 
-def load_disallowed_docs(session: requests.Session) -> Set[str]:
+def load_disallowed_docs(session: requests.Session) -> set[str]:
     """
     Read robots.txt and collect the document ids disallowed for generic agents.
 
     The site lists thousands of individual ``/doc/<id>/`` paths (takedown and
     privacy requests). Fetching one would be rude at best, so they are skipped.
     """
-    disallowed: Set[str] = set()
+    disallowed: set[str] = set()
     try:
         response = session.get(f"{BASE_URL}/robots.txt", timeout=REQUEST_TIMEOUT)
         response.raise_for_status()
-    except Exception as exc:  # noqa: BLE001 - a missing robots.txt must not abort ingestion
+    except Exception as exc:
         logger.warning(f"Could not read robots.txt ({exc}); proceeding without a blocklist")
         return disallowed
 
@@ -221,7 +221,7 @@ def load_disallowed_docs(session: requests.Session) -> Set[str]:
     return disallowed
 
 
-def fetch_judgement(session: requests.Session, spec: JudgementSpec) -> Optional[str]:
+def fetch_judgement(session: requests.Session, spec: JudgementSpec) -> str | None:
     """Download one judgement page, caching the HTML under data/raw."""
     RAW_DIR.mkdir(parents=True, exist_ok=True)
     cache = RAW_DIR / f"{spec.doc_id}.html"
@@ -242,7 +242,7 @@ def fetch_judgement(session: requests.Session, spec: JudgementSpec) -> Optional[
     return response.text
 
 
-def parse_judgement(html: str, spec: JudgementSpec) -> Optional[Dict[str, Any]]:
+def parse_judgement(html: str, spec: JudgementSpec) -> dict[str, Any] | None:
     """Extract the judgement text and metadata, verifying it is the right case."""
     soup = BeautifulSoup(html, "html.parser")
 
@@ -328,8 +328,8 @@ def main() -> int:
 
     disallowed = load_disallowed_docs(session)
 
-    records: List[Dict[str, Any]] = []
-    skipped: List[str] = []
+    records: list[dict[str, Any]] = []
+    skipped: list[str] = []
 
     for spec in JUDGEMENTS:
         if spec.doc_id in disallowed:
@@ -347,7 +347,7 @@ def main() -> int:
                 continue
             records.append(record)
             logger.info(f"  parsed {spec.case_name} ({len(record['text']):,} chars)")
-        except Exception as exc:  # noqa: BLE001 - one bad page must not stop the run
+        except Exception as exc:
             logger.error(f"{spec.case_name}: {exc}")
             skipped.append(spec.case_name)
 

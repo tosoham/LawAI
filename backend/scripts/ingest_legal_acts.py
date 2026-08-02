@@ -31,9 +31,10 @@ import json
 import logging
 import re
 import sys
+from collections.abc import Iterable
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Dict, Iterable, List, Optional, Tuple
+from typing import Any
 
 import pdfplumber
 import requests
@@ -97,7 +98,7 @@ class ActSpec:
     expected_min_sections: int
 
 
-ACTS: Tuple[ActSpec, ...] = (
+ACTS: tuple[ActSpec, ...] = (
     ActSpec(
         key="bns",
         act_name="Bharatiya Nyaya Sanhita",
@@ -132,7 +133,7 @@ ACTS: Tuple[ActSpec, ...] = (
 class ParsedSection:
     number: str
     chapter: str
-    lines: List[str] = field(default_factory=list)
+    lines: list[str] = field(default_factory=list)
     title: str = ""
 
     @property
@@ -170,9 +171,9 @@ def download_pdf(spec: ActSpec, force: bool) -> Path:
     return target
 
 
-def group_words_into_lines(words: Iterable[dict]) -> List[Tuple[float, str]]:
+def group_words_into_lines(words: Iterable[dict]) -> list[tuple[float, str]]:
     """Group words sharing a baseline into ``(top, text)`` lines, left to right."""
-    lines: Dict[float, List[dict]] = {}
+    lines: dict[float, list[dict]] = {}
     for word in words:
         for key in lines:
             if abs(word["top"] - key) <= LINE_GROUP_TOLERANCE:
@@ -188,7 +189,7 @@ def group_words_into_lines(words: Iterable[dict]) -> List[Tuple[float, str]]:
     return result
 
 
-def extract_margin_lines(words: List[dict]) -> List[Tuple[float, str]]:
+def extract_margin_lines(words: list[dict]) -> list[tuple[float, str]]:
     """Return the ``(top, text)`` lines from the page's marginal-note column."""
     margin_words = [
         w for w in words
@@ -213,8 +214,8 @@ def extract_margin_lines(words: List[dict]) -> List[Tuple[float, str]]:
 
 
 def assign_titles(
-    margin_lines: List[Tuple[float, str]],
-    section_tops: List[Tuple[float, "ParsedSection"]],
+    margin_lines: list[tuple[float, str]],
+    section_tops: list[tuple[float, ParsedSection]],
 ) -> int:
     """
     Attach each marginal note to the section it is typeset beside.
@@ -231,11 +232,11 @@ def assign_titles(
         return len(margin_lines)
 
     ordered = sorted(section_tops, key=lambda pair: pair[0])
-    collected: Dict[int, List[str]] = {}
+    collected: dict[int, list[str]] = {}
     orphans = 0
 
     for top, text in margin_lines:
-        owner: Optional[int] = None
+        owner: int | None = None
         for index, (section_top, _) in enumerate(ordered):
             if section_top <= top + NOTE_ABOVE_SECTION_TOLERANCE:
                 owner = index
@@ -258,16 +259,16 @@ def is_noise(line: str) -> bool:
     return any(pattern.search(line) for pattern in NOISE_PATTERNS)
 
 
-def parse_act(pdf_path: Path, spec: ActSpec) -> List[ParsedSection]:
+def parse_act(pdf_path: Path, spec: ActSpec) -> list[ParsedSection]:
     """Split one act PDF into sections, attaching chapter and title metadata."""
-    sections: List[ParsedSection] = []
-    current: Optional[ParsedSection] = None
+    sections: list[ParsedSection] = []
+    current: ParsedSection | None = None
     chapter = ""
     pending_chapter_title = False
     unmatched_notes = 0
 
     with pdfplumber.open(str(pdf_path)) as pdf:
-        for page_number, page in enumerate(pdf.pages):
+        for page in pdf.pages:
             words = page.extract_words(x_tolerance=X_TOLERANCE)
             if not words:
                 continue
@@ -280,7 +281,7 @@ def parse_act(pdf_path: Path, spec: ActSpec) -> List[ParsedSection]:
             body_lines = group_words_into_lines(body_words)
 
             # Where each section on this page begins, so notes can be aligned.
-            section_tops: List[Tuple[float, ParsedSection]] = []
+            section_tops: list[tuple[float, ParsedSection]] = []
 
             for top, line in body_lines:
                 if is_noise(line):
@@ -328,10 +329,10 @@ def parse_act(pdf_path: Path, spec: ActSpec) -> List[ParsedSection]:
     return sections
 
 
-def build_records(sections: List[ParsedSection], spec: ActSpec) -> List[Dict[str, Any]]:
+def build_records(sections: list[ParsedSection], spec: ActSpec) -> list[dict[str, Any]]:
     """Convert parsed sections into the ingest schema, dropping empty ones."""
-    records: List[Dict[str, Any]] = []
-    seen: Dict[str, int] = {}
+    records: list[dict[str, Any]] = []
+    seen: dict[str, int] = {}
 
     for section in sections:
         body = section.text
@@ -368,7 +369,7 @@ def build_records(sections: List[ParsedSection], spec: ActSpec) -> List[Dict[str
     return records
 
 
-def ingest(spec: ActSpec, force_download: bool) -> List[Dict[str, Any]]:
+def ingest(spec: ActSpec, force_download: bool) -> list[dict[str, Any]]:
     pdf_path = download_pdf(spec, force_download)
     logger.info(f"{spec.short_name}: parsing {pdf_path.name}")
 
@@ -414,7 +415,7 @@ def main() -> int:
     for spec in specs:
         try:
             total += len(ingest(spec, args.force_download))
-        except Exception as exc:  # noqa: BLE001 - report and continue with other acts
+        except Exception as exc:
             logger.error(f"{spec.short_name}: ingestion failed: {exc}")
             failed.append(spec.short_name)
 

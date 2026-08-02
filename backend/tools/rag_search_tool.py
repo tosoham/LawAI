@@ -5,23 +5,24 @@ Search Indian legal corpus (BNS, BNSS, BSA, SC judgements) using RAG.
 """
 
 import asyncio
-from typing import Dict
-from .base_tool import BaseTool, ToolParameter, ToolResult
+
 from services.rag_service import RAGService
+
+from .base_tool import BaseTool, ToolParameter, ToolResult
 
 
 class RAGSearchTool(BaseTool):
     """
     Tool for searching Indian legal corpus using RAG.
-    
+
     Searches across BNS, BNSS, BSA, and SC judgements collections
     and returns relevant information with citations.
     """
-    
+
     def __init__(self, rag_service: RAGService):
         """
         Initialize RAG search tool.
-        
+
         Args:
             rag_service: RAG service instance
         """
@@ -33,17 +34,17 @@ class RAGSearchTool(BaseTool):
             "Search for Supreme Court rulings on bail in murder cases",
             "Find sections about arrest procedures in BNSS"
         ]
-    
+
     @property
     def name(self) -> str:
         return "rag_search"
-    
+
     @property
     def description(self) -> str:
         return "Search Indian legal corpus (BNS, BNSS, BSA, SC judgements) for relevant legal information"
-    
+
     @property
-    def parameters(self) -> Dict[str, ToolParameter]:
+    def parameters(self) -> dict[str, ToolParameter]:
         return {
             "query": ToolParameter(
                 name="query",
@@ -66,16 +67,16 @@ class RAGSearchTool(BaseTool):
                 default=5
             )
         }
-    
+
     async def execute(self, **kwargs) -> ToolResult:
         """
         Execute RAG search.
-        
+
         Args:
             query: Search query
             collection: Collection to search (optional, default: all)
             top_k: Number of results (optional, default: 5)
-            
+
         Returns:
             ToolResult with answer and sources
         """
@@ -83,9 +84,9 @@ class RAGSearchTool(BaseTool):
             query = kwargs.get("query")
             collection = kwargs.get("collection", "all")
             top_k = kwargs.get("top_k", 5)
-            
+
             self.logger.info(f"RAG search: query='{query}', collection={collection}, top_k={top_k}")
-            
+
             # Perform RAG search in thread pool (sync service)
             if collection == "all":
                 # Search across all collections
@@ -104,13 +105,13 @@ class RAGSearchTool(BaseTool):
                     collection=collection,
                     top_k=top_k
                 )
-            
+
             if not result:
                 return ToolResult(
                     success=False,
                     error="No results found for the query"
                 )
-            
+
             # Format response
             response_data = {
                 "answer": result.get("answer", ""),
@@ -119,7 +120,7 @@ class RAGSearchTool(BaseTool):
                 "collection": collection,
                 "num_results": len(result.get("sources", []))
             }
-            
+
             return ToolResult(
                 success=True,
                 data=response_data,
@@ -129,10 +130,10 @@ class RAGSearchTool(BaseTool):
                     "top_k": top_k
                 }
             )
-            
+
         except Exception as e:
             self.logger.error(f"RAG search failed: {e}", exc_info=True)
             return ToolResult(
                 success=False,
-                error=f"RAG search failed: {str(e)}"
+                error=f"RAG search failed: {e!s}"
             )

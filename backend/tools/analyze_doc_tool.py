@@ -5,23 +5,24 @@ Analyze uploaded legal documents (PDF/text) for summaries, risks, and key clause
 """
 
 import asyncio
-from typing import Dict
-from .base_tool import BaseTool, ToolParameter, ToolResult
+
 from services.llm_service import LLMService
+
+from .base_tool import BaseTool, ToolParameter, ToolResult
 
 
 class AnalyzeDocumentTool(BaseTool):
     """
     Tool for analyzing legal documents.
-    
+
     Provides document summaries, risk analysis, and key clause extraction.
     Supports various document types including contracts, agreements, and legal notices.
     """
-    
+
     def __init__(self, llm_service: LLMService):
         """
         Initialize analyze document tool.
-        
+
         Args:
             llm_service: LLM service instance
         """
@@ -33,17 +34,17 @@ class AnalyzeDocumentTool(BaseTool):
             "Extract key clauses from partnership deed",
             "Identify termination clauses in service agreement"
         ]
-    
+
     @property
     def name(self) -> str:
         return "analyze_document"
-    
+
     @property
     def description(self) -> str:
         return "Analyze legal documents for summaries, risks, and key clauses"
-    
+
     @property
-    def parameters(self) -> Dict[str, ToolParameter]:
+    def parameters(self) -> dict[str, ToolParameter]:
         return {
             "document_text": ToolParameter(
                 name="document_text",
@@ -66,7 +67,7 @@ class AnalyzeDocumentTool(BaseTool):
                 default="other"
             )
         }
-    
+
     def _create_summary_prompt(self, document_text: str, document_type: str) -> str:
         """Create prompt for document summary"""
         return f"""You are a legal document analyst. Provide a comprehensive summary of the following {document_type}.
@@ -83,7 +84,7 @@ INSTRUCTIONS:
 6. Use professional legal language
 
 SUMMARY:"""
-    
+
     def _create_risk_analysis_prompt(self, document_text: str, document_type: str) -> str:
         """Create prompt for risk analysis"""
         return f"""You are a legal risk analyst. Analyze the following {document_type} for potential risks and concerns.
@@ -102,7 +103,7 @@ INSTRUCTIONS:
 8. Provide specific recommendations
 
 RISK ANALYSIS:"""
-    
+
     def _create_key_clauses_prompt(self, document_text: str, document_type: str) -> str:
         """Create prompt for key clause extraction"""
         return f"""You are a legal document analyst. Extract and explain the key clauses from the following {document_type}.
@@ -119,7 +120,7 @@ INSTRUCTIONS:
 6. Note interdependencies between clauses
 
 KEY CLAUSES:"""
-    
+
     def _create_full_analysis_prompt(self, document_text: str, document_type: str) -> str:
         """Create prompt for full document analysis"""
         return f"""You are an expert legal document analyst. Provide a comprehensive analysis of the following {document_type}.
@@ -164,16 +165,16 @@ Provide a complete analysis with the following sections:
 Use clear headings and bullet points. Be specific and cite relevant clauses.
 
 COMPREHENSIVE ANALYSIS:"""
-    
+
     async def execute(self, **kwargs) -> ToolResult:
         """
         Execute document analysis.
-        
+
         Args:
             document_text: Text of document to analyze
             analysis_type: Type of analysis to perform
             document_type: Type of document
-            
+
         Returns:
             ToolResult with analysis
         """
@@ -181,26 +182,26 @@ COMPREHENSIVE ANALYSIS:"""
             document_text = kwargs.get("document_text")
             analysis_type = kwargs.get("analysis_type", "full")
             document_type = kwargs.get("document_type", "other")
-            
+
             if not document_text:
                 return ToolResult(
                     success=False,
                     error="document_text is required"
                 )
-            
+
             # Validate document length
             if len(document_text) < 100:
                 return ToolResult(
                     success=False,
                     error="Document text is too short for meaningful analysis (minimum 100 characters)"
                 )
-            
+
             if len(document_text) > 50000:
                 self.logger.warning(f"Document is very long ({len(document_text)} chars), truncating to 50000")
                 document_text = document_text[:50000] + "\n\n[Document truncated for analysis]"
-            
+
             self.logger.info(f"Analyzing {document_type} document: type={analysis_type}, length={len(document_text)}")
-            
+
             # Create appropriate prompt based on analysis type
             if analysis_type == "summary":
                 prompt = self._create_summary_prompt(document_text, document_type)
@@ -210,10 +211,10 @@ COMPREHENSIVE ANALYSIS:"""
                 prompt = self._create_key_clauses_prompt(document_text, document_type)
             else:  # full analysis
                 prompt = self._create_full_analysis_prompt(document_text, document_type)
-            
+
             # Generate analysis
             analysis = await asyncio.to_thread(self.llm_service.generate, prompt=prompt)
-            
+
             # Format result
             result_data = {
                 "analysis": analysis,
@@ -222,7 +223,7 @@ COMPREHENSIVE ANALYSIS:"""
                 "document_length": len(document_text),
                 "disclaimer": "This is an AI-generated analysis for informational purposes only. Please consult a qualified lawyer for legal advice."
             }
-            
+
             return ToolResult(
                 success=True,
                 data=result_data,
@@ -233,10 +234,10 @@ COMPREHENSIVE ANALYSIS:"""
                     "analysis_length": len(analysis)
                 }
             )
-            
+
         except Exception as e:
             self.logger.error(f"Document analysis failed: {e}", exc_info=True)
             return ToolResult(
                 success=False,
-                error=f"Document analysis failed: {str(e)}"
+                error=f"Document analysis failed: {e!s}"
             )

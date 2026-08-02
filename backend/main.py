@@ -5,16 +5,16 @@ This is the main entry point for the LawAI backend API.
 It initializes the FastAPI application with CORS, middleware, and routes.
 """
 
+import json
+import logging
+import os
+from typing import Any
+
+from dotenv import load_dotenv
 from fastapi import FastAPI, Request
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
-from fastapi.exceptions import RequestValidationError
-from starlette.exceptions import HTTPException as StarletteHTTPException
-import logging
-from typing import Dict, Any
-import os
-from dotenv import load_dotenv
-import json
 
 # Load environment variables
 load_dotenv()
@@ -52,7 +52,7 @@ app.add_middleware(
 async def log_requests(request: Request, call_next):
     """Log all incoming requests with body for debugging"""
     logger.info(f"Request: {request.method} {request.url.path}")
-    
+
     # Log request body for POST requests
     if request.method == "POST":
         try:
@@ -65,7 +65,7 @@ async def log_requests(request: Request, call_next):
                     logger.info(f"Request body (raw): {body.decode()[:500]}")
         except Exception as e:
             logger.warning(f"Could not read request body: {e}")
-    
+
     response = await call_next(request)
     logger.info(f"Response status: {response.status_code}")
     return response
@@ -77,7 +77,7 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
     logger.error(f"Validation error for {request.method} {request.url.path}")
     logger.error(f"Validation errors: {exc.errors()}")
     logger.error(f"Request body: {exc.body}")
-    
+
     return JSONResponse(
         status_code=422,
         content={
@@ -89,10 +89,10 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
     )
 
 # Import and include routers
-from api.v1.chat import router as chat_router
-from api.v1.search import router as search_router
-from api.v1.documents import router as documents_router
 from api.v1.agent import router as agent_router
+from api.v1.chat import router as chat_router
+from api.v1.documents import router as documents_router
+from api.v1.search import router as search_router
 
 app.include_router(chat_router, prefix="/api/v1")
 app.include_router(search_router, prefix="/api/v1")
@@ -103,6 +103,7 @@ app.include_router(agent_router, prefix="/api/v1")
 from services.llm_service import llm_service
 from services.rag_service import RAGService
 from tools.registry import initialize_tools
+
 
 @app.on_event("startup")
 async def startup_event():
@@ -121,7 +122,7 @@ async def startup_event():
 
 
 @app.get("/")
-async def root() -> Dict[str, str]:
+async def root() -> dict[str, str]:
     """Root endpoint - API information"""
     return {
         "name": "LawAI API",
@@ -132,10 +133,10 @@ async def root() -> Dict[str, str]:
 
 
 @app.get("/health")
-async def health_check_root() -> Dict[str, str]:
+async def health_check_root() -> dict[str, str]:
     """
     Health check endpoint (root level)
-    
+
     Returns:
         Dict with status and version information
     """
@@ -147,10 +148,10 @@ async def health_check_root() -> Dict[str, str]:
 
 
 @app.get("/api/v1/health")
-async def health_check() -> Dict[str, str]:
+async def health_check() -> dict[str, str]:
     """
     Health check endpoint
-    
+
     Returns:
         Dict with status and version information
     """
@@ -162,10 +163,10 @@ async def health_check() -> Dict[str, str]:
 
 
 @app.get("/api/v1/info")
-async def api_info() -> Dict[str, Any]:
+async def api_info() -> dict[str, Any]:
     """
     API information endpoint
-    
+
     Returns:
         Dict with API capabilities and configuration
     """
@@ -219,11 +220,11 @@ async def internal_error_handler(request, exc):
 
 if __name__ == "__main__":
     import uvicorn
-    
+
     host = os.getenv("API_HOST", "0.0.0.0")
     port = int(os.getenv("API_PORT", 8000))
     reload = os.getenv("RELOAD", "True").lower() == "true"
-    
+
     logger.info(f"Starting LawAI API on {host}:{port}")
     uvicorn.run(
         "main:app",

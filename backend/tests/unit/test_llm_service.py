@@ -2,8 +2,9 @@
 Unit tests for LLM Service
 Tests the AIML API (OpenAI-compatible) integration and streaming functionality
 """
+from unittest.mock import MagicMock, Mock, patch
+
 import pytest
-from unittest.mock import Mock, patch, MagicMock
 
 from services.llm_service import LLMService
 

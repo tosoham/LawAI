@@ -4,12 +4,13 @@ Handles conversational interactions with the configured AIML API model
 """
 import asyncio
 import logging
+
 from fastapi import APIRouter, HTTPException, status
 
 from models.requests import ChatRequest
 from models.responses import ChatResponse, ErrorResponse
 from services.llm_service import llm_service
-from services.streaming import stream_llm_response, create_streaming_response
+from services.streaming import create_streaming_response, stream_llm_response
 
 logger = logging.getLogger(__name__)
 
@@ -29,24 +30,24 @@ router = APIRouter(prefix="/chat", tags=["chat"])
 async def chat(request: ChatRequest):
     """
     Chat endpoint with streaming support
-    
+
     Args:
         request: ChatRequest with message and optional context
-        
+
     Returns:
         StreamingResponse if stream=True, else ChatResponse
-        
+
     Raises:
         HTTPException: If generation fails
     """
     try:
         logger.info(f"Chat request received: {request.message[:100]}...")
-        
+
         # Build prompt with context if provided
         prompt = request.message
         if request.context:
             prompt = f"Context: {request.context}\n\nQuestion: {request.message}"
-        
+
         # Legal domain instruction, sent as a proper system message
         system_prompt = (
             "You are a legal AI assistant specializing in Indian law. "
@@ -60,11 +61,11 @@ async def chat(request: ChatRequest):
             gen_kwargs["max_tokens"] = request.max_tokens
         if request.temperature:
             gen_kwargs["temperature"] = request.temperature
-        
+
         # Handle streaming vs non-streaming
         if request.stream:
             logger.info("Streaming response requested")
-            
+
             # Create async generator for streaming
             async def generate():
                 try:
@@ -73,35 +74,35 @@ async def chat(request: ChatRequest):
                     ):
                         yield token
                 except Exception as e:
-                    logger.error(f"Streaming generation error: {str(e)}")
+                    logger.error(f"Streaming generation error: {e!s}")
                     raise
-            
+
             # Return streaming response
             return create_streaming_response(
                 stream_llm_response(generate(), include_metadata=True)
             )
-        
+
         else:
             logger.info("Non-streaming response requested")
-            
+
             # Generate complete response (offloaded so the event loop stays free)
             response_text = await asyncio.to_thread(
                 llm_service.generate, prompt, system=system_prompt, **gen_kwargs
             )
-            
+
             # Return structured response
             return ChatResponse(
                 response=response_text,
                 sources=None,  # Will be populated when RAG is integrated
                 model=llm_service.get_model_info()["model_id"]
             )
-    
+
     except Exception as e:
-        logger.error(f"Chat endpoint error: {str(e)}")
+        logger.error(f"Chat endpoint error: {e!s}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to generate response: {str(e)}"
-        )
+            detail=f"Failed to generate response: {e!s}"
+        ) from e
 
 
 @router.get(
@@ -112,7 +113,7 @@ async def chat(request: ChatRequest):
 async def health():
     """
     Health check for chat service
-    
+
     Returns:
         Service status and model information
     """
@@ -128,8 +129,8 @@ async def health():
             "configured": llm_service.health_check()["configured"]
         }
     except Exception as e:
-        logger.error(f"Health check failed: {str(e)}")
+        logger.error(f"Health check failed: {e!s}")
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail=f"Service unhealthy: {str(e)}"
-        )
+            detail=f"Service unhealthy: {e!s}"
+        ) from e

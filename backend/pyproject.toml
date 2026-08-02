@@ -1,0 +1,59 @@
+# Tooling configuration for the LawAI backend.
+#
+# Ruff's default rule set widens with each release, so lint results were
+# version-dependent (0.1.14 reported a handful of issues; 0.16 reported ~400 on
+# the same code). Selecting rules explicitly keeps `ruff check .` deterministic
+# across machines and CI.
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+exclude = ["venv", ".venv", "chroma_db", "__pycache__"]
+
+[tool.ruff.lint]
+select = [
+    "E",    # pycodestyle errors
+    "W",    # pycodestyle warnings
+    "F",    # pyflakes
+    "I",    # import sorting
+    "UP",   # pyupgrade
+    "B",    # bugbear
+    "C4",   # comprehensions
+    "SIM",  # simplify
+    "DTZ",  # naive datetimes
+    "RUF",  # ruff-specific
+]
+ignore = [
+    # The API layer and the ingestion scripts catch broad exceptions on purpose:
+    # one failed tool call, page fetch or act must not take down a request or
+    # abort a whole ingest run. Each site logs the error and degrades.
+    "BLE001",
+    # logger.error(f"...: {e}") reads better here than passing exc_info; the
+    # places that genuinely need a traceback already pass exc_info=True.
+    "G201",
+    # Long prompt strings and legal templates are clearer left unwrapped.
+    "E501",
+]
+
+[tool.ruff.lint.per-file-ignores]
+# Tests may shadow names and use assert-heavy patterns freely.
+"tests/**" = ["B011", "SIM117"]
+# Standalone scripts insert the backend directory on sys.path before importing
+# from it, and their reports print local wall-clock time on purpose.
+"scripts/**" = ["E402", "DTZ005"]
+# main.py registers routers and startup hooks between imports by design.
+"main.py" = ["E402"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["agents", "api", "models", "services", "tools"]
+
+[tool.black]
+line-length = 100
+target-version = ["py310"]
+
+[tool.mypy]
+python_version = "3.10"
+ignore_missing_imports = true
+# The codebase is not fully annotated yet; type errors are advisory for now.
+check_untyped_defs = false
+warn_unused_ignores = true

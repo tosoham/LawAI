@@ -16,10 +16,11 @@ from pathlib import Path
 backend_path = Path(__file__).parent.parent
 sys.path.insert(0, str(backend_path))
 
+import logging
+
 from services.llm_service import llm_service
 from services.rag_service import RAGService
 from tools.registry import initialize_tools
-import logging
 
 # Configure logging
 logging.basicConfig(
@@ -49,7 +50,7 @@ def print_result(result):
                     print(f"  {key}: {value}")
         else:
             print(f"  {result.data}")
-        
+
         if result.metadata:
             print("\nMetadata:")
             for key, value in result.metadata.items():
@@ -62,71 +63,71 @@ def print_result(result):
 async def demo_rag_search(registry):
     """Demo RAG search tool"""
     print_section("DEMO 1: RAG Search Tool")
-    
+
     tool = registry.get_tool("rag_search")
     if not tool:
         print("❌ RAG search tool not available")
         return
-    
+
     print("Query: 'Find provisions for anticipatory bail in BNSS'")
     print("Collection: bnss_sections")
     print("Top K: 3\n")
-    
+
     result = await tool.safe_execute(
         query="Find provisions for anticipatory bail in BNSS",
         collection="bnss_sections",
         top_k=3
     )
-    
+
     print_result(result)
 
 
 async def demo_chat(registry):
     """Demo chat tool"""
     print_section("DEMO 2: Chat Tool")
-    
+
     tool = registry.get_tool("chat")
     if not tool:
         print("❌ Chat tool not available")
         return
-    
+
     print("Message: 'Explain the concept of mens rea in criminal law'\n")
-    
+
     result = await tool.safe_execute(
         message="Explain the concept of mens rea in criminal law"
     )
-    
+
     print_result(result)
-    
+
     # Demo with context
     print("\n" + "-" * 80)
     print("Follow-up with context:\n")
-    
+
     context = [
         {"role": "user", "content": "Explain mens rea"},
         {"role": "assistant", "content": "Mens rea refers to the mental state..."}
     ]
-    
+
     print("Message: 'Give me an example from Indian law'")
     print(f"Context: {len(context)} previous messages\n")
-    
+
     result = await tool.safe_execute(
         message="Give me an example from Indian law",
         context=context
     )
-    
+
     print_result(result)
 
 
 async def demo_draft_document(registry):
     """Demo draft document tool"""
     print_section("DEMO 3: Draft Document Tool - Bail Application")
-    
+
     tool = registry.get_tool("draft_document")
     if not tool:
         print("❌ Draft document tool not available")
         return
-    
+
     case_details = {
         "accused_name": "Rajesh Kumar",
         "fir_number": "456/2024",
@@ -136,30 +137,30 @@ async def demo_draft_document(registry):
         "court_name": "Sessions Court, Bangalore",
         "additional_grounds": "The accused is a first-time offender with no criminal history. He is the sole breadwinner of his family and has strong community ties."
     }
-    
+
     print("Document Type: bail_application")
     print("\nCase Details:")
     for key, value in case_details.items():
         print(f"  {key}: {value}")
     print()
-    
+
     result = await tool.safe_execute(
         document_type="bail_application",
         case_details=case_details
     )
-    
+
     print_result(result)
 
 
 async def demo_analyze_document(registry):
     """Demo analyze document tool"""
     print_section("DEMO 4: Analyze Document Tool - Rental Agreement")
-    
+
     tool = registry.get_tool("analyze_document")
     if not tool:
         print("❌ Analyze document tool not available")
         return
-    
+
     # Sample rental agreement
     document_text = """
 RENTAL AGREEMENT
@@ -197,36 +198,36 @@ Signed:
 Landlord: ________________
 Tenant: ________________
 """
-    
+
     print("Document Type: agreement (rental)")
     print(f"Document Length: {len(document_text)} characters")
     print("Analysis Type: risks\n")
-    
+
     result = await tool.safe_execute(
         document_text=document_text,
         analysis_type="risks",
         document_type="agreement"
     )
-    
+
     print_result(result)
-    
+
     # Demo summary analysis
     print("\n" + "-" * 80)
     print("Summary Analysis:\n")
-    
+
     result = await tool.safe_execute(
         document_text=document_text,
         analysis_type="summary",
         document_type="agreement"
     )
-    
+
     print_result(result)
 
 
 async def demo_tool_registry(registry):
     """Demo tool registry functionality"""
     print_section("DEMO 5: Tool Registry")
-    
+
     print("Registered Tools:")
     tools = registry.list_tools()
     for tool_name in tools:
@@ -236,7 +237,7 @@ async def demo_tool_registry(registry):
         print(f"    Parameters: {', '.join(metadata.parameters.keys())}")
         if metadata.examples:
             print(f"    Example: {metadata.examples[0]}")
-    
+
     print(f"\n\nTotal Tools: {len(registry)}")
 
 
@@ -246,21 +247,21 @@ async def main():
     print("  LawAI MCP Tools Demo")
     print("  Demonstrating all 4 tools with realistic examples")
     print("=" * 80)
-    
+
     try:
         # Initialize services and tools
         print("\n⏳ Initializing services and tools...")
         rag_service = RAGService()
         registry = initialize_tools(llm_service, rag_service)
         print(f"✓ Initialized {len(registry)} tools\n")
-        
+
         # Run demos
         await demo_rag_search(registry)
         await demo_chat(registry)
         await demo_draft_document(registry)
         await demo_analyze_document(registry)
         await demo_tool_registry(registry)
-        
+
         print_section("Demo Complete!")
         print("All tools demonstrated successfully.")
         print("\nKey Features:")
@@ -272,12 +273,12 @@ async def main():
         print("  • Integrate with LangGraph for agent orchestration")
         print("  • Add streaming support for real-time responses")
         print("  • Deploy to production with FastAPI")
-        
+
     except Exception as e:
         logger.error(f"Demo failed: {e}", exc_info=True)
         print(f"\n❌ Demo failed: {e}")
         return 1
-    
+
     return 0
 
 

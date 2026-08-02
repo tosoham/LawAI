@@ -1,66 +1,66 @@
 """
 Request models for LawAI API
 """
-from typing import Any, Dict, Optional
-from pydantic import BaseModel, Field
+from typing import Any
+
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class ChatRequest(BaseModel):
     """Request model for chat endpoint"""
-    
+
     message: str = Field(
         ...,
         description="User message/query",
         min_length=1,
         max_length=5000
     )
-    
-    context: Optional[str] = Field(
+
+    context: str | None = Field(
         None,
         description="Optional context for the conversation",
         max_length=10000
     )
-    
+
     stream: bool = Field(
         default=True,
         description="Whether to stream the response"
     )
-    
-    max_tokens: Optional[int] = Field(
+
+    max_tokens: int | None = Field(
         None,
         description="Maximum tokens to generate",
         ge=1,
         le=4096
     )
-    
-    temperature: Optional[float] = Field(
+
+    temperature: float | None = Field(
         None,
         description="Sampling temperature",
         ge=0.0,
         le=2.0
     )
-    
-    class Config:
-        json_schema_extra = {
+
+    model_config = ConfigDict(json_schema_extra={
             "example": {
                 "message": "What are the provisions for bail under BNSS?",
                 "context": "Client arrested under BNS Section 103",
                 "stream": True
             }
-        }
+        })
 
 
 class RAGSearchRequest(BaseModel):
     """Request model for RAG search endpoint"""
-    
+
     query: str = Field(
         ...,
         description="Search query",
         min_length=1,
         max_length=1000
     )
-    
-    collection: Optional[str] = Field(
+
+    collection: str | None = Field(
         None,
         description=(
             "Collection to search. Accepts either the short alias "
@@ -70,22 +70,21 @@ class RAGSearchRequest(BaseModel):
         ),
         pattern="^(bns|bnss|bsa|judgements|bns_sections|bnss_sections|bsa_sections|sc_judgements)$"
     )
-    
+
     top_k: int = Field(
         default=5,
         description="Number of results to return",
         ge=1,
         le=20
     )
-    
-    class Config:
-        json_schema_extra = {
+
+    model_config = ConfigDict(json_schema_extra={
             "example": {
                 "query": "anticipatory bail provisions",
                 "collection": "bnss",
                 "top_k": 5
             }
-        }
+        })
 
 
 class DraftDocumentRequest(BaseModel):
@@ -97,13 +96,12 @@ class DraftDocumentRequest(BaseModel):
         pattern="^(bail_application|petition|notice|agreement)$"
     )
 
-    case_details: Dict[str, Any] = Field(
+    case_details: dict[str, Any] = Field(
         ...,
         description="Case details used to populate the document"
     )
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(json_schema_extra={
             "example": {
                 "document_type": "bail_application",
                 "case_details": {
@@ -113,7 +111,7 @@ class DraftDocumentRequest(BaseModel):
                     "facts": "First time offender, no criminal history"
                 }
             }
-        }
+        })
 
 
 class ExportDocxRequest(BaseModel):
@@ -131,7 +129,7 @@ class ExportDocxRequest(BaseModel):
         max_length=200
     )
 
-    title: Optional[str] = Field(
+    title: str | None = Field(
         None,
         description="Optional heading placed at the top of the document",
         max_length=300
@@ -142,14 +140,13 @@ class ExportDocxRequest(BaseModel):
         description="Append the AI-generated content disclaimer"
     )
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(json_schema_extra={
             "example": {
                 "content": "IN THE COURT OF SESSIONS JUDGE\n\nBAIL APPLICATION...",
                 "filename": "bail_application_rajesh_kumar",
                 "title": "Bail Application"
             }
-        }
+        })
 
 
 class AnalyzeDocumentRequest(BaseModel):
@@ -173,12 +170,11 @@ class AnalyzeDocumentRequest(BaseModel):
         pattern="^(contract|agreement|notice|petition|other)$"
     )
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(json_schema_extra={
             "example": {
                 "document_text": "This Rental Agreement is made on...",
                 "analysis_type": "risks",
                 "document_type": "agreement"
             }
-        }
+        })
 

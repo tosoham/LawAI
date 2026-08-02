@@ -34,44 +34,44 @@ _HEADING = re.compile(r"^[A-Z0-9][A-Z0-9 ,.\-/()\[\]']{2,80}$")
 async def draft_document(request: DraftDocumentRequest):
     """
     Draft a legal document.
-    
+
     Generates professional legal documents like bail applications,
     petitions, and notices based on provided case details.
-    
+
     Args:
         request: Document drafting request
-        
+
     Returns:
         Drafted document with metadata
-        
+
     Raises:
         HTTPException: If drafting fails
     """
     try:
         logger.info(f"Draft document request: type={request.document_type}")
-        
+
         # Get tool registry
         registry = get_tool_registry()
         draft_tool = registry.get_tool("draft_document")
-        
+
         if not draft_tool:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail="Draft document tool not available"
             )
-        
+
         # Execute tool
         result = await draft_tool.safe_execute(
             document_type=request.document_type,
             case_details=request.case_details
         )
-        
+
         if not result.success:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=result.error
             )
-        
+
         # Format response
         return DraftDocumentResponse(
             success=True,
@@ -80,60 +80,60 @@ async def draft_document(request: DraftDocumentRequest):
             case_details=result.data.get("case_details"),
             disclaimer=result.data.get("disclaimer")
         )
-        
+
     except HTTPException:
         raise
     except Exception as e:
         logger.error(f"Error drafting document: {e}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to draft document: {str(e)}"
-        )
+            detail=f"Failed to draft document: {e!s}"
+        ) from e
 
 
 @router.post("/analyze", response_model=AnalyzeDocumentResponse)
 async def analyze_document(request: AnalyzeDocumentRequest):
     """
     Analyze a legal document.
-    
+
     Provides comprehensive analysis including summaries, risk assessment,
     and key clause extraction.
-    
+
     Args:
         request: Document analysis request
-        
+
     Returns:
         Document analysis with insights
-        
+
     Raises:
         HTTPException: If analysis fails
     """
     try:
         logger.info(f"Analyze document request: type={request.analysis_type}, doc_type={request.document_type}")
-        
+
         # Get tool registry
         registry = get_tool_registry()
         analyze_tool = registry.get_tool("analyze_document")
-        
+
         if not analyze_tool:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail="Analyze document tool not available"
             )
-        
+
         # Execute tool
         result = await analyze_tool.safe_execute(
             document_text=request.document_text,
             analysis_type=request.analysis_type,
             document_type=request.document_type
         )
-        
+
         if not result.success:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=result.error
             )
-        
+
         # Format response
         return AnalyzeDocumentResponse(
             success=True,
@@ -143,15 +143,15 @@ async def analyze_document(request: AnalyzeDocumentRequest):
             document_length=result.data.get("document_length"),
             disclaimer=result.data.get("disclaimer")
         )
-        
+
     except HTTPException:
         raise
     except Exception as e:
         logger.error(f"Error analyzing document: {e}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to analyze document: {str(e)}"
-        )
+            detail=f"Failed to analyze document: {e!s}"
+        ) from e
 
 
 @router.post(
@@ -219,17 +219,17 @@ async def export_docx(request: ExportDocxRequest):
         logger.error(f"Error exporting document: {e}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to export document: {str(e)}",
-        )
+            detail=f"Failed to export document: {e!s}",
+        ) from e
 
 
 @router.get("/templates", response_model=DocumentTemplatesResponse)
 async def get_document_templates():
     """
     Get available document templates.
-    
+
     Returns list of supported document types with descriptions.
-    
+
     Returns:
         List of document templates
     """
@@ -284,7 +284,7 @@ async def get_document_templates():
             ]
         }
     ]
-    
+
     return DocumentTemplatesResponse(templates=templates)
 
 
@@ -292,12 +292,12 @@ async def get_document_templates():
 async def health_check():
     """
     Health check endpoint for documents service.
-    
+
     Returns:
         Service status
     """
     registry = get_tool_registry()
-    
+
     return {
         "status": "healthy",
         "tools_available": {

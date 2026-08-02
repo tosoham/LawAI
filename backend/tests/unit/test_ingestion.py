@@ -231,8 +231,8 @@ class TestJudgementVerification:
 
     def _spec(self, **kw):
         ingest_judgments = _load_script("ingest_judgments")
-        defaults = dict(doc_id="1", case_name="Test v. State", year="1990",
-                        subject="s", expect=("test",))
+        defaults = {"doc_id": "1", "case_name": "Test v. State", "year": "1990",
+                    "subject": "s", "expect": ("test",)}
         defaults.update(kw)
         return ingest_judgments.JudgementSpec(**defaults)
 

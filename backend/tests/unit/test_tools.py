@@ -5,28 +5,30 @@ Tests for all tool implementations including base tool, RAG search,
 chat, draft document, and analyze document tools.
 """
 
-import pytest
 from unittest.mock import Mock
+
+import pytest
+
+from tools.analyze_doc_tool import AnalyzeDocumentTool
 from tools.base_tool import BaseTool, ToolParameter, ToolResult
-from tools.rag_search_tool import RAGSearchTool
 from tools.chat_tool import ChatTool
 from tools.draft_document_tool import DraftDocumentTool
-from tools.analyze_doc_tool import AnalyzeDocumentTool
+from tools.rag_search_tool import RAGSearchTool
 from tools.registry import ToolRegistry
 
 
 # Test Base Tool
 class MockTool(BaseTool):
     """Mock tool for testing base functionality"""
-    
+
     @property
     def name(self) -> str:
         return "mock_tool"
-    
+
     @property
     def description(self) -> str:
         return "A mock tool for testing"
-    
+
     @property
     def parameters(self):
         return {
@@ -44,7 +46,7 @@ class MockTool(BaseTool):
                 default=10
             )
         }
-    
+
     async def execute(self, **kwargs):
         return ToolResult(
             success=True,
@@ -55,13 +57,13 @@ class MockTool(BaseTool):
 
 class TestBaseTool:
     """Test base tool functionality"""
-    
+
     def test_tool_initialization(self):
         """Test tool can be initialized"""
         tool = MockTool()
         assert tool.name == "mock_tool"
         assert tool.description == "A mock tool for testing"
-    
+
     def test_get_metadata(self):
         """Test getting tool metadata"""
         tool = MockTool()
@@ -69,28 +71,28 @@ class TestBaseTool:
         assert metadata.name == "mock_tool"
         assert "param1" in metadata.parameters
         assert "param2" in metadata.parameters
-    
+
     def test_validate_parameters_success(self):
         """Test parameter validation with valid params"""
         tool = MockTool()
         is_valid, error = tool.validate_parameters(param1="test", param2=20)
         assert is_valid is True
         assert error is None
-    
+
     def test_validate_parameters_missing_required(self):
         """Test parameter validation with missing required param"""
         tool = MockTool()
         is_valid, error = tool.validate_parameters(param2=20)
         assert is_valid is False
         assert "param1" in error
-    
+
     def test_validate_parameters_wrong_type(self):
         """Test parameter validation with wrong type"""
         tool = MockTool()
         is_valid, error = tool.validate_parameters(param1=123)  # Should be string
         assert is_valid is False
         assert "string" in error.lower()
-    
+
     @pytest.mark.asyncio
     async def test_safe_execute_success(self):
         """Test safe execution with valid params"""
@@ -98,7 +100,7 @@ class TestBaseTool:
         result = await tool.safe_execute(param1="test")
         assert result.success is True
         assert result.data["result"] == "mock_result"
-    
+
     @pytest.mark.asyncio
     async def test_safe_execute_validation_failure(self):
         """Test safe execution with invalid params"""
@@ -110,7 +112,7 @@ class TestBaseTool:
 
 class TestRAGSearchTool:
     """Test RAG search tool"""
-    
+
     @pytest.fixture
     def mock_rag_service(self):
         """Create mock RAG service"""
@@ -126,13 +128,13 @@ class TestRAGSearchTool:
             "query": "test query"
         })
         return service
-    
+
     def test_tool_initialization(self, mock_rag_service):
         """Test RAG search tool initialization"""
         tool = RAGSearchTool(mock_rag_service)
         assert tool.name == "rag_search"
         assert "search" in tool.description.lower()
-    
+
     def test_tool_parameters(self, mock_rag_service):
         """Test RAG search tool parameters"""
         tool = RAGSearchTool(mock_rag_service)
@@ -141,7 +143,7 @@ class TestRAGSearchTool:
         assert "collection" in params
         assert "top_k" in params
         assert params["query"].required is True
-    
+
     @pytest.mark.asyncio
     async def test_execute_specific_collection(self, mock_rag_service):
         """Test RAG search with specific collection"""
@@ -154,7 +156,7 @@ class TestRAGSearchTool:
         assert result.success is True
         assert "answer" in result.data
         mock_rag_service.search_and_generate.assert_called_once()
-    
+
     @pytest.mark.asyncio
     async def test_execute_all_collections(self, mock_rag_service):
         """Test RAG search across all collections"""
@@ -170,20 +172,20 @@ class TestRAGSearchTool:
 
 class TestChatTool:
     """Test chat tool"""
-    
+
     @pytest.fixture
     def mock_llm_service(self):
         """Create mock LLM service"""
         service = Mock()
         service.generate = Mock(return_value="Test response from LLM")
         return service
-    
+
     def test_tool_initialization(self, mock_llm_service):
         """Test chat tool initialization"""
         tool = ChatTool(mock_llm_service)
         assert tool.name == "chat"
         assert "q&a" in tool.description.lower()
-    
+
     def test_tool_parameters(self, mock_llm_service):
         """Test chat tool parameters"""
         tool = ChatTool(mock_llm_service)
@@ -191,7 +193,7 @@ class TestChatTool:
         assert "message" in params
         assert "context" in params
         assert params["message"].required is True
-    
+
     @pytest.mark.asyncio
     async def test_execute_without_context(self, mock_llm_service):
         """Test chat without conversation context"""
@@ -201,7 +203,7 @@ class TestChatTool:
         assert "answer" in result.data
         assert "disclaimer" in result.data["answer"].lower()
         mock_llm_service.generate.assert_called_once()
-    
+
     @pytest.mark.asyncio
     async def test_execute_with_context(self, mock_llm_service):
         """Test chat with conversation context"""
@@ -220,27 +222,27 @@ class TestChatTool:
 
 class TestDraftDocumentTool:
     """Test draft document tool"""
-    
+
     @pytest.fixture
     def mock_llm_service(self):
         """Create mock LLM service"""
         service = Mock()
         service.generate = Mock(return_value="Generated legal document content")
         return service
-    
+
     def test_tool_initialization(self, mock_llm_service):
         """Test draft document tool initialization"""
         tool = DraftDocumentTool(mock_llm_service)
         assert tool.name == "draft_document"
         assert "generate" in tool.description.lower()
-    
+
     def test_tool_parameters(self, mock_llm_service):
         """Test draft document tool parameters"""
         tool = DraftDocumentTool(mock_llm_service)
         params = tool.parameters
         assert "document_type" in params
         assert "case_details" in params
-    
+
     @pytest.mark.asyncio
     async def test_execute_bail_application(self, mock_llm_service):
         """Test drafting bail application"""
@@ -259,7 +261,7 @@ class TestDraftDocumentTool:
         assert "document" in result.data
         assert result.data["document_type"] == "bail_application"
         mock_llm_service.generate.assert_called_once()
-    
+
     @pytest.mark.asyncio
     async def test_execute_invalid_document_type(self, mock_llm_service):
         """Test with invalid document type"""
@@ -274,20 +276,20 @@ class TestDraftDocumentTool:
 
 class TestAnalyzeDocumentTool:
     """Test analyze document tool"""
-    
+
     @pytest.fixture
     def mock_llm_service(self):
         """Create mock LLM service"""
         service = Mock()
         service.generate = Mock(return_value="Document analysis results")
         return service
-    
+
     def test_tool_initialization(self, mock_llm_service):
         """Test analyze document tool initialization"""
         tool = AnalyzeDocumentTool(mock_llm_service)
         assert tool.name == "analyze_document"
         assert "analyze" in tool.description.lower()
-    
+
     def test_tool_parameters(self, mock_llm_service):
         """Test analyze document tool parameters"""
         tool = AnalyzeDocumentTool(mock_llm_service)
@@ -295,7 +297,7 @@ class TestAnalyzeDocumentTool:
         assert "document_text" in params
         assert "analysis_type" in params
         assert "document_type" in params
-    
+
     @pytest.mark.asyncio
     async def test_execute_full_analysis(self, mock_llm_service):
         """Test full document analysis"""
@@ -310,7 +312,7 @@ class TestAnalyzeDocumentTool:
         assert "analysis" in result.data
         assert result.data["analysis_type"] == "full"
         mock_llm_service.generate.assert_called_once()
-    
+
     @pytest.mark.asyncio
     async def test_execute_risk_analysis(self, mock_llm_service):
         """Test risk analysis"""
@@ -322,7 +324,7 @@ class TestAnalyzeDocumentTool:
         )
         assert result.success is True
         assert result.data["analysis_type"] == "risks"
-    
+
     @pytest.mark.asyncio
     async def test_execute_document_too_short(self, mock_llm_service):
         """Test with document that's too short"""
@@ -334,12 +336,12 @@ class TestAnalyzeDocumentTool:
 
 class TestToolRegistry:
     """Test tool registry"""
-    
+
     def test_registry_initialization(self):
         """Test registry can be initialized"""
         registry = ToolRegistry()
         assert len(registry) == 0
-    
+
     def test_register_tool(self):
         """Test registering a tool"""
         registry = ToolRegistry()
@@ -347,7 +349,7 @@ class TestToolRegistry:
         registry.register_tool(tool)
         assert len(registry) == 1
         assert "mock_tool" in registry
-    
+
     def test_get_tool(self):
         """Test retrieving a tool"""
         registry = ToolRegistry()
@@ -355,7 +357,7 @@ class TestToolRegistry:
         registry.register_tool(tool)
         retrieved = registry.get_tool("mock_tool")
         assert retrieved is tool
-    
+
     def test_unregister_tool(self):
         """Test unregistering a tool"""
         registry = ToolRegistry()
@@ -364,7 +366,7 @@ class TestToolRegistry:
         result = registry.unregister_tool("mock_tool")
         assert result is True
         assert len(registry) == 0
-    
+
     def test_list_tools(self):
         """Test listing all tools"""
         registry = ToolRegistry()
@@ -372,7 +374,7 @@ class TestToolRegistry:
         registry.register_tool(tool1)
         tools = registry.list_tools()
         assert "mock_tool" in tools
-    
+
     def test_get_tool_metadata(self):
         """Test getting tool metadata"""
         registry = ToolRegistry()
@@ -381,7 +383,7 @@ class TestToolRegistry:
         metadata = registry.get_tool_metadata("mock_tool")
         assert metadata is not None
         assert metadata.name == "mock_tool"
-    
+
     def test_clear_registry(self):
         """Test clearing all tools"""
         registry = ToolRegistry()

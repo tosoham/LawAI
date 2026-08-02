@@ -3,8 +3,9 @@ RAG Search API endpoint for LawAI
 Provides semantic search across legal collections with LLM-generated answers
 """
 import logging
+from typing import Any
+
 from fastapi import APIRouter, HTTPException, status
-from typing import Dict, Any
 
 from models.requests import RAGSearchRequest
 from models.responses import ErrorResponse
@@ -40,7 +41,7 @@ def resolve_collection(name: str) -> str:
 
 @router.post(
     "/rag",
-    response_model=Dict[str, Any],
+    response_model=dict[str, Any],
     responses={
         400: {"model": ErrorResponse},
         500: {"model": ErrorResponse}
@@ -50,32 +51,32 @@ def resolve_collection(name: str) -> str:
 )
 # "/search/rag" is canonical (it is what the frontend calls); "/search" is kept
 # so older clients do not break.
-@router.post("", response_model=Dict[str, Any], include_in_schema=False)
-def rag_search(request: RAGSearchRequest) -> Dict[str, Any]:
+@router.post("", response_model=dict[str, Any], include_in_schema=False)
+def rag_search(request: RAGSearchRequest) -> dict[str, Any]:
     """
     Perform RAG (Retrieval-Augmented Generation) search
-    
+
     This endpoint:
     1. Searches the specified legal collection using semantic similarity
     2. Retrieves relevant legal provisions/cases
     3. Generates a contextual answer using the configured AIML API model
     4. Returns the answer with source citations
-    
+
     Args:
         request: RAGSearchRequest with query, collection, and top_k
-        
+
     Returns:
         Dict with 'answer', 'sources', 'query', 'collection', 'num_sources'
-        
+
     Raises:
         HTTPException: If search fails or invalid collection specified
     """
     try:
         logger.info(f"RAG search request: query='{request.query}', collection={request.collection}, top_k={request.top_k}")
-        
+
         # Get RAG service
         rag_service = get_rag_service()
-        
+
         # Determine collection(s) to search
         if request.collection:
             # Search specific collection
@@ -84,7 +85,7 @@ def rag_search(request: RAGSearchRequest) -> Dict[str, Any]:
                     status_code=status.HTTP_400_BAD_REQUEST,
                     detail=f"Invalid collection: {request.collection}. Must be one of: {sorted(COLLECTION_ALIASES)}"
                 )
-            
+
             collection_name = resolve_collection(request.collection)
             result = rag_service.search_and_generate(
                 query=request.query,
@@ -99,39 +100,39 @@ def rag_search(request: RAGSearchRequest) -> Dict[str, Any]:
                 collections=all_collections,
                 top_k_per_collection=max(1, request.top_k // len(all_collections))
             )
-        
+
         logger.info(f"RAG search completed successfully: {result.get('num_sources', 0)} sources")
         return result
-        
+
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"RAG search failed: {str(e)}", exc_info=True)
+        logger.error(f"RAG search failed: {e!s}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Search failed: {str(e)}"
-        )
+            detail=f"Search failed: {e!s}"
+        ) from e
 
 
 @router.get(
     "/collections",
-    response_model=Dict[str, Any],
+    response_model=dict[str, Any],
     summary="List Collections",
     description="Get list of available legal collections with statistics"
 )
-def list_collections() -> Dict[str, Any]:
+def list_collections() -> dict[str, Any]:
     """
     List available collections and their statistics
-    
+
     Returns:
         Dict with collection names and document counts
     """
     try:
         from services.vector_service import get_vector_service
-        
+
         vector_service = get_vector_service()
         collections = {}
-        
+
         for key, collection_name in COLLECTION_MAP.items():
             try:
                 stats = vector_service.get_collection_stats(collection_name)
@@ -147,18 +148,18 @@ def list_collections() -> Dict[str, Any]:
                     "count": 0,
                     "description": _get_collection_description(key)
                 }
-        
+
         return {
             "collections": collections,
             "total_collections": len(collections)
         }
-        
+
     except Exception as e:
-        logger.error(f"Failed to list collections: {str(e)}")
+        logger.error(f"Failed to list collections: {e!s}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to list collections: {str(e)}"
-        )
+            detail=f"Failed to list collections: {e!s}"
+        ) from e
 
 
 def _get_collection_description(collection_key: str) -> str:

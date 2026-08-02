@@ -13,7 +13,7 @@ assistant is worse than failing loudly.
 import json
 import logging
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -35,7 +35,7 @@ class LegalCorpusNotIngested(FileNotFoundError):
     """Raised when the processed corpus is missing from data/processed/."""
 
 
-def _load(filename: str) -> List[Dict[str, Any]]:
+def _load(filename: str) -> list[dict[str, Any]]:
     """Load one processed corpus file, validating its shape."""
     path = PROCESSED_DIR / filename
 
@@ -63,26 +63,26 @@ class LegalDataLoader:
     """Loads the ingested Indian legal corpus for vector database seeding."""
 
     @staticmethod
-    def get_bns_sections() -> List[Dict[str, Any]]:
+    def get_bns_sections() -> list[dict[str, Any]]:
         """Sections of the Bharatiya Nyaya Sanhita, 2023."""
         return _load(BNS_FILE)
 
     @staticmethod
-    def get_bnss_sections() -> List[Dict[str, Any]]:
+    def get_bnss_sections() -> list[dict[str, Any]]:
         """Sections of the Bharatiya Nagarik Suraksha Sanhita, 2023."""
         return _load(BNSS_FILE)
 
     @staticmethod
-    def get_bsa_sections() -> List[Dict[str, Any]]:
+    def get_bsa_sections() -> list[dict[str, Any]]:
         """Sections of the Bharatiya Sakshya Adhiniyam, 2023."""
         return _load(BSA_FILE)
 
     @staticmethod
-    def get_sc_judgements() -> List[Dict[str, Any]]:
+    def get_sc_judgements() -> list[dict[str, Any]]:
         """Curated landmark Supreme Court judgements."""
         return _load(JUDGEMENTS_FILE)
 
-    def load_all_data(self) -> Dict[str, List[Dict[str, Any]]]:
+    def load_all_data(self) -> dict[str, list[dict[str, Any]]]:
         """
         Load the whole corpus.
 

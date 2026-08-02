@@ -4,9 +4,9 @@ Intent Classifier for LawAI Agent
 Classifies user queries into appropriate intents for tool routing.
 """
 
-import re
-from typing import Optional
 import logging
+import re
+from typing import ClassVar
 
 from agents.state import IntentType
 from services.llm_service import LLMService
@@ -18,9 +18,9 @@ class IntentClassifier:
     """
     Classifies user queries into intents using keyword matching and LLM fallback.
     """
-    
+
     # Keyword patterns for each intent
-    INTENT_PATTERNS = {
+    INTENT_PATTERNS: ClassVar[dict] = {
         IntentType.RAG_SEARCH: [
             r'\b(what|explain|tell|describe|define|provisions?|sections?|law|legal|statute|act)\b',
             r'\b(bns|bnss|bsa|ipc|crpc|indian penal code|criminal procedure)\b',
@@ -45,14 +45,14 @@ class IntentClassifier:
             r'\b(thank|thanks|appreciate)\b',
         ],
     }
-    
+
     # Producing or inspecting a document is something the user asks for with a
     # verb. The supporting keywords above ("bail", "petition", "contract",
     # "risks") are ordinary legal vocabulary that shows up just as often in
     # questions *about* the law, so without one of these verbs those intents
     # score nothing -- otherwise "Tell me about bail" is answered with a drafted
     # bail application.
-    REQUIRED_TRIGGERS = {
+    REQUIRED_TRIGGERS: ClassVar[dict] = {
         IntentType.DRAFT_DOCUMENT: re.compile(
             r'\b(draft|write|prepare|create|generate|make|file|send|issue)\b'
         ),
@@ -71,30 +71,30 @@ class IntentClassifier:
         IntentType.UNKNOWN,
     )
 
-    def __init__(self, llm_service: Optional[LLMService] = None):
+    def __init__(self, llm_service: LLMService | None = None):
         """
         Initialize intent classifier.
-        
+
         Args:
             llm_service: Optional LLM service for fallback classification
         """
         self.llm_service = llm_service
-    
+
     def classify(self, query: str) -> str:
         """
         Classify user query into an intent.
-        
+
         Args:
             query: User query string
-            
+
         Returns:
             Intent type as string
         """
         query_lower = query.lower()
-        
+
         # Score each intent based on keyword matches
-        scores = {intent: 0 for intent in IntentType}
-        
+        scores = dict.fromkeys(IntentType, 0)
+
         for intent, patterns in self.INTENT_PATTERNS.items():
             trigger = self.REQUIRED_TRIGGERS.get(intent)
             if trigger is not None and not trigger.search(query_lower):
@@ -102,7 +102,7 @@ class IntentClassifier:
             for pattern in patterns:
                 if re.search(pattern, query_lower):
                     scores[intent] += 1
-        
+
         # Get intent with highest score
         max_score = max(scores.values())
 
@@ -115,7 +115,7 @@ class IntentClassifier:
                 if scores[intent] == max_score:
                     logger.info(f"Classified intent: {intent.value} (score: {max_score})")
                     return intent.value
-        
+
         # Fallback to LLM classification if available
         if self.llm_service:
             try:
@@ -125,24 +125,24 @@ class IntentClassifier:
                     return llm_intent
             except Exception as e:
                 logger.warning(f"LLM classification failed: {e}")
-        
+
         # Default to RAG search for legal queries
         logger.info(f"Defaulting to RAG_SEARCH for query: {query[:50]}...")
         return IntentType.RAG_SEARCH.value
-    
-    def _classify_with_llm(self, query: str) -> Optional[str]:
+
+    def _classify_with_llm(self, query: str) -> str | None:
         """
         Use LLM to classify intent when keyword matching is uncertain.
-        
+
         Args:
             query: User query
-            
+
         Returns:
             Intent type or None
         """
         if not self.llm_service:
             return None
-        
+
         prompt = f"""Classify the following user query into ONE of these intents:
 - rag_search: User wants to search legal information, laws, cases, or provisions
 - draft_document: User wants to draft a legal document (bail application, petition, etc.)
@@ -153,34 +153,34 @@ Query: "{query}"
 
 Respond with ONLY the intent name (rag_search, draft_document, analyze_document, or chat).
 Intent:"""
-        
+
         try:
             response = self.llm_service.generate(
                 prompt=prompt,
                 max_tokens=20,
                 temperature=0.1
             )
-            
+
             intent_str = response.strip().lower()
-            
+
             # Validate response
             for intent in IntentType:
                 if intent.value in intent_str:
                     return intent.value
-            
+
             return None
-            
+
         except Exception as e:
             logger.error(f"LLM classification error: {e}")
             return None
-    
+
     def get_intent_description(self, intent: str) -> str:
         """
         Get human-readable description of an intent.
-        
+
         Args:
             intent: Intent type
-            
+
         Returns:
             Description string
         """
@@ -195,16 +195,16 @@ Intent:"""
 
 
 # Singleton instance
-_classifier_instance: Optional[IntentClassifier] = None
+_classifier_instance: IntentClassifier | None = None
 
 
-def get_intent_classifier(llm_service: Optional[LLMService] = None) -> IntentClassifier:
+def get_intent_classifier(llm_service: LLMService | None = None) -> IntentClassifier:
     """
     Get or create intent classifier singleton.
-    
+
     Args:
         llm_service: Optional LLM service
-        
+
     Returns:
         IntentClassifier instance
     """

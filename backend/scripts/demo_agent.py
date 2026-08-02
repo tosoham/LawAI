@@ -4,16 +4,18 @@ Demo Script for LangGraph Agent
 Demonstrates agent capabilities with realistic legal queries.
 """
 
-import sys
 import os
+import sys
+
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
 import asyncio
+import logging
+
 from backend.agents.agent_service import get_agent_service, reset_agent_service
 from backend.services.llm_service import LLMService
 from backend.services.rag_service import RAGService
 from backend.tools.registry import initialize_tools
-import logging
 
 # Configure logging
 logging.basicConfig(
@@ -42,10 +44,10 @@ async def demo_streaming(agent_service, query: str):
     """Demonstrate streaming response"""
     print(f"Query (Streaming): {query}")
     print("\nStreaming Response:")
-    
+
     async for chunk in agent_service.process_query_stream(query):
         print(chunk, end='', flush=True)
-    
+
     print()
     print_separator()
 
@@ -55,34 +57,34 @@ def main():
     print_separator()
     print("LawAI Agent Demo - LangGraph Orchestration")
     print_separator()
-    
+
     # Initialize services
     logger.info("Initializing services...")
     reset_agent_service()
-    
+
     try:
         llm_service = LLMService()
         rag_service = RAGService()
         initialize_tools(llm_service, rag_service)
         agent_service = get_agent_service()
-        
+
         logger.info("Services initialized successfully")
     except Exception as e:
         logger.error(f"Failed to initialize services: {e}")
         print("\nError: Could not initialize services. Please check your .env configuration.")
         print(f"Details: {e}")
         return
-    
+
     # Demo 1: RAG Search - Bail Provisions
     print("Demo 1: RAG Search - Legal Provisions")
     print_separator()
-    
+
     queries_rag = [
         "What are the provisions for anticipatory bail in BNSS?",
         "Explain BNS Section 103 on murder",
         "What are the arrest procedures under BNSS?"
     ]
-    
+
     for query in queries_rag:
         try:
             result = agent_service.process_query(query)
@@ -91,16 +93,16 @@ def main():
             logger.error(f"Error processing query: {e}")
             print(f"Error: {e}")
             print_separator()
-    
+
     # Demo 2: Draft Document
     print("Demo 2: Draft Legal Document")
     print_separator()
-    
+
     queries_draft = [
         "Draft a bail application for a client arrested under BNS Section 103",
         "Generate an anticipatory bail petition under BNSS Section 482"
     ]
-    
+
     for query in queries_draft:
         try:
             result = agent_service.process_query(query)
@@ -109,16 +111,16 @@ def main():
             logger.error(f"Error processing query: {e}")
             print(f"Error: {e}")
             print_separator()
-    
+
     # Demo 3: Document Analysis
     print("Demo 3: Document Analysis")
     print_separator()
-    
+
     queries_analyze = [
         "Analyze this rental agreement for potential risks",
         "Review the uploaded contract and identify problematic clauses"
     ]
-    
+
     for query in queries_analyze:
         try:
             result = agent_service.process_query(query)
@@ -127,16 +129,16 @@ def main():
             logger.error(f"Error processing query: {e}")
             print(f"Error: {e}")
             print_separator()
-    
+
     # Demo 4: Chat
     print("Demo 4: General Chat")
     print_separator()
-    
+
     queries_chat = [
         "Hello, what can you help me with?",
         "Explain the concept of mens rea in criminal law"
     ]
-    
+
     for query in queries_chat:
         try:
             result = agent_service.process_query(query)
@@ -145,11 +147,11 @@ def main():
             logger.error(f"Error processing query: {e}")
             print(f"Error: {e}")
             print_separator()
-    
+
     # Demo 5: Streaming Response
     print("Demo 5: Streaming Response")
     print_separator()
-    
+
     try:
         asyncio.run(demo_streaming(
             agent_service,
@@ -159,11 +161,11 @@ def main():
         logger.error(f"Error in streaming demo: {e}")
         print(f"Error: {e}")
         print_separator()
-    
+
     # Demo 6: Complex Multi-Step Flow
     print("Demo 6: Complete Bail Application Flow")
     print_separator()
-    
+
     print("Step 1: Search for relevant legal provisions")
     try:
         result1 = agent_service.process_query(
@@ -174,7 +176,7 @@ def main():
         logger.error(f"Error in step 1: {e}")
         print(f"Error: {e}")
         print_separator()
-    
+
     print("Step 2: Draft bail application based on provisions")
     try:
         result2 = agent_service.process_query(
@@ -185,11 +187,11 @@ def main():
         logger.error(f"Error in step 2: {e}")
         print(f"Error: {e}")
         print_separator()
-    
+
     # Agent Info
     print("Agent Information")
     print_separator()
-    
+
     try:
         info = agent_service.get_agent_info()
         print(f"Status: {info['status']}")
@@ -206,11 +208,11 @@ def main():
         logger.error(f"Error getting agent info: {e}")
         print(f"Error: {e}")
         print_separator()
-    
+
     # Health Check
     print("Health Check")
     print_separator()
-    
+
     try:
         health = agent_service.health_check()
         print(f"Overall Status: {health['status']}")
@@ -223,7 +225,7 @@ def main():
         logger.error(f"Error in health check: {e}")
         print(f"Error: {e}")
         print_separator()
-    
+
     print("Demo completed successfully!")
     print_separator()
 

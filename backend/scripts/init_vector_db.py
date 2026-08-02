@@ -20,13 +20,13 @@ import logging
 import os
 import re
 import sys
-from typing import Any, Dict, List
+from typing import Any
 
 # Add backend to path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
-from services.vector_service import get_vector_service, VectorService
 from services.data_loader import LegalDataLoader
+from services.vector_service import VectorService, get_vector_service
 
 # Configure logging
 logging.basicConfig(
@@ -43,7 +43,7 @@ CHUNK_OVERLAP_CHARS = 150
 BATCH_SIZE = 256
 
 
-def split_text(text: str) -> List[str]:
+def split_text(text: str) -> list[str]:
     """Split text into overlapping chunks, preferring paragraph boundaries."""
     text = text.strip()
     if len(text) <= MAX_CHUNK_CHARS:
@@ -51,7 +51,7 @@ def split_text(text: str) -> List[str]:
 
     # Break on paragraphs first, then sentences, so chunks stay coherent.
     pieces = [p.strip() for p in re.split(r"\n\s*\n", text) if p.strip()]
-    units: List[str] = []
+    units: list[str] = []
     for piece in pieces:
         if len(piece) <= MAX_CHUNK_CHARS:
             units.append(piece)
@@ -65,7 +65,7 @@ def split_text(text: str) -> List[str]:
                 sentence = sentence[MAX_CHUNK_CHARS - CHUNK_OVERLAP_CHARS:]
             units.append(sentence)
 
-    chunks: List[str] = []
+    chunks: list[str] = []
     current = ""
     for unit in units:
         candidate = f"{current}\n\n{unit}" if current else unit
@@ -84,7 +84,7 @@ def split_text(text: str) -> List[str]:
     return chunks or [text[:MAX_CHUNK_CHARS]]
 
 
-def chunk_records(records: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+def chunk_records(records: list[dict[str, Any]]) -> list[dict[str, Any]]:
     """
     Expand records into embeddable chunks.
 
@@ -92,7 +92,7 @@ def chunk_records(records: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     counters, so a retrieved chunk can still be cited as its source section or
     judgement.
     """
-    chunked: List[Dict[str, Any]] = []
+    chunked: list[dict[str, Any]] = []
 
     for record in records:
         parts = split_text(record["text"])
@@ -113,7 +113,7 @@ def chunk_records(records: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
 def init_collection(
     vector_service: VectorService,
     collection_name: str,
-    data: List[Dict[str, Any]],
+    data: list[dict[str, Any]],
     data_type: str,
     reset: bool,
 ) -> None:

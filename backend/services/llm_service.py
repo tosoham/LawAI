@@ -9,12 +9,13 @@ The client is constructed lazily so that a missing/invalid API key does not cras
 the application at import time — health endpoints stay reachable and the error
 surfaces only when generation is actually attempted.
 """
-import os
 import logging
-from typing import Optional, AsyncIterator, Any, Dict
+import os
+from collections.abc import AsyncIterator
+from typing import Any, Optional
 
-from openai import OpenAI, AsyncOpenAI
 from dotenv import load_dotenv
+from openai import AsyncOpenAI, OpenAI
 
 # Load environment variables
 load_dotenv()
@@ -60,8 +61,8 @@ class LLMService:
         self.max_tokens = int(os.getenv("AIML_MAX_TOKENS", str(DEFAULT_MAX_TOKENS)))
         self.temperature = float(os.getenv("AIML_TEMPERATURE", str(DEFAULT_TEMPERATURE)))
 
-        self._client: Optional[OpenAI] = None
-        self._async_client: Optional[AsyncOpenAI] = None
+        self._client: OpenAI | None = None
+        self._async_client: AsyncOpenAI | None = None
         self._initialized = True
 
         if not self.api_key:
@@ -96,7 +97,7 @@ class LLMService:
             )
         return self._async_client
 
-    def _build_params(self, **kwargs) -> Dict[str, Any]:
+    def _build_params(self, **kwargs) -> dict[str, Any]:
         """
         Merge per-call overrides over the configured defaults.
 
@@ -107,7 +108,7 @@ class LLMService:
             if legacy in kwargs:
                 kwargs[current] = kwargs.pop(legacy)
 
-        params: Dict[str, Any] = {
+        params: dict[str, Any] = {
             "max_tokens": self.max_tokens,
             "temperature": self.temperature,
         }
@@ -115,7 +116,7 @@ class LLMService:
         return params
 
     @staticmethod
-    def _build_messages(prompt: str, system: Optional[str] = None) -> list:
+    def _build_messages(prompt: str, system: str | None = None) -> list:
         """Wrap a raw prompt string into the chat-completions message format."""
         messages = []
         if system:
@@ -123,7 +124,7 @@ class LLMService:
         messages.append({"role": "user", "content": prompt})
         return messages
 
-    def generate(self, prompt: str, system: Optional[str] = None, **kwargs) -> str:
+    def generate(self, prompt: str, system: str | None = None, **kwargs) -> str:
         """
         Generate a completion for a prompt.
 
@@ -152,11 +153,11 @@ class LLMService:
             return content
 
         except Exception as e:
-            logger.error(f"Generation failed: {str(e)}")
-            raise Exception(f"LLM generation error: {str(e)}")
+            logger.error(f"Generation failed: {e!s}")
+            raise Exception(f"LLM generation error: {e!s}") from e
 
     async def generate_stream(
-        self, prompt: str, system: Optional[str] = None, **kwargs
+        self, prompt: str, system: str | None = None, **kwargs
     ) -> AsyncIterator[str]:
         """
         Generate a streaming completion, yielding tokens as they arrive.
@@ -190,8 +191,8 @@ class LLMService:
                     yield token
 
         except Exception as e:
-            logger.error(f"Streaming generation failed: {str(e)}")
-            raise Exception(f"LLM streaming error: {str(e)}")
+            logger.error(f"Streaming generation failed: {e!s}")
+            raise Exception(f"LLM streaming error: {e!s}") from e
 
     def get_model_info(self) -> dict:
         """

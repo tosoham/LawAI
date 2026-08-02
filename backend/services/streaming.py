@@ -2,9 +2,10 @@
 Streaming utility for FastAPI StreamingResponse
 Handles token-by-token output from LLM
 """
-import logging
 import json
-from typing import AsyncIterator, Optional
+import logging
+from collections.abc import AsyncIterator
+
 from fastapi.responses import StreamingResponse
 
 logger = logging.getLogger(__name__)
@@ -41,7 +42,7 @@ async def stream_llm_response(
                 yield f"data: {json.dumps({'token': token})}\n\n"
 
     except Exception as e:
-        logger.error(f"Streaming error: {str(e)}")
+        logger.error(f"Streaming error: {e!s}")
         yield f"data: {json.dumps({'error': str(e)})}\n\n"
 
     yield "data: [DONE]\n\n"
@@ -53,11 +54,11 @@ async def stream_text_response(
 ) -> AsyncIterator[str]:
     """
     Stream a complete text response in chunks (for testing)
-    
+
     Args:
         text: Complete text to stream
         chunk_size: Number of characters per chunk
-        
+
     Yields:
         Text chunks
     """
@@ -72,11 +73,11 @@ def create_streaming_response(
 ) -> StreamingResponse:
     """
     Create FastAPI StreamingResponse from async generator
-    
+
     Args:
         generator: Async generator yielding content
         media_type: Response media type (default: text/event-stream)
-        
+
     Returns:
         FastAPI StreamingResponse configured for streaming
     """
@@ -93,24 +94,24 @@ def create_streaming_response(
 
 async def handle_stream_error(
     error: Exception,
-    context: Optional[str] = None
+    context: str | None = None
 ) -> AsyncIterator[str]:
     """
     Handle streaming errors gracefully
-    
+
     Args:
         error: Exception that occurred
         context: Optional context about where error occurred
-        
+
     Yields:
         Error message in SSE format
     """
-    logger.error(f"Stream error{f' in {context}' if context else ''}: {str(error)}")
-    
+    logger.error(f"Stream error{f' in {context}' if context else ''}: {error!s}")
+
     error_data = {
         "type": "error",
         "message": "An error occurred during streaming",
         "details": str(error) if logger.level == logging.DEBUG else None
     }
-    
+
     yield f"data: {json.dumps(error_data)}\n\n"

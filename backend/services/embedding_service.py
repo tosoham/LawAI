@@ -3,7 +3,8 @@ Embedding Service for LawAI
 Uses sentence-transformers for fast, local embeddings
 """
 import logging
-from typing import List, Optional
+from typing import Optional
+
 from sentence_transformers import SentenceTransformer
 
 logger = logging.getLogger(__name__)
@@ -11,15 +12,15 @@ logger = logging.getLogger(__name__)
 
 class EmbeddingService:
     """Singleton service for generating embeddings"""
-    
+
     _instance: Optional['EmbeddingService'] = None
-    _model: Optional[SentenceTransformer] = None
-    
+    _model: SentenceTransformer | None = None
+
     def __new__(cls):
         if cls._instance is None:
             cls._instance = super().__new__(cls)
         return cls._instance
-    
+
     def __init__(self):
         """Initialize embedding model (singleton pattern)"""
         if self._model is None:
@@ -32,59 +33,59 @@ class EmbeddingService:
             except Exception as e:
                 logger.error(f"Failed to load embedding model: {e}")
                 raise
-    
-    def embed_text(self, text: str) -> List[float]:
+
+    def embed_text(self, text: str) -> list[float]:
         """
         Generate embedding for a single text
-        
+
         Args:
             text: Input text to embed
-            
+
         Returns:
             List of floats representing the embedding
         """
         try:
             if not text or not text.strip():
                 raise ValueError("Text cannot be empty")
-            
+
             embedding = self._model.encode(text, convert_to_numpy=True)
             return embedding.tolist()
         except Exception as e:
             logger.error(f"Error generating embedding: {e}")
             raise
-    
-    def embed_texts(self, texts: List[str]) -> List[List[float]]:
+
+    def embed_texts(self, texts: list[str]) -> list[list[float]]:
         """
         Generate embeddings for multiple texts (batch processing)
-        
+
         Args:
             texts: List of texts to embed
-            
+
         Returns:
             List of embeddings
         """
         try:
             if not texts:
                 raise ValueError("Texts list cannot be empty")
-            
+
             # Filter out empty texts
             valid_texts = [t for t in texts if t and t.strip()]
             if not valid_texts:
                 raise ValueError("No valid texts to embed")
-            
+
             embeddings = self._model.encode(valid_texts, convert_to_numpy=True)
             return embeddings.tolist()
         except Exception as e:
             logger.error(f"Error generating batch embeddings: {e}")
             raise
-    
+
     def get_embedding_dimension(self) -> int:
         """Get the dimension of embeddings produced by this model"""
         return self._model.get_sentence_embedding_dimension()
 
 
 # Global instance
-_embedding_service: Optional[EmbeddingService] = None
+_embedding_service: EmbeddingService | None = None
 
 
 def get_embedding_service() -> EmbeddingService:

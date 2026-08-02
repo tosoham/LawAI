@@ -5,23 +5,24 @@ Generate legal documents like bail applications, petitions, and notices.
 """
 
 import asyncio
-from typing import Dict
-from .base_tool import BaseTool, ToolParameter, ToolResult
+
 from services.llm_service import LLMService
+
+from .base_tool import BaseTool, ToolParameter, ToolResult
 
 
 class DraftDocumentTool(BaseTool):
     """
     Tool for generating legal documents.
-    
+
     Supports bail applications, petitions, and legal notices.
     Uses specialized prompts for each document type.
     """
-    
+
     def __init__(self, llm_service: LLMService):
         """
         Initialize draft document tool.
-        
+
         Args:
             llm_service: LLM service instance
         """
@@ -32,7 +33,7 @@ class DraftDocumentTool(BaseTool):
             "Generate petition for anticipatory bail",
             "Create legal notice for breach of contract"
         ]
-        
+
         # Document templates
         self.templates = {
             "bail_application": self._get_bail_template(),
@@ -40,17 +41,17 @@ class DraftDocumentTool(BaseTool):
             "notice": self._get_notice_template(),
             "agreement": self._get_agreement_template()
         }
-    
+
     @property
     def name(self) -> str:
         return "draft_document"
-    
+
     @property
     def description(self) -> str:
         return "Generate legal documents (bail applications, petitions, notices)"
-    
+
     @property
-    def parameters(self) -> Dict[str, ToolParameter]:
+    def parameters(self) -> dict[str, ToolParameter]:
         return {
             "document_type": ToolParameter(
                 name="document_type",
@@ -65,7 +66,7 @@ class DraftDocumentTool(BaseTool):
                 required=True
             )
         }
-    
+
     def _get_bail_template(self) -> str:
         """Get bail application template"""
         return """Draft a comprehensive bail application with the following structure:
@@ -113,7 +114,7 @@ Date: [DATE]
 [ADVOCATE NAME]
 Advocate for Applicant
 Enrolment No.: [ENROLMENT_NO]"""
-    
+
     def _get_petition_template(self) -> str:
         """Get petition template"""
         return """Draft a comprehensive petition with the following structure:
@@ -157,7 +158,7 @@ Date: [DATE]
 
 [ADVOCATE NAME]
 Advocate for Petitioner"""
-    
+
     def _get_notice_template(self) -> str:
         """Get legal notice template"""
         return """Draft a legal notice with the following structure:
@@ -194,7 +195,7 @@ Yours faithfully,
 Advocate
 [ADDRESS]
 Date: [DATE]"""
-    
+
     def _get_agreement_template(self) -> str:
         """Get agreement/contract template"""
         return """Draft a comprehensive agreement with the following structure:
@@ -272,19 +273,19 @@ WITNESSES:
 1. _____________________
 2. _____________________"""
 
-    def _create_prompt(self, document_type: str, case_details: Dict) -> str:
+    def _create_prompt(self, document_type: str, case_details: dict) -> str:
         """
         Create prompt for document generation.
-        
+
         Args:
             document_type: Type of document
             case_details: Case information
-            
+
         Returns:
             Formatted prompt
         """
         template = self.templates.get(document_type, "")
-        
+
         prompt = f"""You are an expert legal document drafter specializing in Indian law.
 
 TASK: Generate a professional {document_type.replace('_', ' ')} based on the template and case details provided.
@@ -305,57 +306,57 @@ INSTRUCTIONS:
 7. Use proper formatting with clear sections and numbering
 
 Generate the complete document now:"""
-        
+
         return prompt
-    
-    def _format_case_details(self, case_details: Dict) -> str:
+
+    def _format_case_details(self, case_details: dict) -> str:
         """Format case details for prompt"""
         formatted = []
         for key, value in case_details.items():
             formatted.append(f"- {key.replace('_', ' ').title()}: {value}")
         return "\n".join(formatted)
-    
+
     async def execute(self, **kwargs) -> ToolResult:
         """
         Execute document drafting.
-        
+
         Args:
             document_type: Type of document to draft
             case_details: Case information
-            
+
         Returns:
             ToolResult with drafted document
         """
         try:
             document_type = kwargs.get("document_type")
             case_details = kwargs.get("case_details", {})
-            
+
             if not document_type:
                 return ToolResult(
                     success=False,
                     error="document_type is required"
                 )
-            
+
             if document_type not in self.templates:
                 return ToolResult(
                     success=False,
                     error=f"Unsupported document type: {document_type}. Supported: {list(self.templates.keys())}"
                 )
-            
+
             if not case_details:
                 return ToolResult(
                     success=False,
                     error="case_details are required"
                 )
-            
+
             self.logger.info(f"Drafting {document_type} with {len(case_details)} details")
-            
+
             # Create prompt
             prompt = self._create_prompt(document_type, case_details)
-            
+
             # Generate document (offloaded so the event loop is not blocked)
             document = await asyncio.to_thread(self.llm_service.generate, prompt=prompt)
-            
+
             # Add metadata
             result_data = {
                 "document": document,
@@ -363,7 +364,7 @@ Generate the complete document now:"""
                 "case_details": case_details,
                 "disclaimer": "This is an AI-generated legal document. Please have it reviewed by a qualified lawyer before filing."
             }
-            
+
             return ToolResult(
                 success=True,
                 data=result_data,
@@ -373,10 +374,10 @@ Generate the complete document now:"""
                     "document_length": len(document)
                 }
             )
-            
+
         except Exception as e:
             self.logger.error(f"Document drafting failed: {e}", exc_info=True)
             return ToolResult(
                 success=False,
-                error=f"Document drafting failed: {str(e)}"
+                error=f"Document drafting failed: {e!s}"
             )
