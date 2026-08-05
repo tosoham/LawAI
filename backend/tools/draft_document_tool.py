@@ -5,18 +5,39 @@ Generate legal documents like bail applications, petitions, and notices.
 """
 
 import asyncio
+import re
 
 from services.llm_service import LLMService
 
 from .base_tool import BaseTool, ToolParameter, ToolResult
+
+# Matches a whole response wrapped in one markdown fence, e.g. ```plaintext ... ```
+_FENCED_RESPONSE = re.compile(
+    r"\A\s*```[^\n]*\n(?P<body>.*?)\n?```\s*\Z",
+    re.DOTALL,
+)
+
+
+def _strip_code_fence(document: str) -> str:
+    """
+    Unwrap a document the model returned inside a markdown code fence.
+
+    Asking it not to do this helps but does not eliminate it, and the fence is
+    not cosmetic: the .docx export writes the text verbatim, so a stray
+    ```plaintext ends up as the first line of a document filed in court.
+    Only a fence wrapping the *entire* response is removed -- one around a
+    quoted extract inside a document is left alone.
+    """
+    match = _FENCED_RESPONSE.match(document)
+    return match.group("body") if match else document
 
 
 class DraftDocumentTool(BaseTool):
     """
     Tool for generating legal documents.
 
-    Supports bail applications, petitions, and legal notices.
-    Uses specialized prompts for each document type.
+    Supports bail applications, petitions, legal notices, agreements and
+    affidavits. Uses specialized prompts for each document type.
     """
 
     def __init__(self, llm_service: LLMService):
@@ -39,7 +60,8 @@ class DraftDocumentTool(BaseTool):
             "bail_application": self._get_bail_template(),
             "petition": self._get_petition_template(),
             "notice": self._get_notice_template(),
-            "agreement": self._get_agreement_template()
+            "agreement": self._get_agreement_template(),
+            "affidavit": self._get_affidavit_template()
         }
 
     @property
@@ -56,7 +78,10 @@ class DraftDocumentTool(BaseTool):
             "document_type": ToolParameter(
                 name="document_type",
                 type="string",
-                description="Type of document (bail_application|petition|notice|agreement)",
+                description=(
+                    "Type of document "
+                    "(bail_application|petition|notice|agreement|affidavit)"
+                ),
                 required=True
             ),
             "case_details": ToolParameter(
@@ -273,6 +298,63 @@ WITNESSES:
 1. _____________________
 2. _____________________"""
 
+    def _get_affidavit_template(self) -> str:
+        """
+        Get affidavit template.
+
+        Sworn on oath, so the wording is deliberately conservative: the deponent
+        must distinguish personal knowledge from information believed to be true,
+        and nothing may be asserted that the deponent cannot verify.
+        """
+        return """Draft an affidavit with the following structure:
+
+IN THE COURT OF [COURT NAME]
+[LOCATION]
+
+[CASE TITLE / MATTER]
+[CASE NUMBER, if any]
+
+AFFIDAVIT OF [DEPONENT_NAME]
+
+I, [DEPONENT_NAME], aged about [AGE] years, [OCCUPATION], son/daughter/wife of
+[PARENT_OR_SPOUSE_NAME], resident of [ADDRESS], do hereby solemnly affirm and
+state on oath as follows:
+
+1. That I am the [CAPACITY - e.g. applicant / respondent / authorised
+   representative] in the above-mentioned matter and am competent to swear to
+   this affidavit.
+
+2. That the present affidavit is being filed for the purpose of [PURPOSE].
+
+3. FACTS DEPOSED TO:
+[FACTS]
+
+4. That the contents of paragraphs [PARAGRAPH_NUMBERS] are true to my personal
+   knowledge, and the contents of paragraphs [PARAGRAPH_NUMBERS] are based on
+   information received and believed by me to be true.
+
+5. That I have not suppressed any material fact, and no part of this affidavit
+   is false.
+
+6. [ADDITIONAL_AVERMENTS]
+
+DEPONENT
+
+VERIFICATION:
+
+I, the above-named deponent, do hereby verify that the contents of the above
+affidavit are true and correct to the best of my knowledge and belief, that no
+part of it is false and that nothing material has been concealed therefrom.
+
+Verified at [PLACE] on this [DATE].
+
+DEPONENT
+
+Solemnly affirmed before me on this [DATE].
+
+_____________________
+(Oath Commissioner / Notary Public)"""
+
     def _create_prompt(self, document_type: str, case_details: dict) -> str:
         """
         Create prompt for document generation.
@@ -298,12 +380,17 @@ CASE DETAILS:
 
 INSTRUCTIONS:
 1. Follow the template structure exactly
-2. Fill in all placeholders with appropriate information from case details
-3. Use proper legal language and terminology
-4. Ensure all sections are complete and professional
-5. Include relevant legal provisions and citations
-6. Make the document court-ready and professional
-7. Use proper formatting with clear sections and numbering
+2. Fill placeholders ONLY from the case details above
+3. NEVER invent facts about a person or a case. If the details do not supply
+   something the template asks for -- an age, an occupation, a parent's name, a
+   date, a court, a case number -- leave the bracketed placeholder in place for
+   the advocate to complete. A document with [AGE] left blank is usable; one
+   asserting an age that nobody supplied is not.
+4. Do not invent section numbers or case citations. Cite only provisions you are
+   certain of, and omit rather than guess.
+5. Use proper legal language and terminology
+6. Use proper formatting with clear sections and numbering
+7. Output the document text only -- no commentary, and no markdown code fences
 
 Generate the complete document now:"""
 
@@ -356,6 +443,7 @@ Generate the complete document now:"""
 
             # Generate document (offloaded so the event loop is not blocked)
             document = await asyncio.to_thread(self.llm_service.generate, prompt=prompt)
+            document = _strip_code_fence(document)
 
             # Add metadata
             result_data = {

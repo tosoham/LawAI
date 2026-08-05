@@ -254,8 +254,13 @@ class TestLegalAgent:
         ("Prepare a contract for services", "agreement"),
         ("File a writ petition in the High Court", "petition"),
         ("Draft a legal notice", "notice"),
+        ("Prepare an affidavit for the deponent", "affidavit"),
         # The document being drafted wins over its subject matter.
         ("Send a legal notice for breach of contract", "notice"),
+        # "affidavit in support of the bail application" is an affidavit; it is
+        # listed ahead of "notice"/"petition" but after "bail" would mis-route,
+        # so ordering matters here.
+        ("Draft an affidavit in support of the bail application", "affidavit"),
         # No recognisable keyword falls back to the most common request.
         ("Draft something for my client", "bail_application"),
     ])

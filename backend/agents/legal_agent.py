@@ -223,6 +223,9 @@ class LegalAgent:
     # being drafted come before words that merely describe its subject matter,
     # so "legal notice for breach of contract" is a notice, not an agreement.
     _DOCUMENT_TYPE_KEYWORDS = (
+        # Ahead of "bail": an "affidavit in support of the bail application" is
+        # an affidavit. Same principle that puts "notice" ahead of "contract".
+        ("affidavit", "affidavit"),
         ("bail", "bail_application"),
         ("notice", "notice"),
         ("petition", "petition"),

@@ -93,7 +93,7 @@ class DraftDocumentRequest(BaseModel):
     document_type: str = Field(
         ...,
         description="Type of document to draft",
-        pattern="^(bail_application|petition|notice|agreement)$"
+        pattern="^(bail_application|petition|notice|agreement|affidavit)$"
     )
 
     case_details: dict[str, Any] = Field(

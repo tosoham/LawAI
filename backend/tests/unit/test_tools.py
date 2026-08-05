@@ -273,6 +273,72 @@ class TestDraftDocumentTool:
         assert result.success is False
         assert "unsupported" in result.error.lower()
 
+    @pytest.mark.parametrize(
+        "document_type",
+        ["bail_application", "petition", "notice", "agreement", "affidavit"],
+    )
+    def test_every_accepted_type_has_a_template(self, mock_llm_service, document_type):
+        """
+        The API's document_type pattern and this template map must agree.
+        They drifted once: the UI offered "Affidavit", the request model
+        allowed only agreement, and the endpoint 422'd on a visible menu entry.
+        """
+        tool = DraftDocumentTool(mock_llm_service)
+        assert tool.templates[document_type].strip()
+
+    @pytest.mark.asyncio
+    async def test_execute_affidavit(self, mock_llm_service):
+        """Affidavits carry a verification clause, so the template must exist."""
+        tool = DraftDocumentTool(mock_llm_service)
+        result = await tool.execute(
+            document_type="affidavit",
+            case_details={
+                "deponent_name": "Rajesh Kumar",
+                "purpose": "Proof of residence",
+                "facts": "Resident of the stated address for 14 years.",
+            },
+        )
+        assert result.success is True
+        assert result.data["document_type"] == "affidavit"
+
+    @pytest.mark.asyncio
+    async def test_wrapping_code_fence_is_stripped(self, mock_llm_service):
+        """
+        The model sometimes returns the whole document inside ```plaintext.
+        The .docx export writes the text verbatim, so the fence would become
+        the first line of a document filed in court.
+        """
+        mock_llm_service.generate.return_value = (
+            "```plaintext\nIN THE COURT OF SESSIONS\n\nBody of the document\n```"
+        )
+        tool = DraftDocumentTool(mock_llm_service)
+
+        result = await tool.execute(
+            document_type="bail_application",
+            case_details={"accused_name": "John Doe"},
+        )
+
+        document = result.data["document"]
+        assert document.startswith("IN THE COURT OF SESSIONS")
+        assert "```" not in document
+
+    @pytest.mark.asyncio
+    async def test_prompt_forbids_inventing_personal_details(self, mock_llm_service):
+        """
+        An affidavit is sworn on oath. Left to itself the model filled in an
+        age, occupation and father's name that nobody supplied, so the prompt
+        must explicitly require unsupplied placeholders to be left blank.
+        """
+        tool = DraftDocumentTool(mock_llm_service)
+        await tool.execute(
+            document_type="affidavit",
+            case_details={"deponent_name": "Rajesh Kumar"},
+        )
+
+        prompt = mock_llm_service.generate.call_args.kwargs["prompt"]
+        assert "NEVER invent facts" in prompt
+        assert "leave the bracketed placeholder in place" in prompt
+
 
 class TestAnalyzeDocumentTool:
     """Test analyze document tool"""

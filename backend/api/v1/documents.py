@@ -282,6 +282,17 @@ async def get_document_templates():
                 "term_details",
                 "jurisdiction"
             ]
+        },
+        {
+            "type": "affidavit",
+            "name": "Affidavit",
+            "description": "Sworn statement of facts for filing before a court",
+            "required_fields": [
+                "deponent_name",
+                "address",
+                "purpose",
+                "facts"
+            ]
         }
     ]
 

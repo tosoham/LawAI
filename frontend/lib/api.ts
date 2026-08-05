@@ -9,9 +9,19 @@ const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 const API_VERSION = process.env.NEXT_PUBLIC_API_VERSION || 'v1';
 
 // Create axios instance with default config
+// Generous by design. A single agent query can classify intent, run a tool, and
+// -- on the live_research path -- make several round trips to a judiciary source
+// before the model writes its answer. 30s cut those off mid-flight.
+const REQUEST_TIMEOUT_MS = 120_000;
+
+// One retry, not an unbounded loop. Retrying inside the interceptor without
+// tracking attempts meant a backend that was simply down produced infinite
+// recursive requests.
+const MAX_RETRIES = 1;
+
 const apiClient: AxiosInstance = axios.create({
   baseURL: `${API_BASE}/api/${API_VERSION}`,
-  timeout: 30000,
+  timeout: REQUEST_TIMEOUT_MS,
   headers: {
     'Content-Type': 'application/json',
   },
@@ -29,18 +39,29 @@ apiClient.interceptors.request.use(
   }
 );
 
+/** Axios config plus our own attempt counter. */
+type RetryableConfig = AxiosError['config'] & { _retryCount?: number };
+
 // Response interceptor for error handling
 apiClient.interceptors.response.use(
   (response) => response,
   async (error: AxiosError) => {
     console.error('[API] Response error:', error.response?.data || error.message);
-    
-    // Retry logic for network errors
-    if (error.code === 'ECONNABORTED' || error.code === 'ERR_NETWORK') {
-      console.log('[API] Retrying request...');
-      return apiClient.request(error.config!);
+
+    // Retry transient network failures only, and only up to MAX_RETRIES.
+    const config = error.config as RetryableConfig | undefined;
+    const isTransient = error.code === 'ECONNABORTED' || error.code === 'ERR_NETWORK';
+
+    if (isTransient && config) {
+      const attempts = config._retryCount ?? 0;
+      if (attempts < MAX_RETRIES) {
+        config._retryCount = attempts + 1;
+        console.log(`[API] Retrying request (${config._retryCount}/${MAX_RETRIES})...`);
+        return apiClient.request(config);
+      }
+      console.error(`[API] Giving up after ${attempts + 1} attempts`);
     }
-    
+
     return Promise.reject(error);
   }
 );
@@ -88,9 +109,24 @@ export interface RAGSearchResponse {
   num_sources: number;
 }
 
+/** Mirrors the pattern on the backend's DraftDocumentRequest. Keep in sync. */
+export type DocumentType =
+  | 'bail_application'
+  | 'petition'
+  | 'notice'
+  | 'agreement'
+  | 'affidavit';
+
 export interface DraftDocumentRequest {
-  document_type: 'bail_application' | 'petition' | 'notice' | 'affidavit';
+  document_type: DocumentType;
   case_details: Record<string, any>;
+}
+
+export interface DocumentTemplate {
+  type: DocumentType;
+  name: string;
+  description: string;
+  required_fields: string[];
 }
 
 export interface DraftDocumentResponse {
@@ -123,6 +159,72 @@ export interface AnalyzeDocumentResponse {
     description: string;
   }>;
   metadata?: Record<string, any>;
+}
+
+/** Which courts a live search covers. Mirrors backend COURTS. */
+export type Court = 'supremecourt' | 'highcourts' | 'tribunals' | 'all';
+
+export interface LiveCaseLawRequest {
+  query: string;
+  court?: Court;
+  /** YYYY-MM-DD, or a bare year. */
+  from_date?: string;
+  to_date?: string;
+  limit?: number;
+}
+
+export interface LiveJudgment {
+  doc_id: string;
+  title: string;
+  court: string;
+  /** Free text as published, e.g. "29 January, 2020" — not a parseable date. */
+  date: string;
+  snippet: string;
+  source_url: string;
+  cited_by?: number;
+  source: string;
+}
+
+export interface LiveCaseLawResponse {
+  success: boolean;
+  query: string;
+  court: string;
+  search_expression: string;
+  num_results: number;
+  results: LiveJudgment[];
+  /**
+   * Present on every live response. These results are retrieved, not curated:
+   * unlike corpus hits they have not been verified, so the UI must say so.
+   */
+  disclaimer?: string;
+  error?: string;
+}
+
+export interface FetchJudgmentResponse {
+  success: boolean;
+  doc_id: string;
+  title?: string;
+  court?: string;
+  date?: string;
+  citations?: string[];
+  bench?: string;
+  text?: string;
+  truncated?: boolean;
+  source_url?: string;
+  disclaimer?: string;
+  error?: string;
+}
+
+export interface ResearchHealth {
+  status: string;
+  service: string;
+  courts: Court[];
+  enabled: boolean;
+  source: string;
+  timeout_seconds: number;
+  min_request_interval: number;
+  cached_searches: number;
+  cached_judgements: number;
 }
 
 // API Client
@@ -177,6 +279,35 @@ export const api = {
   },
 
   /**
+   * Live research endpoints.
+   *
+   * These reach past the local corpus to public judiciary records, so results
+   * are current but unverified. Render them as clearly distinct from corpus
+   * sources — never merged into the same list.
+   */
+  research: {
+    /** Search live case law. */
+    caseLaw: async (request: LiveCaseLawRequest): Promise<LiveCaseLawResponse> => {
+      const response = await apiClient.post('/research/case-law', request);
+      return response.data;
+    },
+
+    /** Fetch the text of one judgement located by a search. */
+    judgment: async (docId: string, maxChars = 8000): Promise<FetchJudgmentResponse> => {
+      const response = await apiClient.get(`/research/judgment/${docId}`, {
+        params: { max_chars: maxChars },
+      });
+      return response.data;
+    },
+
+    /** Whether live lookups are enabled. Does not call the source. */
+    health: async (): Promise<ResearchHealth> => {
+      const response = await apiClient.get('/research/health');
+      return response.data;
+    },
+  },
+
+  /**
    * Document endpoints
    */
   documents: {
@@ -193,6 +324,12 @@ export const api = {
      */
     analyze: async (request: AnalyzeDocumentRequest): Promise<AnalyzeDocumentResponse> => {
       const response = await apiClient.post('/documents/analyze', request);
+      return response.data;
+    },
+
+    /** Available draft templates and the fields each one expects. */
+    templates: async (): Promise<{ templates: DocumentTemplate[] }> => {
+      const response = await apiClient.get('/documents/templates');
       return response.data;
     },
 
@@ -288,5 +425,3 @@ export async function* readStream(stream: ReadableStream<Uint8Array>): AsyncGene
 }
 
 export default api;
-
-// Made with Bob
