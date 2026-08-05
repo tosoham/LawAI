@@ -34,12 +34,33 @@ function formatCitation(metadata: Record<string, any>): string {
   }
 
   if (metadata.case_name) {
-    return metadata.citation
-      ? `${metadata.case_name}, ${metadata.citation}`
-      : metadata.case_name;
+    const reported = primaryCitation(metadata.citation);
+    return reported ? `${metadata.case_name}, ${reported}` : metadata.case_name;
   }
 
   return metadata.title || 'Legal source';
+}
+
+/**
+ * Keep only the leading report.
+ *
+ * Indian Kanoon lists every reporter that carried a judgement, so Bachan Singh
+ * arrives as eleven comma-separated citations — over 200 characters, wrapping to
+ * three lines in a card header. Mirrors _primary_citation in
+ * backend/agents/citations.py.
+ */
+function primaryCitation(reported: unknown): string {
+  if (!reported) return '';
+  if (Array.isArray(reported)) return String(reported[0] ?? '').trim();
+  return String(reported).split(',')[0].trim();
+}
+
+/**
+ * Chapter metadata already reads "Chapter VI - Of Offences…", so prefixing the
+ * word again gives "Chapter Chapter VI". Only add it when it is missing.
+ */
+function chapterLabel(chapter: string): string {
+  return /^chapter\b/i.test(chapter.trim()) ? chapter : `Chapter ${chapter}`;
 }
 
 export const SourceCard: React.FC<SourceCardProps> = ({
@@ -89,7 +110,7 @@ export const SourceCard: React.FC<SourceCardProps> = ({
           Verified corpus
         </span>
         {metadata.chapter && (
-          <span className="chip-neutral">Chapter {metadata.chapter}</span>
+          <span className="chip-neutral">{chapterLabel(String(metadata.chapter))}</span>
         )}
         {metadata.court && <span className="chip-neutral">{metadata.court}</span>}
         {/* Long judgements are indexed as chunks; say which one this is, or a
