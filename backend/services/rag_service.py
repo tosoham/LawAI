@@ -10,6 +10,23 @@ from .vector_service import get_vector_service
 
 logger = logging.getLogger(__name__)
 
+# The one canonical disclaimer. Every generated answer carries it, and the marker
+# is stable so a client that renders its own styled version can strip this copy
+# instead of showing the warning twice — see stripDisclaimer in frontend/lib/api.ts.
+DISCLAIMER_MARKER = "**DISCLAIMER**"
+DISCLAIMER = (
+    f"{DISCLAIMER_MARKER}: This is AI-generated legal information for educational "
+    "purposes only. Please consult a qualified lawyer for legal advice specific to "
+    "your situation."
+)
+
+
+def with_disclaimer(answer: str) -> str:
+    """Append the canonical disclaimer, without duplicating one already present."""
+    if DISCLAIMER_MARKER in answer:
+        return answer
+    return f"{answer}\n\n{DISCLAIMER}"
+
 
 class RAGService:
     """Service for RAG-based legal question answering"""
@@ -99,6 +116,13 @@ class RAGService:
         """
         prompt = f"""You are a legal AI assistant specializing in Indian law. Answer the following question based on the provided legal context.
 
+THE APPLICABLE CODES (use these names exactly; do not mix them up):
+- BNS = Bharatiya Nyaya Sanhita, 2023 — offences. Replaces the Indian Penal Code.
+- BNSS = Bharatiya Nagarik Suraksha Sanhita, 2023 — procedure. Replaces the CrPC.
+- BSA = Bharatiya Sakshya Adhiniyam, 2023 — evidence. Replaces the Evidence Act.
+Never expand BNSS as "Bharatiya Nyaya Sanhita"; they are different statutes with
+different section numbering, and confusing them misstates the law.
+
 LEGAL CONTEXT:
 {context}
 
@@ -110,7 +134,9 @@ INSTRUCTIONS:
 2. Cite specific sections, cases, or provisions when relevant
 3. Use proper legal terminology and citation format
 4. If the context doesn't fully answer the question, acknowledge limitations
-5. Always include a disclaimer that this is AI-generated legal information
+5. Do NOT write your own disclaimer. One canonical disclaimer is appended to
+   every answer by this service; a second one written here means the user sees
+   the same warning twice, which trains them to skip past it.
 
 ANSWER:"""
         return prompt
@@ -163,7 +189,7 @@ ANSWER:"""
             sources = self._format_sources(search_results)
 
             # Step 6: Add disclaimer
-            answer = llm_response + "\n\n**DISCLAIMER**: This is AI-generated legal information for educational purposes only. Please consult a qualified lawyer for legal advice specific to your situation."
+            answer = with_disclaimer(llm_response)
 
             result = {
                 'answer': answer,
@@ -248,7 +274,7 @@ ANSWER:"""
             llm_response = self.llm_service.generate(prompt=prompt)
 
             sources = self._format_sources(filtered_results)
-            answer = llm_response + "\n\n**DISCLAIMER**: This is AI-generated legal information for educational purposes only. Please consult a qualified lawyer for legal advice specific to your situation."
+            answer = with_disclaimer(llm_response)
 
             result = {
                 'answer': answer,

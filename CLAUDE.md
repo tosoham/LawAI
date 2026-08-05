@@ -128,7 +128,13 @@ Request/response Pydantic models live in `backend/models/` (single source of tru
 
 ## Frontend
 
-Next.js **Pages Router** (`frontend/pages/`), not App Router. Feature UIs in `components/{chat,search,documents,shared}/`, data-fetching in `hooks/use*.ts`, all HTTP centralised in `lib/api.ts`. State via `zustand`.
+Next.js **Pages Router** (`frontend/pages/`), not App Router. One page (`index.tsx`) hosting five workspaces defined in `lib/workspaces.ts` — Ask, Corpus, Live research, Draft, Analyse — inside `components/layout/AppShell.tsx`. Selection is mirrored to the URL hash. Feature UIs in `components/{chat,search,research,documents,shared}/`, data-fetching in `hooks/use*.ts`, all HTTP centralised in `lib/api.ts`.
+
+- **Colour comes only from tokens.** `styles/globals.css` defines CSS custom properties under `:root` and `.dark`; `tailwind.config.js` maps them to semantic names (`canvas`, `surface`, `ink`, `muted`, `line`, `brand`, `brass`, `verified`, `live`). A raw hex or a stock Tailwind grey in a component breaks dark mode. `darkMode: 'class'`, toggled on `<html>` by `hooks/useTheme.ts`; `pages/_document.tsx` exists solely to apply the stored theme before first paint (React cannot hydrate before the browser paints, so without it dark-mode users get a white flash).
+- **Provenance is a visual contract.** Verified corpus hits render through `SourceCard` in the `verified` palette; live judiciary hits render through `research/JudgmentCard` in the `live` palette with a source link. Never merge the two lists — the API deliberately returns `sources` and `live_sources` separately for the same reason.
+- **`DraftForm` gets its document types from `GET /documents/templates`**, not a local list. It previously carried its own menu, which offered "Affidavit" while the API rejected it. The server owns the structure; the component owns labels and input types.
+- **Answers are stripped before rendering** (`stripAppendedBlocks` in `lib/api.ts`). The backend appends `**Sources:**` and `**DISCLAIMER**` blocks to `response`/`answer` for plain-text consumers; the UI renders both itself, so leaving them in showed the disclaimer twice and the citations twice.
+- **Chat uses the non-streaming agent endpoint.** Agent streaming is faux (see above), so it costs nothing in latency and would discard the structured `sources`. Real streaming primitives remain in `lib/api.ts` (`agent.queryStream`, `readStream`) for `/chat`.
 
 ## Conventions
 

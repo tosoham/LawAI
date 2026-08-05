@@ -30,6 +30,20 @@ class AgentQueryResponse(BaseModel):
     response: str = Field(..., description="Agent response")
     intent: str = Field(..., description="Classified intent")
     metadata: dict[str, Any] = Field(default_factory=dict, description="Additional metadata")
+    sources: list[dict[str, Any]] = Field(
+        default_factory=list,
+        description=(
+            "Citable hits from the verified local corpus that back this answer."
+        ),
+    )
+    live_sources: list[dict[str, Any]] = Field(
+        default_factory=list,
+        description=(
+            "Hits retrieved live from public judiciary records. Kept in a "
+            "separate field from `sources` on purpose: these are current but "
+            "unverified, and must not be presented as equivalent authority."
+        ),
+    )
     error: str | None = Field(None, description="Error message if any")
 
 
@@ -73,6 +87,8 @@ async def process_query(request: AgentQueryRequest):
             response=result["response"],
             intent=result["intent"],
             metadata=result.get("metadata", {}),
+            sources=result.get("sources", []),
+            live_sources=result.get("live_sources", []),
             error=result.get("error")
         )
 

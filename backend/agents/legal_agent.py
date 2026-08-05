@@ -10,6 +10,7 @@ from typing import Any
 
 from langgraph.graph import END, StateGraph
 
+from agents.citations import format_citation, source_payload
 from agents.intent_classifier import IntentClassifier
 from agents.state import AgentState, IntentType, set_error, update_state
 from tools.base_tool import ToolResult
@@ -455,7 +456,7 @@ class LegalAgent:
         if sources:
             response += "\n\n**Sources:**\n"
             for i, source in enumerate(sources[:3], 1):
-                response += f"{i}. {source.get('metadata', {}).get('source', 'Unknown')}\n"
+                response += f"{i}. {format_citation(source.get('metadata', {}))}\n"
 
         return response
 
@@ -561,6 +562,56 @@ class LegalAgent:
 
         return response
 
+    @staticmethod
+    def _unwrap(result: Any) -> dict[str, Any]:
+        """Get the payload out of a ToolResult, or pass a plain dict through."""
+        if hasattr(result, "success"):
+            return result.data if result.success and result.data else {}
+        return result if isinstance(result, dict) else {}
+
+    def _collect_sources(self, tool_results: dict[str, Any]) -> tuple[list, list]:
+        """
+        Pull citable sources out of whatever tools ran.
+
+        Returns ``(corpus_sources, live_sources)`` as two separate lists rather
+        than one tagged list. Corpus hits are verified; live judiciary hits are
+        retrieved and unverified. Keeping them in distinct keys means a client
+        cannot accidentally render them as one body of authority — which is the
+        whole reason the distinction exists.
+        """
+        corpus: list[dict[str, Any]] = []
+        live: list[dict[str, Any]] = []
+
+        rag = self._unwrap(tool_results.get("rag_search"))
+        corpus.extend(source_payload(source) for source in rag.get("sources", []))
+
+        # The live-research node records every tool the model chose to call, so
+        # both local and live hits can turn up here.
+        research = self._unwrap(tool_results.get("live_research"))
+        for call in research.get("tool_calls", []) or []:
+            payload = call.get("result") or {}
+            if not isinstance(payload, dict) or not payload.get("success", True):
+                continue
+
+            if call.get("name") == "search_local_corpus":
+                corpus.extend(
+                    source_payload(source) for source in payload.get("sources", [])
+                )
+                continue
+
+            for hit in payload.get("results", []) or []:
+                live.append({
+                    "doc_id": hit.get("doc_id"),
+                    "title": hit.get("title"),
+                    "court": hit.get("court"),
+                    "date": hit.get("date"),
+                    "snippet": hit.get("snippet"),
+                    "source_url": hit.get("source_url"),
+                    "cited_by": hit.get("cited_by"),
+                })
+
+        return corpus, live
+
     async def process(self, query: str) -> dict[str, Any]:
         """
         Process a user query through the agent.
@@ -569,7 +620,8 @@ class LegalAgent:
             query: User query
 
         Returns:
-            Agent response with final_response and metadata
+            Agent response with the answer, the classified intent, the sources
+            behind it, and any error.
         """
         from agents.state import create_initial_state
 
@@ -579,9 +631,15 @@ class LegalAgent:
         # Run graph asynchronously
         final_state = await self.graph.ainvoke(initial_state)
 
+        corpus_sources, live_sources = self._collect_sources(
+            final_state.get("tool_results", {}) or {}
+        )
+
         return {
             "response": final_state["final_response"],
             "intent": final_state.get("intent", ""),
             "metadata": final_state.get("metadata", {}),
+            "sources": corpus_sources,
+            "live_sources": live_sources,
             "error": final_state.get("error")
         }

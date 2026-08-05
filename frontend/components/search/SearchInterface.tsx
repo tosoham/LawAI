@@ -1,237 +1,211 @@
 /**
- * SearchInterface Component
- * RAG search interface for legal collections
+ * SearchInterface — semantic search over the verified corpus.
+ *
+ * Everything here is vetted: the full 2023 codes parsed from the MHA gazette
+ * PDFs, plus curated Supreme Court judgements. That is the distinction from the
+ * Research workspace, and it is stated rather than implied.
  */
 
 import React, { useState } from 'react';
+import ReactMarkdown from 'react-markdown';
 import { useSearch } from '@/hooks/useSearch';
-import LoadingSpinner from '@/components/shared/LoadingSpinner';
+import { RAGSearchRequest, stripAppendedBlocks } from '@/lib/api';
+import { CheckIcon, SearchIcon } from '@/components/shared/Icons';
+import { LoadingSpinner, SkeletonLines } from '@/components/shared/LoadingSpinner';
 import ErrorMessage from '@/components/shared/ErrorMessage';
 import SourceCard from '@/components/shared/SourceCard';
+import LegalDisclaimer from '@/components/shared/LegalDisclaimer';
 
-const COLLECTIONS = [
-  { value: 'bns_sections', label: 'BNS (Bharatiya Nyaya Sanhita)' },
-  { value: 'bnss_sections', label: 'BNSS (Bharatiya Nagarik Suraksha Sanhita)' },
-  { value: 'bsa_sections', label: 'BSA (Bharatiya Sakshya Adhiniyam)' },
-  { value: 'sc_judgements', label: 'Supreme Court Judgements' },
-] as const;
+type Collection = NonNullable<RAGSearchRequest['collection']> | 'all';
+
+const COLLECTIONS: Array<{ value: Collection; label: string; hint: string }> = [
+  { value: 'all', label: 'Everything', hint: 'All four collections' },
+  { value: 'bns_sections', label: 'BNS', hint: 'Bharatiya Nyaya Sanhita — offences' },
+  {
+    value: 'bnss_sections',
+    label: 'BNSS',
+    hint: 'Bharatiya Nagarik Suraksha Sanhita — procedure',
+  },
+  { value: 'bsa_sections', label: 'BSA', hint: 'Bharatiya Sakshya Adhiniyam — evidence' },
+  { value: 'sc_judgements', label: 'Judgements', hint: 'Landmark Supreme Court rulings' },
+];
+
+const EXAMPLES = [
+  'punishment for culpable homicide',
+  'conditions for granting anticipatory bail',
+  'admissibility of electronic records',
+  'rights of an arrested person',
+];
 
 export const SearchInterface: React.FC = () => {
   const [query, setQuery] = useState('');
-  const [selectedCollection, setSelectedCollection] = useState<typeof COLLECTIONS[number]['value']>('bns_sections');
-  const [topK, setTopK] = useState(5);
-  
-  const { results, isLoading, error, search, reset } = useSearch();
+  const [collection, setCollection] = useState<Collection>('all');
+  const { results, isLoading, error, search } = useSearch();
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!query.trim()) return;
-
-    await search({
-      query: query.trim(),
-      collection: selectedCollection,
-      top_k: topK,
+  const run = (text: string, scope: Collection = collection) => {
+    if (!text.trim()) return;
+    search({
+      query: text.trim(),
+      // 'all' is this component's own idea; the API means "everything" by
+      // omitting the field entirely.
+      collection: scope === 'all' ? undefined : scope,
+      top_k: 6,
     });
   };
 
-  const handleExport = () => {
-    if (!results) return;
-
-    const exportData = {
-      query: results.query,
-      collection: results.collection,
-      timestamp: new Date().toISOString(),
-      answer: results.answer,
-      sources: results.sources,
-    };
-
-    const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `search-results-${Date.now()}.json`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
+  const onSubmit = (event: React.FormEvent) => {
+    event.preventDefault();
+    run(query);
   };
 
   return (
-    <div className="flex flex-col h-full bg-gray-50">
-      {/* Header */}
-      <div className="bg-white border-b border-gray-200 px-6 py-4">
-        <h2 className="text-xl font-semibold text-gray-900">Legal Search</h2>
-        <p className="text-sm text-gray-600">Search across Indian legal collections</p>
-      </div>
-
-      {/* Search Form */}
-      <div className="bg-white border-b border-gray-200 px-6 py-4">
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <label htmlFor="query" className="block text-sm font-medium text-gray-700 mb-2">
-              Search Query
-            </label>
-            <input
-              id="query"
-              type="text"
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder="Enter your search query..."
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-            />
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label htmlFor="collection" className="block text-sm font-medium text-gray-700 mb-2">
-                Collection
-              </label>
-              <select
-                id="collection"
-                value={selectedCollection}
-                onChange={(e) => setSelectedCollection(e.target.value as typeof selectedCollection)}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-              >
-                {COLLECTIONS.map((collection) => (
-                  <option key={collection.value} value={collection.value}>
-                    {collection.label}
-                  </option>
-                ))}
-              </select>
+    <div className="flex h-full flex-col">
+      {/* --------------------------------------------------------- controls -- */}
+      <div className="shrink-0 border-b border-line bg-surface px-4 py-4 md:px-6">
+        <form onSubmit={onSubmit} className="mx-auto max-w-3xl">
+          <div className="flex gap-2">
+            <div className="relative flex-1">
+              <SearchIcon
+                size={16}
+                className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-faint"
+              />
+              <input
+                type="search"
+                value={query}
+                onChange={(event) => setQuery(event.target.value)}
+                placeholder="Search sections and judgements…"
+                className="field pl-9"
+                aria-label="Search the corpus"
+              />
             </div>
-
-            <div>
-              <label htmlFor="topK" className="block text-sm font-medium text-gray-700 mb-2">
-                Number of Results
-              </label>
-              <select
-                id="topK"
-                value={topK}
-                onChange={(e) => setTopK(Number(e.target.value))}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-              >
-                {[3, 5, 10, 15, 20].map((num) => (
-                  <option key={num} value={num}>
-                    {num} results
-                  </option>
-                ))}
-              </select>
-            </div>
-          </div>
-
-          <div className="flex space-x-4">
             <button
               type="submit"
-              disabled={!query.trim() || isLoading}
-              className="flex-1 px-6 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors"
+              className="btn-primary shrink-0"
+              disabled={isLoading || !query.trim()}
             >
               {isLoading ? <LoadingSpinner size="sm" /> : 'Search'}
             </button>
-            {results && (
+          </div>
+
+          <div
+            className="scrollbar-none mt-2.5 flex gap-1.5 overflow-x-auto"
+            role="group"
+            aria-label="Collection"
+          >
+            {COLLECTIONS.map((option) => (
               <button
+                key={option.value}
                 type="button"
-                onClick={reset}
-                className="px-6 py-2 text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
+                title={option.hint}
+                onClick={() => {
+                  setCollection(option.value);
+                  // Re-run immediately: changing scope while results are on
+                  // screen is a refinement, not a new search.
+                  if (results) run(query, option.value);
+                }}
+                className={`shrink-0 rounded-full px-3 py-1 text-xs font-medium transition-colors ${
+                  collection === option.value
+                    ? 'bg-brand text-brand-on'
+                    : 'border border-line text-muted hover:bg-raised hover:text-ink'
+                }`}
               >
-                Clear
+                {option.label}
               </button>
-            )}
+            ))}
           </div>
         </form>
       </div>
 
-      {/* Results */}
-      <div className="flex-1 overflow-y-auto px-6 py-4">
-        {error && <ErrorMessage message={error} onRetry={() => handleSubmit({} as React.FormEvent)} />}
+      {/* ---------------------------------------------------------- results -- */}
+      <div className="min-h-0 flex-1 overflow-y-auto px-4 py-5 md:px-6">
+        <div className="mx-auto max-w-3xl space-y-5">
+          {error && <ErrorMessage title="Search failed" message={error} />}
 
-        {results && (
-          <div className="space-y-4">
-            {/* Results Header */}
-            <div className="flex items-center justify-between bg-white border border-gray-200 rounded-lg px-4 py-3">
-              <div>
-                <p className="text-sm font-medium text-gray-900">
-                  Found {results.num_sources} sources for &ldquo;{results.query}&rdquo;
-                </p>
-                <p className="text-xs text-gray-600">
-                  Collection: {COLLECTIONS.find((c) => c.value === results.collection)?.label}
-                </p>
+          {isLoading && (
+            <>
+              <div className="card p-5">
+                <span className="skeleton mb-3 block h-4 w-40" />
+                <SkeletonLines lines={4} />
               </div>
-              <button
-                onClick={handleExport}
-                className="inline-flex items-center px-3 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
-              >
-                <svg className="mr-2 h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-                </svg>
-                Export Results
-              </button>
-            </div>
+              <SkeletonLines lines={2} />
+            </>
+          )}
 
-            {/* Generated answer */}
-            {results.answer && (
-              <div className="bg-white border border-gray-200 rounded-lg px-4 py-3">
-                <h3 className="text-sm font-medium text-gray-900 mb-2">Answer</h3>
-                <div className="prose prose-sm max-w-none text-gray-800 whitespace-pre-wrap">
-                  {results.answer}
-                </div>
-              </div>
-            )}
+          {!isLoading && !results && !error && (
+            <div className="py-6">
+              <span className="flex h-11 w-11 items-center justify-center rounded-lg bg-verified-soft text-verified">
+                <CheckIcon size={22} />
+              </span>
+              <h2 className="mt-4 font-serif text-lg font-semibold text-ink">
+                Search the verified corpus
+              </h2>
+              <p className="mt-1.5 max-w-xl text-sm leading-relaxed text-muted">
+                The complete post-2023 criminal codes — 358 BNS, 531 BNSS and 170
+                BSA sections parsed from the official gazette — plus 30 landmark
+                Supreme Court judgements. Matching is semantic, so a plain
+                description works as well as a term of art.
+              </p>
 
-            {/* Sources */}
-            <div className="space-y-3">
-              <h3 className="text-sm font-medium text-gray-900">Sources</h3>
-              {results.sources.map((source) => (
-                <SourceCard
-                  key={source.id}
-                  content={source.text}
-                  metadata={source.metadata}
-                  score={source.relevance_score}
-                />
-              ))}
-            </div>
-          </div>
-        )}
-
-        {!results && !isLoading && !error && (
-          <div className="text-center py-12">
-            <svg
-              className="mx-auto h-12 w-12 text-gray-400"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
-              />
-            </svg>
-            <h3 className="mt-2 text-sm font-medium text-gray-900">No search results</h3>
-            <p className="mt-1 text-sm text-gray-500">
-              Enter a query and select a collection to search
-            </p>
-            <div className="mt-6 space-y-2">
-              <p className="text-xs text-gray-500 font-medium">Example searches:</p>
-              <div className="flex flex-wrap gap-2 justify-center">
-                {[
-                  'murder provisions',
-                  'anticipatory bail',
-                  'evidence admissibility',
-                  'arrest procedures',
-                ].map((example) => (
-                  <button
-                    key={example}
-                    onClick={() => setQuery(example)}
-                    className="px-3 py-1 text-xs text-primary-700 bg-primary-50 rounded-full hover:bg-primary-100"
-                  >
-                    {example}
-                  </button>
+              <p className="mt-6 text-xs font-medium uppercase tracking-wide text-faint">
+                Try
+              </p>
+              <ul className="mt-2 flex flex-wrap gap-2">
+                {EXAMPLES.map((example) => (
+                  <li key={example}>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setQuery(example);
+                        run(example);
+                      }}
+                      className="btn-secondary btn-sm"
+                    >
+                      {example}
+                    </button>
+                  </li>
                 ))}
-              </div>
+              </ul>
             </div>
-          </div>
-        )}
+          )}
+
+          {results && !isLoading && (
+            <>
+              {results.answer && (
+                <section className="card animate-fade-up p-5">
+                  <h2 className="mb-3 flex items-center gap-2 text-xs font-medium uppercase tracking-wide text-muted">
+                    <CheckIcon size={13} className="text-verified" />
+                    Answer
+                  </h2>
+                  <div className="prose-legal">
+                    <ReactMarkdown>{stripAppendedBlocks(results.answer)}</ReactMarkdown>
+                  </div>
+                  <LegalDisclaimer className="mt-4 border-t border-line pt-3.5" />
+                </section>
+              )}
+
+              <div>
+                <h2 className="mb-2.5 text-xs font-medium uppercase tracking-wide text-muted">
+                  {results.num_sources} {results.num_sources === 1 ? 'source' : 'sources'}
+                </h2>
+
+                {results.sources.length === 0 ? (
+                  <ErrorMessage
+                    tone="notice"
+                    message="Nothing matched. Retrieval is embedding-based, so try describing the provision rather than naming it — wording absent from a section's own text can miss it."
+                  />
+                ) : (
+                  <ul className="space-y-2.5">
+                    {results.sources.map((source, index) => (
+                      <li key={source.id ?? index}>
+                        <SourceCard source={source} rank={index + 1} />
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            </>
+          )}
+        </div>
       </div>
     </div>
   );

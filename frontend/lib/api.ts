@@ -72,15 +72,35 @@ export interface AgentQueryRequest {
   stream?: boolean;
 }
 
+/** One citable hit, already formatted by the backend. */
+export interface AgentSource {
+  /** e.g. "Section 103, Bharatiya Nyaya Sanhita, 2023 (Punishment for murder)" */
+  citation: string;
+  text: string;
+  relevance_score?: number | null;
+  section_number?: string | null;
+  act?: string | null;
+  short_name?: string | null;
+  title?: string | null;
+  case_name?: string | null;
+  year?: string | null;
+  chapter?: string | null;
+  source_url?: string | null;
+}
+
 export interface AgentQueryResponse {
   response: string;
-  sources?: Array<{
-    content: string;
-    metadata: Record<string, any>;
-    score: number;
-  }>;
-  tool_used?: string;
-  session_id: string;
+  /** Which tool the graph routed to: rag_search, chat, draft_document, … */
+  intent: string;
+  metadata?: Record<string, any>;
+  /** Verified corpus hits backing the answer. */
+  sources?: AgentSource[];
+  /**
+   * Live judiciary hits. A separate field from `sources` because these are
+   * unverified — render them distinctly, never merged into one list.
+   */
+  live_sources?: LiveJudgment[];
+  error?: string | null;
 }
 
 export interface RAGSearchRequest {
@@ -363,6 +383,34 @@ export const api = {
     return response.data;
   },
 };
+
+/**
+ * Markers the backend appends to a generated answer.
+ *
+ * `**DISCLAIMER**` comes from RAGService (see DISCLAIMER_MARKER there) and
+ * `**Sources:**` from the agent's response formatter. Both exist so that a
+ * plain-text consumer — curl, a script, anything reading only `response` — still
+ * gets the warning and the citations.
+ */
+const APPENDED_MARKERS = ['**DISCLAIMER**', '**Sources:**'];
+
+/**
+ * Remove the appended blocks before rendering.
+ *
+ * This UI shows the disclaimer through LegalDisclaimer and the citations as
+ * source cards, so leaving the text copies in place means the user reads the
+ * same warning twice and the same citation list twice — which is exactly how
+ * people learn to scroll past disclaimers. Cutting at the earliest marker keeps
+ * only the substantive answer.
+ */
+export function stripAppendedBlocks(answer: string): string {
+  let cut = answer.length;
+  for (const marker of APPENDED_MARKERS) {
+    const index = answer.indexOf(marker);
+    if (index !== -1 && index < cut) cut = index;
+  }
+  return answer.slice(0, cut).trimEnd();
+}
 
 /**
  * Stream reader utility for processing SSE streams

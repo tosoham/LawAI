@@ -1,254 +1,319 @@
 /**
- * DraftForm Component
- * Form for drafting legal documents
+ * DraftForm — generate a legal document.
+ *
+ * The document types and their fields come from GET /documents/templates rather
+ * than a hardcoded list. That is a direct response to a bug: this form used to
+ * carry its own menu, which offered "Affidavit" while the API accepted only
+ * agreement, so a quarter of the visible options returned 422. With the server
+ * as the source of truth the menu cannot drift from what the backend supports.
+ *
+ * Presentation still lives here — the API sends field *names*, and this maps
+ * them to labels and input types.
  */
 
-import React, { useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
+import api, { DocumentTemplate } from '@/lib/api';
 import { useDocuments } from '@/hooks/useDocuments';
-import LoadingSpinner from '@/components/shared/LoadingSpinner';
+import {
+  CheckIcon,
+  CopyIcon,
+  DownloadIcon,
+  DraftIcon,
+  ResetIcon,
+} from '@/components/shared/Icons';
+import { LoadingSpinner, SkeletonLines } from '@/components/shared/LoadingSpinner';
 import ErrorMessage from '@/components/shared/ErrorMessage';
-import ReactMarkdown from 'react-markdown';
+import LegalDisclaimer from '@/components/shared/LegalDisclaimer';
 
-const DOCUMENT_TYPES = [
-  { value: 'bail_application', label: 'Bail Application' },
-  { value: 'petition', label: 'Petition' },
-  { value: 'notice', label: 'Legal Notice' },
-  { value: 'affidavit', label: 'Affidavit' },
-] as const;
-
-interface FormField {
-  name: string;
-  label: string;
-  type: 'text' | 'textarea' | 'date' | 'select';
-  options?: string[];
-  required?: boolean;
-  placeholder?: string;
-}
-
-const DOCUMENT_FIELDS: Record<string, FormField[]> = {
-  bail_application: [
-    { name: 'accused_name', label: 'Accused Name', type: 'text', required: true, placeholder: 'Full name of the accused' },
-    { name: 'case_number', label: 'Case Number', type: 'text', required: true, placeholder: 'FIR/Case number' },
-    { name: 'offense', label: 'Offense', type: 'text', required: true, placeholder: 'Section and offense details' },
-    { name: 'court_name', label: 'Court Name', type: 'text', required: true, placeholder: 'Name of the court' },
-    { name: 'grounds', label: 'Grounds for Bail', type: 'textarea', required: true, placeholder: 'Reasons for granting bail' },
-    { name: 'arrest_date', label: 'Date of Arrest', type: 'date', required: false },
-  ],
-  petition: [
-    { name: 'petitioner_name', label: 'Petitioner Name', type: 'text', required: true, placeholder: 'Name of petitioner' },
-    { name: 'respondent_name', label: 'Respondent Name', type: 'text', required: true, placeholder: 'Name of respondent' },
-    { name: 'court_name', label: 'Court Name', type: 'text', required: true, placeholder: 'Name of the court' },
-    { name: 'subject', label: 'Subject Matter', type: 'text', required: true, placeholder: 'Brief subject of petition' },
-    { name: 'facts', label: 'Facts of the Case', type: 'textarea', required: true, placeholder: 'Detailed facts' },
-    { name: 'relief_sought', label: 'Relief Sought', type: 'textarea', required: true, placeholder: 'What relief is being requested' },
-  ],
-  notice: [
-    { name: 'sender_name', label: 'Sender Name', type: 'text', required: true, placeholder: 'Your name/client name' },
-    { name: 'recipient_name', label: 'Recipient Name', type: 'text', required: true, placeholder: 'Name of recipient' },
-    { name: 'subject', label: 'Subject', type: 'text', required: true, placeholder: 'Subject of notice' },
-    { name: 'issue', label: 'Issue/Grievance', type: 'textarea', required: true, placeholder: 'Describe the issue' },
-    { name: 'demand', label: 'Demand/Action Required', type: 'textarea', required: true, placeholder: 'What action is demanded' },
-    { name: 'deadline', label: 'Response Deadline', type: 'date', required: false },
-  ],
-  affidavit: [
-    { name: 'deponent_name', label: 'Deponent Name', type: 'text', required: true, placeholder: 'Name of person making affidavit' },
-    { name: 'case_number', label: 'Case Number', type: 'text', required: false, placeholder: 'Related case number (if any)' },
-    { name: 'purpose', label: 'Purpose', type: 'text', required: true, placeholder: 'Purpose of affidavit' },
-    { name: 'facts', label: 'Facts/Statements', type: 'textarea', required: true, placeholder: 'Statements to be affirmed' },
-  ],
+/** Nicer labels than title-casing gives; anything absent falls back to that. */
+const FIELD_LABELS: Record<string, string> = {
+  accused_name: 'Accused name',
+  fir_number: 'FIR / case number',
+  sections: 'Sections invoked',
+  police_station: 'Police station',
+  petitioner_name: 'Petitioner',
+  respondent_name: 'Respondent',
+  relief_sought: 'Relief sought',
+  client_name: 'Client / sender',
+  recipient_name: 'Recipient',
+  recipient_address: 'Recipient address',
+  first_party_name: 'First party',
+  second_party_name: 'Second party',
+  scope_of_agreement: 'Scope of the agreement',
+  payment_terms: 'Payment terms',
+  term_details: 'Term and renewal',
+  deponent_name: 'Deponent',
 };
 
+/** Fields that hold prose rather than a value. */
+const LONG_FIELDS = new Set([
+  'facts',
+  'grounds',
+  'demands',
+  'relief_sought',
+  'scope_of_agreement',
+  'payment_terms',
+  'term_details',
+  'recitals',
+  'purpose',
+]);
+
+const PLACEHOLDERS: Record<string, string> = {
+  sections: 'e.g. BNS 103, BNS 3(5)',
+  facts: 'What happened, in chronological order',
+  grounds: 'Why the relief should be granted',
+  demands: 'What the recipient must do, and by when',
+  purpose: 'Why this document is being filed',
+};
+
+function labelFor(field: string): string {
+  return (
+    FIELD_LABELS[field] ??
+    field.replace(/_/g, ' ').replace(/^./, (character) => character.toUpperCase())
+  );
+}
+
 export const DraftForm: React.FC = () => {
-  const [documentType, setDocumentType] = useState<typeof DOCUMENT_TYPES[number]['value']>('bail_application');
-  const [formData, setFormData] = useState<Record<string, string>>({});
-  const [showPreview, setShowPreview] = useState(false);
+  const [templates, setTemplates] = useState<DocumentTemplate[] | null>(null);
+  const [templatesError, setTemplatesError] = useState<string | null>(null);
+  const [selected, setSelected] = useState<string>('');
+  const [values, setValues] = useState<Record<string, string>>({});
+  const [copied, setCopied] = useState(false);
 
   const { draftedDocument, isLoading, error, draft, downloadDocx, reset } = useDocuments();
 
-  const currentFields = DOCUMENT_FIELDS[documentType];
+  useEffect(() => {
+    let cancelled = false;
+    api.documents
+      .templates()
+      .then(({ templates: fetched }) => {
+        if (cancelled) return;
+        setTemplates(fetched);
+        setSelected((current) => current || fetched[0]?.type || '');
+      })
+      .catch((err: unknown) => {
+        if (!cancelled) {
+          setTemplatesError(
+            err instanceof Error ? err.message : 'Could not load document templates'
+          );
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
-  const handleFieldChange = (name: string, value: string) => {
-    setFormData((prev) => ({ ...prev, [name]: value }));
-  };
+  const template = useMemo(
+    () => templates?.find((candidate) => candidate.type === selected),
+    [templates, selected]
+  );
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    
-    // Validate required fields
-    const missingFields = currentFields
-      .filter((field) => field.required && !formData[field.name]?.trim())
-      .map((field) => field.label);
+  const fields = template?.required_fields ?? [];
+  const complete = fields.length > 0 && fields.every((field) => values[field]?.trim());
 
-    if (missingFields.length > 0) {
-      alert(`Please fill in required fields: ${missingFields.join(', ')}`);
-      return;
-    }
-
-    await draft({
-      document_type: documentType,
-      case_details: formData,
+  const submit = (event: React.FormEvent) => {
+    event.preventDefault();
+    if (!template || !complete) return;
+    draft({
+      document_type: template.type,
+      // Trim before sending: a field holding only whitespace reads as supplied
+      // to the model, and the prompt's "leave placeholders blank" rule then
+      // does not fire.
+      case_details: Object.fromEntries(
+        Object.entries(values)
+          .map(([key, value]) => [key, value.trim()])
+          .filter(([, value]) => value)
+      ),
     });
-    setShowPreview(true);
   };
 
-  const handleDownload = async () => {
-    if (!draftedDocument) return;
-    
-    const filename = `${documentType}_${Date.now()}`;
-    await downloadDocx(draftedDocument.document, filename);
-  };
-
-  const handleReset = () => {
-    setFormData({});
-    setShowPreview(false);
+  const startOver = () => {
+    setValues({});
     reset();
   };
 
-  return (
-    <div className="flex flex-col h-full bg-gray-50">
-      {/* Header */}
-      <div className="bg-white border-b border-gray-200 px-6 py-4">
-        <h2 className="text-xl font-semibold text-gray-900">Draft Legal Document</h2>
-        <p className="text-sm text-gray-600">Generate professional legal documents</p>
+  const copy = async () => {
+    if (!draftedDocument?.document) return;
+    try {
+      await navigator.clipboard.writeText(draftedDocument.document);
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 1600);
+    } catch {
+      // Clipboard permission can be refused; nothing useful to add.
+    }
+  };
+
+  if (templatesError) {
+    return (
+      <div className="p-6">
+        <ErrorMessage title="Templates unavailable" message={templatesError} />
       </div>
+    );
+  }
 
-      <div className="flex-1 overflow-y-auto">
-        <div className="max-w-4xl mx-auto px-6 py-6">
-          {!showPreview ? (
-            /* Form View */
-            <form onSubmit={handleSubmit} className="space-y-6">
-              {/* Document Type Selection */}
-              <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-                <label htmlFor="documentType" className="block text-sm font-medium text-gray-700 mb-2">
-                  Document Type
-                </label>
-                <select
-                  id="documentType"
-                  value={documentType}
-                  onChange={(e) => {
-                    setDocumentType(e.target.value as typeof documentType);
-                    setFormData({});
-                  }}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-                >
-                  {DOCUMENT_TYPES.map((type) => (
-                    <option key={type.value} value={type.value}>
-                      {type.label}
-                    </option>
-                  ))}
-                </select>
-              </div>
+  return (
+    <div className="grid h-full grid-cols-1 lg:grid-cols-[minmax(0,26rem)_minmax(0,1fr)]">
+      {/* ------------------------------------------------------------ form -- */}
+      <div className="min-h-0 overflow-y-auto border-line px-4 py-5 md:px-6 lg:border-r">
+        {!templates ? (
+          <SkeletonLines lines={6} />
+        ) : (
+          <form onSubmit={submit} className="space-y-5">
+            <div>
+              <label htmlFor="document-type" className="field-label">
+                Document type
+              </label>
+              <select
+                id="document-type"
+                value={selected}
+                onChange={(event) => {
+                  setSelected(event.target.value);
+                  // Field sets differ per type; carrying values across would
+                  // silently submit data belonging to another document.
+                  setValues({});
+                  reset();
+                }}
+                className="field"
+              >
+                {templates.map((option) => (
+                  <option key={option.type} value={option.type}>
+                    {option.name}
+                  </option>
+                ))}
+              </select>
+              {template && <p className="field-hint">{template.description}</p>}
+            </div>
 
-              {/* Dynamic Form Fields */}
-              <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 space-y-4">
-                <h3 className="text-lg font-medium text-gray-900 mb-4">Document Details</h3>
-                
-                {currentFields.map((field) => (
-                  <div key={field.name}>
-                    <label htmlFor={field.name} className="block text-sm font-medium text-gray-700 mb-2">
-                      {field.label}
-                      {field.required && <span className="text-red-500 ml-1">*</span>}
+            <div className="space-y-4">
+              {fields.map((field) => {
+                const isLong = LONG_FIELDS.has(field);
+                const id = `field-${field}`;
+                return (
+                  <div key={field}>
+                    <label htmlFor={id} className="field-label">
+                      {labelFor(field)}
                     </label>
-                    
-                    {field.type === 'textarea' ? (
+                    {isLong ? (
                       <textarea
-                        id={field.name}
-                        value={formData[field.name] || ''}
-                        onChange={(e) => handleFieldChange(field.name, e.target.value)}
-                        placeholder={field.placeholder}
+                        id={id}
                         rows={4}
-                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                        value={values[field] ?? ''}
+                        onChange={(event) =>
+                          setValues((current) => ({
+                            ...current,
+                            [field]: event.target.value,
+                          }))
+                        }
+                        placeholder={PLACEHOLDERS[field]}
+                        className="field resize-y"
                       />
-                    ) : field.type === 'select' && field.options ? (
-                      <select
-                        id={field.name}
-                        value={formData[field.name] || ''}
-                        onChange={(e) => handleFieldChange(field.name, e.target.value)}
-                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-                      >
-                        <option value="">Select...</option>
-                        {field.options.map((option) => (
-                          <option key={option} value={option}>
-                            {option}
-                          </option>
-                        ))}
-                      </select>
                     ) : (
                       <input
-                        id={field.name}
-                        type={field.type}
-                        value={formData[field.name] || ''}
-                        onChange={(e) => handleFieldChange(field.name, e.target.value)}
-                        placeholder={field.placeholder}
-                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                        id={id}
+                        type="text"
+                        value={values[field] ?? ''}
+                        onChange={(event) =>
+                          setValues((current) => ({
+                            ...current,
+                            [field]: event.target.value,
+                          }))
+                        }
+                        placeholder={PLACEHOLDERS[field]}
+                        className="field"
                       />
                     )}
                   </div>
-                ))}
-              </div>
+                );
+              })}
+            </div>
 
-              {error && <ErrorMessage message={error} />}
+            <p className="rounded-lg border border-line bg-raised px-3.5 py-2.5 text-xs leading-relaxed text-muted">
+              Anything you leave out stays as a bracketed placeholder in the
+              draft — the model is instructed never to invent names, dates or
+              case numbers.
+            </p>
 
-              {/* Submit Button */}
-              <div className="flex space-x-4">
-                <button
-                  type="submit"
-                  disabled={isLoading}
-                  className="flex-1 px-6 py-3 bg-primary-600 text-white rounded-lg hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors font-medium"
-                >
-                  {isLoading ? <LoadingSpinner size="sm" text="Generating..." /> : 'Generate Document'}
+            <div className="flex gap-2">
+              <button
+                type="submit"
+                className="btn-primary flex-1"
+                disabled={isLoading || !complete}
+              >
+                {isLoading ? <LoadingSpinner size="sm" /> : <DraftIcon size={16} />}
+                {isLoading ? 'Drafting…' : 'Generate draft'}
+              </button>
+              {(draftedDocument || Object.keys(values).length > 0) && (
+                <button type="button" onClick={startOver} className="btn-secondary">
+                  <ResetIcon size={15} />
+                </button>
+              )}
+            </div>
+          </form>
+        )}
+      </div>
+
+      {/* ---------------------------------------------------------- output -- */}
+      <div className="min-h-0 overflow-y-auto bg-canvas px-4 py-5 md:px-6">
+        {error && <ErrorMessage title="Drafting failed" message={error} />}
+
+        {isLoading && (
+          <div className="card p-6">
+            <span className="skeleton mb-4 block h-4 w-52" />
+            <SkeletonLines lines={9} />
+          </div>
+        )}
+
+        {!isLoading && !draftedDocument && !error && (
+          <div className="py-6">
+            <span className="flex h-11 w-11 items-center justify-center rounded-lg bg-brand-soft text-brand">
+              <DraftIcon size={22} />
+            </span>
+            <h2 className="mt-4 font-serif text-lg font-semibold text-ink">
+              Your draft appears here
+            </h2>
+            <p className="mt-1.5 max-w-md text-sm leading-relaxed text-muted">
+              Fill in what you know and generate. The result follows the
+              conventional structure for the document type and can be copied or
+              downloaded as .docx for filing.
+            </p>
+          </div>
+        )}
+
+        {draftedDocument?.document && !isLoading && (
+          <article className="card animate-fade-up overflow-hidden">
+            <header className="no-print flex flex-wrap items-center justify-between gap-2 border-b border-line px-5 py-3">
+              <h2 className="text-xs font-medium uppercase tracking-wide text-muted">
+                {templates?.find((option) => option.type === draftedDocument.document_type)
+                  ?.name ?? 'Draft'}
+              </h2>
+              <div className="flex gap-1.5">
+                <button type="button" onClick={copy} className="btn-ghost btn-sm">
+                  {copied ? <CheckIcon size={13} /> : <CopyIcon size={13} />}
+                  {copied ? 'Copied' : 'Copy'}
                 </button>
                 <button
                   type="button"
-                  onClick={handleReset}
-                  className="px-6 py-3 text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
+                  onClick={() =>
+                    downloadDocx(
+                      draftedDocument.document,
+                      `${draftedDocument.document_type}_draft`
+                    )
+                  }
+                  className="btn-secondary btn-sm"
                 >
-                  Reset
+                  <DownloadIcon size={13} />
+                  .docx
                 </button>
               </div>
-            </form>
-          ) : (
-            /* Preview View */
-            <div className="space-y-6">
-              <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-                <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-lg font-medium text-gray-900">Document Preview</h3>
-                  <div className="flex space-x-2">
-                    <button
-                      onClick={handleDownload}
-                      disabled={isLoading}
-                      className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-primary-600 hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
-                    >
-                      <svg className="mr-2 h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-                      </svg>
-                      Download .docx
-                    </button>
-                    <button
-                      onClick={() => setShowPreview(false)}
-                      className="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
-                    >
-                      Edit
-                    </button>
-                  </div>
-                </div>
+            </header>
 
-                {draftedDocument && (
-                  <div className="prose prose-sm max-w-none bg-gray-50 p-6 rounded-lg border border-gray-200">
-                    <ReactMarkdown>{draftedDocument.document}</ReactMarkdown>
-                  </div>
-                )}
-              </div>
+            <div className="document-body px-5 py-5">{draftedDocument.document}</div>
 
-              <button
-                onClick={handleReset}
-                className="w-full px-6 py-3 text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
-              >
-                Create New Document
-              </button>
-            </div>
-          )}
-        </div>
+            <footer className="border-t border-line px-5 py-3">
+              <LegalDisclaimer />
+            </footer>
+          </article>
+        )}
       </div>
     </div>
   );
