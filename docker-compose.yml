@@ -1,0 +1,68 @@
+# LawAI — full stack for local deployment.
+#
+#   cp backend/.env.example backend/.env   # then set AIML_API_KEY
+#   docker compose up --build
+#
+#   frontend  http://localhost:3000
+#   backend   http://localhost:8000/docs
+#
+# First start builds the vector store into the `chroma_data` volume (a few
+# minutes, once). Later starts reuse it.
+
+services:
+  backend:
+    build:
+      # Context is the repo root, not backend/: the corpus in data/processed is
+      # resolved as backend/../data/processed and must keep that relative
+      # position inside the image.
+      context: .
+      dockerfile: backend/Dockerfile
+    image: lawai-backend:latest
+    container_name: lawai-backend
+    env_file:
+      # Holds AIML_API_KEY. Not in version control, and not baked into the
+      # image — it is read at container start.
+      - path: backend/.env
+        required: false
+    environment:
+      CHROMADB_PATH: /data/chroma_db
+      # The browser talks to the frontend on :3000, so that is the origin the
+      # backend must allow — container names never appear in a CORS header.
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3000,http://127.0.0.1:3000}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      ENABLE_LIVE_JUDICIARY: ${ENABLE_LIVE_JUDICIARY:-true}
+      RELOAD: "False"
+    ports:
+      - "${BACKEND_PORT:-8000}:8000"
+    volumes:
+      - chroma_data:/data
+    healthcheck:
+      # /health is deliberately credential-free and stays up even when the LLM
+      # is unconfigured, so it reports the container, not the provider.
+      test: ["CMD", "curl", "-fsS", "http://localhost:8000/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      # Generous: the first start embeds the whole corpus before uvicorn binds.
+      start_period: 600s
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        # Baked into the client bundle at build time, so it must be reachable
+        # from the browser on the host — not from inside the compose network.
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:8000}
+    image: lawai-frontend:latest
+    container_name: lawai-frontend
+    ports:
+      - "${FRONTEND_PORT:-3000}:3000"
+    depends_on:
+      backend:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  chroma_data:
+    driver: local

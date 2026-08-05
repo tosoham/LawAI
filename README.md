@@ -10,7 +10,7 @@
 
 ## 🎯 Overview
 
-LawAI is an AI-powered legal assistant for the Indian legal framework. A LangGraph agent classifies intent and routes to one of four tools, backed by an LLM served through AIML API and a ChromaDB vector store holding the **full text of the 2023 criminal codes** — 358 BNS, 531 BNSS and 170 BSA sections parsed from the official Ministry of Home Affairs gazette PDFs, plus 27 landmark Supreme Court judgements.
+LawAI is an AI-powered legal assistant for the Indian legal framework. A LangGraph agent classifies intent and routes to one of four tools, backed by an LLM served through AIML API and a ChromaDB vector store holding the **full text of the 2023 criminal codes** — 358 BNS, 531 BNSS and 170 BSA sections parsed from the official Ministry of Home Affairs gazette PDFs, plus 30 landmark Supreme Court judgements.
 
 ### Key Features
 
@@ -81,7 +81,36 @@ LawAI is an AI-powered legal assistant for the Indian legal framework. A LangGra
 
 ## 🚀 Quick Start
 
-### Prerequisites
+### Option A — Docker (recommended)
+
+Needs only Docker with Compose v2, plus an AIML API key.
+
+```bash
+cp backend/.env.example backend/.env   # then set AIML_API_KEY
+docker compose up --build
+```
+
+- Frontend → `http://localhost:3000`
+- Backend → `http://localhost:8000/docs`
+
+The first start embeds the corpus into a named volume (`chroma_data`), which
+takes a few minutes and happens **once** — later starts reuse it. To rebuild the
+index from scratch, `docker compose down -v` and start again.
+
+Useful knobs, all overridable in the shell or a root `.env`:
+
+| Variable | Default | Purpose |
+|---|---|---|
+| `BACKEND_PORT` / `FRONTEND_PORT` | `8000` / `3000` | Published host ports |
+| `NEXT_PUBLIC_API_URL` | `http://localhost:8000` | Backend address **as the browser sees it**; baked in at build time, so changing it needs `--build` |
+| `ENABLE_LIVE_JUDICIARY` | `true` | Set `false` for a fully offline stack |
+
+The backend image bundles the embedding model, so with live judiciary access off
+the container needs no network at all.
+
+### Option B — local development
+
+Prerequisites:
 
 - Python 3.10+
 - Node.js 18+
@@ -222,7 +251,7 @@ Backend, frontend, agent orchestration and the legal corpus are all in place.
 | `bns_sections` | MHA gazette PDF | 358 |
 | `bnss_sections` | MHA gazette PDF | 531 |
 | `bsa_sections` | MHA gazette PDF | 170 |
-| `sc_judgements` | Indian Kanoon (curated) | 27 |
+| `sc_judgements` | Indian Kanoon (curated) | 30 |
 
 See [COMPLETE_IMPLEMENTATION_PLAN.md](docs/COMPLETE_IMPLEMENTATION_PLAN.md) for the roadmap
 and [CLAUDE.md](CLAUDE.md) for architecture notes.

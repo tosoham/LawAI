@@ -1,0 +1,42 @@
+# The build context is the repo root (see docker-compose.yml), so these paths
+# are repo-relative.
+#
+# The name matters: BuildKit looks for "<dockerfile>.dockerignore" beside the
+# Dockerfile *within the context* before falling back to a root .dockerignore.
+# Naming this backend/.dockerignore would silently do nothing, because the
+# context root is the repo, not backend/.
+
+# Generated / huge
+**/venv/
+**/__pycache__/
+**/*.py[cod]
+**/node_modules/
+**/.next/
+backend/chroma_db/
+chroma_db/
+data/raw/
+
+# Never bake credentials into an image layer.
+**/.env
+**/.env.local
+**/.env.*.local
+
+# Test and tooling artefacts
+**/.pytest_cache/
+**/.coverage
+**/htmlcov/
+**/.mypy_cache/
+**/.ruff_cache/
+**/tsconfig.tsbuildinfo
+
+# VCS and editors
+.git/
+.gitignore
+**/.vscode/
+**/.idea/
+**/*.swp
+
+# Docs and scratch
+docs/
+*.md
+!backend/**/*.md

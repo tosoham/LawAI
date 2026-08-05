@@ -8,10 +8,13 @@ from typing import Any
 
 import chromadb
 from chromadb.config import Settings
+from chromadb.errors import NotFoundError
 
 from .embedding_service import get_embedding_service
 
 logger = logging.getLogger(__name__)
+
+DEFAULT_CHROMADB_PATH = "./chroma_db"
 
 
 class VectorService:
@@ -23,15 +26,21 @@ class VectorService:
     BSA_COLLECTION = "bsa_sections"
     SC_JUDGEMENTS_COLLECTION = "sc_judgements"
 
-    def __init__(self, persist_directory: str = "./chroma_db"):
+    def __init__(self, persist_directory: str | None = None):
         """
         Initialize ChromaDB client with persistent storage
 
         Args:
-            persist_directory: Directory for persistent storage
+            persist_directory: Directory for persistent storage. Defaults to
+                ``CHROMADB_PATH`` from the environment, else ``./chroma_db``
+                (CWD-relative, so this resolves under ``backend/`` in a normal
+                dev run and to the mounted volume in a container).
         """
         try:
-            self.persist_directory = persist_directory
+            self.persist_directory = persist_directory or os.getenv(
+                "CHROMADB_PATH", DEFAULT_CHROMADB_PATH
+            )
+            persist_directory = self.persist_directory
 
             # Create directory if it doesn't exist
             os.makedirs(persist_directory, exist_ok=True)
@@ -181,10 +190,20 @@ class VectorService:
             raise
 
     def delete_collection(self, collection_name: str) -> None:
-        """Delete a collection"""
+        """
+        Delete a collection.
+
+        Deleting something that is already absent is a no-op, not an error.
+        The only caller is ``init_vector_db.py``'s reset path, which wants the
+        collection *gone* — and on a fresh database chromadb raises
+        ``NotFoundError`` instead. That made a first-run seed abort on the very
+        first collection, which is precisely the path a new deployment takes.
+        """
         try:
             self.client.delete_collection(collection_name)
             logger.info(f"Deleted collection {collection_name}")
+        except NotFoundError:
+            logger.info(f"Collection {collection_name} did not exist; nothing to delete")
         except Exception as e:
             logger.error(f"Error deleting collection {collection_name}: {e}")
             raise

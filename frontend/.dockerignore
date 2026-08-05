@@ -1,0 +1,20 @@
+node_modules
+.next
+out
+build
+
+# Local env files would otherwise override the build args baked in by the
+# Dockerfile, silently pointing the image at a developer's machine.
+.env
+.env.local
+.env.*.local
+
+.git
+.gitignore
+*.md
+tests
+coverage
+.nyc_output
+tsconfig.tsbuildinfo
+npm-debug.log*
+.DS_Store
