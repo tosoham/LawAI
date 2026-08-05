@@ -11,6 +11,7 @@ from chromadb.config import Settings
 from chromadb.errors import NotFoundError
 
 from .embedding_service import get_embedding_service
+from .query_expansion import expand_query
 
 logger = logging.getLogger(__name__)
 
@@ -127,7 +128,8 @@ class VectorService:
         self,
         collection_name: str,
         query: str,
-        top_k: int = 5
+        top_k: int = 5,
+        expand: bool = True
     ) -> dict[str, Any]:
         """
         Search for similar documents in a collection
@@ -136,6 +138,12 @@ class VectorService:
             collection_name: Name of the collection
             query: Search query
             top_k: Number of results to return
+            expand: Append statutory phrasing for recognised terms of art and
+                repealed code names before embedding (see
+                ``services.query_expansion``). Only the *embedded* text is
+                affected — callers still hold the user's original wording for
+                display and for the generation prompt. Pass False to measure
+                unexpanded behaviour.
 
         Returns:
             Dict with 'documents', 'metadatas', 'distances', 'ids'
@@ -143,8 +151,10 @@ class VectorService:
         try:
             collection = self._get_or_create_collection(collection_name)
 
+            search_text = expand_query(query) if expand else query
+
             # Generate query embedding
-            query_embedding = self.embedding_service.embed_text(query)
+            query_embedding = self.embedding_service.embed_text(search_text)
 
             # Search
             results = collection.query(

@@ -1,5 +1,3 @@
-# syntax=docker/dockerfile:1
-
 # LawAI backend image.
 #
 # Two things drive the shape of this file:

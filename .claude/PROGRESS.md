@@ -142,9 +142,15 @@ February–May 2026 decisions with source URLs, and a hybrid question calls **bo
   (ending near paragraph 12), so the famous seven-category list at paragraph 102 is not in
   the corpus. The entry's `subject` describes what is actually stored.
 - Judgements are truncated at 60,000 characters before embedding.
-- Retrieval is embedding-only, so a query phrased in words absent from a section's text can
-  miss it — e.g. "anticipatory bail" does not appear in BNSS 482 ("Direction for grant of
-  bail to person apprehending arrest"), which ranks below BNSS 480/483 for that phrase.
-  A hybrid keyword + vector search would close this gap.
+- ~~Retrieval misses terms of art absent from the statute text~~ **fixed** by
+  `services/query_expansion.py`. Correction to the earlier note here: a hybrid keyword +
+  vector search would *not* have closed this gap. The word "anticipatory" appears nowhere
+  in BNSS 482's 1,948 characters, so there is nothing for BM25 to match either — it is a
+  vocabulary problem, not a lexical-vs-semantic one. A curated alias layer appends the
+  statutory phrasing before embedding: BNSS 482 went from absent-from-top-6 to rank 1.
+- BNS 104 ("Punishment for murder by life-convict") outranks BNS 103 ("Punishment for
+  murder") for the query "punishment for murder" — near-identical titles, and unaffected by
+  expansion. The generated answer still cites 103 correctly, since the model reads the whole
+  retrieved context.
 - Agent streaming is still faux-streaming (the graph runs to completion, then the string is
   chunked). Real token streaming exists on `/chat`.

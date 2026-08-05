@@ -1,5 +1,3 @@
-# syntax=docker/dockerfile:1
-
 # LawAI frontend image (Next.js 14, Pages Router).
 #
 # Note on NEXT_PUBLIC_*: those values are inlined into the client bundle at
