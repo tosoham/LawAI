@@ -12,7 +12,12 @@ build
 .git
 .gitignore
 *.md
+
+# Tests and their config are not part of the runtime image.
 tests
+__tests__
+jest.config.js
+jest.setup.js
 coverage
 .nyc_output
 tsconfig.tsbuildinfo
