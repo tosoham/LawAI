@@ -63,6 +63,17 @@ SECTION_START = re.compile(r"^(\d{1,3}[A-Z]?)\.\s*(?=\S)")
 CHAPTER_HEADING = re.compile(r"^CHAPTER\s*([IVXLC]+|\d+)\s*$")
 # Sub-headings such as "Of sexual offences" group sections within a chapter.
 SUB_HEADING = re.compile(r"^Of [a-z][^.]{0,60}$")
+# Everything after a schedule heading is tabular annexure and blank forms, not
+# section text. Without this terminator the *last* section of an act keeps
+# accumulating to the end of the document: BNSS 531 ("Repeal and savings", a
+# ~1,900-character section) swallowed the First Schedule and every form and came
+# out at 129,022 characters -- roughly 108 chunks of dotted-line templates
+# competing for retrieval against real law. BSA 170 had the same problem on a
+# smaller scale.
+SCHEDULE_HEADING = re.compile(
+    r"^(THE\s+)?(FIRST|SECOND|THIRD|FOURTH|FIFTH)?\s*SCHEDULES?\s*$",
+    re.IGNORECASE,
+)
 # Marginal act citations ("45 of 1860.") sit in the same column as the section
 # titles -- sometimes even on the same typeset line -- and must not be spliced
 # into them.
@@ -266,6 +277,9 @@ def parse_act(pdf_path: Path, spec: ActSpec) -> list[ParsedSection]:
     chapter = ""
     pending_chapter_title = False
     unmatched_notes = 0
+    # Latches on at the first schedule heading and never clears: the schedules
+    # are the tail of the document, so there is nothing to come back for.
+    in_schedule = False
 
     with pdfplumber.open(str(pdf_path)) as pdf:
         for page in pdf.pages:
@@ -301,6 +315,22 @@ def parse_act(pdf_path: Path, spec: ActSpec) -> list[ParsedSection]:
                     if stripped and stripped == stripped.upper() and not SECTION_START.match(stripped):
                         chapter = f"{chapter} - {stripped.title()}"
                         continue
+
+                # Schedules end the sectioned part of the act. Close the open
+                # section and stop accumulating; nothing after this belongs to
+                # any section.
+                if SCHEDULE_HEADING.match(stripped):
+                    if current is not None:
+                        logger.info(
+                            f"{spec.short_name}: schedule heading {stripped!r} ends "
+                            f"section {current.number}"
+                        )
+                    current = None
+                    in_schedule = True
+                    continue
+
+                if in_schedule:
+                    continue
 
                 # Sub-headings introduce a group of sections and belong to none.
                 if SUB_HEADING.match(stripped):

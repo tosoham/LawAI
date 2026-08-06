@@ -78,7 +78,7 @@ Judgements come from `indiankanoon.org/doc/<id>/`, parsed with the `.doc_title`,
 - Embeddings: `all-MiniLM-L6-v2`, 384-dim, **~256-token window**. This is why documents are
   chunked (~1200 chars, 150 overlap) before embedding — otherwise a 60k-char judgement is
   represented by its first paragraph and can never match a query about its holding.
-- 1,089 source documents → 3,320 chunks. Chunks keep `parent_id`, `chunk_index`,
+- 1,089 source documents → 3,184 chunks. Chunks keep `parent_id`, `chunk_index`,
   `chunk_count` so a hit is citable back to its section or case.
 - Verified working: "punishment for murder" → BNS 103; "how long can an undertrial be
   detained" → BNSS 479; "admissibility of electronic records" → BSA 63; "can anticipatory

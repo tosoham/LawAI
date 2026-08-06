@@ -131,7 +131,7 @@ February–May 2026 decisions with source URLs, and a hybrid question calls **bo
   running server.
 - `ruff check .` clean; frontend lint, `tsc --noEmit` and `next build` all clean.
 - Corpus: 358 BNS + 531 BNSS + 170 BSA sections + **30** Supreme Court judgements
-  = 1,089 documents → 3,320 chunks.
+  = 1,089 documents → 3,184 chunks.
 - All three demo flows verified live: bail drafting cites BNSS 479/482; case-law search
   answers the anticipatory-bail duration question citing Sushila Aggarwal and Sibbia;
   analysis flags indemnity and non-refundable-deposit risks.

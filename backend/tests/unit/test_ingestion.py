@@ -128,6 +128,29 @@ class TestActParsingHelpers:
         assert "1860" not in cleaned
         assert "Repeal and" in cleaned and "savings" in cleaned
 
+    @pytest.mark.parametrize("line", [
+        "THE FIRST SCHEDULE",
+        "THE SCHEDULE",
+        "THE SECOND SCHEDULE",
+        "SCHEDULE",
+        "SCHEDULES",
+    ])
+    def test_schedule_heading_matches(self, line):
+        assert ingest_legal_acts.SCHEDULE_HEADING.match(line)
+
+    @pytest.mark.parametrize("line", [
+        "THE FIRST SCHEDULE shall apply to offences",
+        "as specified in the Schedule to this Sanhita",
+        "531. (1) The Code of Criminal Procedure, 1973 is hereby repealed.",
+    ])
+    def test_schedule_heading_ignores_prose(self, line):
+        """
+        Only a bare heading terminates a section. Prose that merely mentions a
+        schedule -- and section bodies routinely cross-reference one -- must not
+        truncate the section it appears in.
+        """
+        assert ingest_legal_acts.SCHEDULE_HEADING.match(line) is None
+
     def test_assign_titles_binds_notes_to_the_nearest_section_above(self):
         """
         Regression: notes are emitted out of order, and two titles set close
@@ -178,6 +201,42 @@ class TestIngestedCorpus:
         numbers = {r["metadata"]["section_number"] for r in records}
         assert numbers == {str(i) for i in range(1, 359)}
         assert all(r["metadata"]["title"] for r in records)
+
+    @pytest.mark.parametrize("filename,section,limit", [
+        ("bnss_sections.json", "531", 4_000),
+        ("bsa_sections.json", "170", 4_000),
+    ])
+    def test_final_section_does_not_swallow_the_schedules(
+        self, filename, section, limit
+    ):
+        """
+        Regression: the parser had no terminator for the last section of an act,
+        so it kept accumulating to the end of the document. BNSS 531 ("Repeal
+        and savings", genuinely ~1,900 characters) came out at 129,022 —
+        the First Schedule plus every blank form, roughly 108 chunks of
+        dotted-line templates competing for retrieval against actual law.
+        """
+        records = json.loads((PROCESSED_DIR / filename).read_text())
+        text = next(
+            r["text"] for r in records
+            if r["metadata"]["section_number"] == section
+        )
+        assert len(text) < limit, f"{filename} §{section} is {len(text)} chars"
+        # The tell-tale form boilerplate, and the schedule heading itself.
+        assert ".........." not in text
+        assert "THE FIRST SCHEDULE" not in text
+
+    def test_no_section_is_implausibly_long(self):
+        """
+        A section running past ~15k characters means the parser has merged
+        something it should have split, which is how the schedule bug hid.
+        """
+        for filename in ("bns_sections.json", "bnss_sections.json", "bsa_sections.json"):
+            for record in json.loads((PROCESSED_DIR / filename).read_text()):
+                assert len(record["text"]) < 15_000, (
+                    f"{filename} §{record['metadata']['section_number']} "
+                    f"is {len(record['text'])} chars"
+                )
 
     def test_known_sections_have_the_right_titles(self):
         records = json.loads((PROCESSED_DIR / "bns_sections.json").read_text())
