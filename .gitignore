@@ -117,3 +117,7 @@ coverage/
 # Documentation builds
 docs/_build/
 site/
+
+# Retrieval eval runs. Committed baselines are the gate every retrieval change
+# must beat; ad-hoc runs (default label "latest") are scratch.
+backend/eval/latest.json
