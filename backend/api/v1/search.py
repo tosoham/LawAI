@@ -8,7 +8,8 @@ from typing import Any
 from fastapi import APIRouter, HTTPException, status
 
 from models.requests import RAGSearchRequest
-from models.responses import ErrorResponse
+from models.responses import ErrorResponse, GroundedAnswerResponse
+from services.grounded_answer import get_grounded_answer_service
 from services.rag_service import get_rag_service
 from services.vector_service import VectorService
 
@@ -171,3 +172,81 @@ def _get_collection_description(collection_key: str) -> str:
         "judgements": "Supreme Court of India Judgements"
     }
     return descriptions.get(collection_key, "Legal collection")
+
+
+@router.post(
+    "/grounded",
+    response_model=GroundedAnswerResponse,
+    responses={400: {"model": ErrorResponse}, 500: {"model": ErrorResponse}},
+    summary="Grounded search",
+    description=(
+        "Answer a question as typed claims, each checked against the corpus, and "
+        "abstain when none of them stand. Unlike /search/rag this returns the "
+        "epistemic class of every claim, the verifier's findings, grounding "
+        "metrics and an auditable trace."
+    ),
+)
+def grounded_search(request: RAGSearchRequest) -> GroundedAnswerResponse:
+    """
+    Answer a question with every claim checked, or say it cannot be answered.
+
+    A single collection is searched. Unlike ``/search/rag`` this endpoint does
+    not fan out across all of them when ``collection`` is omitted: verification
+    resolves a claim against the act it cites, and merging three collections
+    into one context makes the model likelier to cite across them -- BNS 103
+    for a procedural point, BNSS 103 for an offence. The default is the BNS.
+    """
+    collection = request.collection or "bns"
+    if collection not in COLLECTION_ALIASES:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Invalid collection: {collection}. Must be one of: {sorted(COLLECTION_ALIASES)}",
+        )
+
+    try:
+        result = get_grounded_answer_service().answer(
+            query=request.query,
+            collection=resolve_collection(collection),
+            top_k=request.top_k,
+        )
+    except Exception as e:
+        logger.error(f"Grounded search failed: {e!s}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Search failed: {e!s}",
+        ) from e
+
+    logger.info(
+        f"Grounded search: abstained={result.abstained} "
+        f"claims={len(result.structured.claims)} removed={result.metrics.unsupported}"
+    )
+    return GroundedAnswerResponse(
+        query=result.query,
+        answer=result.answer,
+        abstained=result.abstained,
+        claims=[
+            {
+                "text": claim.text,
+                "epistemic_class": claim.epistemic_class.value,
+                "sources": [{"ref": s.ref, "kind": s.kind.value} for s in claim.sources],
+                "verbatim_span": claim.verbatim_span,
+                "positions": [
+                    {"summary": p.summary, "authority": p.authority} for p in claim.positions
+                ],
+            }
+            for claim in result.structured.claims
+        ],
+        verdicts=[
+            {
+                "index": v.index,
+                "verified": v.verified,
+                "original_class": v.original_class.value,
+                "reason": v.reason,
+            }
+            for v in result.verdicts
+        ],
+        metrics=result.metrics.to_dict(),
+        sources=result.sources,
+        graph_context=result.graph_context,
+        trace=result.trace,
+    )

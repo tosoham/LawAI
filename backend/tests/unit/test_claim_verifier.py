@@ -101,8 +101,15 @@ class TestStatuteClaims:
         )
         assert verified
 
-    def test_a_quotation_from_a_section_not_retrieved_cannot_be_checked(self, context):
-        verified, reason = verify_claim(
+    def test_a_true_quotation_verifies_even_if_that_chunk_was_not_retrieved(self, context):
+        """
+        Whether a quotation is accurate does not depend on which piece of the
+        section happened to rank. Asked for the punishment for theft, the model
+        quoted BNS 303 correctly while retrieval had returned that section's
+        fifth chunk; checking only the chunk rejected a true statement of the
+        law and abstained on an easy question.
+        """
+        verified, _ = verify_claim(
             claim(
                 epistemic_class=EpistemicClass.STATUTE,
                 sources=["BNSS 187"],
@@ -110,8 +117,20 @@ class TestStatuteClaims:
             ),
             context,
         )
+        assert verified
+
+    def test_a_fabricated_quotation_still_fails_when_nothing_was_retrieved(self, context):
+        """The corpus is the check, so widening it does not weaken it."""
+        verified, reason = verify_claim(
+            claim(
+                epistemic_class=EpistemicClass.STATUTE,
+                sources=["BNSS 187"],
+                verbatim_span="ninety-five days from the date of arrest",
+            ),
+            context,
+        )
         assert not verified
-        assert "not retrieved this turn" in reason
+        assert "does not appear" in reason
 
 
 class TestClassificationClaims:
@@ -180,6 +199,38 @@ class TestClassificationClaims:
         )
         assert not verified
         assert "no row in the First Schedule" in reason
+
+    def test_a_false_bailability_cannot_hide_behind_a_second_row(self, context):
+        """
+        The bug this was written for. BNS 303 is classified twice: "Theft" is
+        cognizable and non-bailable, "Where value of property is less than
+        5,000 rupees" is neither. Checking against the union of a section's
+        rows let "theft is bailable" pass by matching the petty case -- a false
+        bailability shipped by the component built to stop exactly that.
+        """
+        verified, reason = verify_claim(
+            claim(
+                text="Theft is bailable.",
+                epistemic_class=EpistemicClass.CLASSIFICATION,
+                sources=["BNS 303"],
+            ),
+            context,
+        )
+        assert not verified
+        assert "Non-bailable" in reason
+
+    def test_the_row_the_claim_names_is_the_row_it_is_checked_against(self, context):
+        """Plain cheating under BNS 318(2) really is bailable, even though the
+        aggravated form in 318(4) is not."""
+        verified, _ = verify_claim(
+            claim(
+                text="Cheating is bailable.",
+                epistemic_class=EpistemicClass.CLASSIFICATION,
+                sources=["BNS 318"],
+            ),
+            context,
+        )
+        assert verified
 
     def test_a_classification_claim_that_classifies_nothing_fails(self, context):
         verified, reason = verify_claim(
@@ -419,6 +470,25 @@ class TestRegenerationFeedback:
         _, verdicts = verify(answer, VerificationContext(get_legal_graph()))
         assert "more cautiously" in regeneration_feedback(answer, verdicts)
 
+    def test_a_failed_quotation_invites_a_paraphrase_rather_than_a_deletion(self):
+        """
+        Without this the model drops the point altogether, and "what is the
+        punishment for theft" comes back as an abstention because the
+        quotation was a few words out. A paraphrase is still checked.
+        """
+        answer = StructuredAnswer(
+            claims=[
+                Claim(
+                    text="Theft is punished with eleven years.",
+                    epistemic_class=EpistemicClass.STATUTE,
+                    sources=["BNS 303"],
+                    verbatim_span="may extend to eleven years",
+                )
+            ]
+        )
+        _, verdicts = verify(answer, VerificationContext(get_legal_graph()))
+        assert "paraphrase" in regeneration_feedback(answer, verdicts)
+
     def test_nothing_to_say_when_everything_verified(self):
         answer = StructuredAnswer(
             claims=[Claim(text="x", epistemic_class=EpistemicClass.INFERENCE)]
@@ -449,3 +519,47 @@ class TestVerificationContextFromRetrieval:
 
     def test_no_retrieval_is_an_empty_context(self):
         assert VerificationContext.from_retrieval().section_texts == {}
+
+
+class TestQuotationEdges:
+    """
+    Where a faithful quotation stops being byte-identical to the statute.
+
+    The line drawn: the words must match; how the sentence was ended need not.
+    """
+
+    def test_a_fragment_closed_with_a_full_stop_still_matches(self, context):
+        """
+        BNS 303 reads "or with both and in case of second or subsequent
+        conviction..."; a model quoting the punishment alone ends it "or with
+        both." That is the same words, and rejecting it abstained on "what is
+        the punishment for theft".
+        """
+        verified, _ = verify_claim(
+            claim(
+                epistemic_class=EpistemicClass.STATUTE,
+                sources=["BNS 303"],
+                verbatim_span=(
+                    "Whoever commits theft shall be punished with imprisonment of "
+                    "either description for a term which may extend to three years, "
+                    "or with fine, or with both."
+                ),
+            ),
+            context,
+        )
+        assert verified
+
+    def test_a_changed_word_inside_the_quotation_still_fails(self, context):
+        """Stripping the tail must not soften the check itself."""
+        verified, _ = verify_claim(
+            claim(
+                epistemic_class=EpistemicClass.STATUTE,
+                sources=["BNS 303"],
+                verbatim_span=(
+                    "Whoever commits theft shall be punished with imprisonment of "
+                    "either description for a term which may extend to five years."
+                ),
+            ),
+            context,
+        )
+        assert not verified

@@ -129,12 +129,12 @@ class TestUnsupported:
         _, verdicts = verify(answer, context())
         metrics = compute(answer, verdicts)
         assert metrics.unsupported == 1
-        assert not metrics.ships
+        assert not metrics.clean
 
-    def test_zero_unsupported_ships(self):
+    def test_an_answer_with_nothing_removed_is_clean(self):
         answer = StructuredAnswer(claims=[statute("death or imprisonment for life")])
         _, verdicts = verify(answer, context())
-        assert compute(answer, verdicts).ships
+        assert compute(answer, verdicts).clean
 
     def test_the_classes_recorded_are_the_ones_asserted(self):
         """
@@ -211,7 +211,7 @@ class TestAggregate:
         clean = compute(StructuredAnswer(claims=[statute()]))
         summary = aggregate([bad, *[clean] * 49])
         assert summary["unsupported_total"] == 1
-        assert summary["answers_that_ship"] == 49
+        assert summary["clean_answers"] == 49
 
     def test_an_empty_run_reports_itself(self):
         assert aggregate([]) == {"n": 0}

@@ -7,6 +7,7 @@ from typing import Any
 
 from .legal_graph import GraphContext, get_legal_graph, section_key
 from .llm_service import llm_service
+from .retrieval.offence_lookup import find_offences
 from .vector_service import get_vector_service
 
 logger = logging.getLogger(__name__)
@@ -109,7 +110,9 @@ class RAGService:
 
         return sources
 
-    def _expand_over_graph(self, search_results: dict[str, Any]) -> GraphContext:
+    def _expand_over_graph(
+        self, search_results: dict[str, Any], query: str = ""
+    ) -> GraphContext:
         """
         Ask the graph what the top retrieved sections connect to.
 
@@ -117,8 +120,14 @@ class RAGService:
         construing BNSS 482 never use the words someone asking about
         anticipatory bail would, so they are unreachable by similarity no
         matter how the query is phrased.
+
+        A classification question seeds the offence it names as well, ahead of
+        anything retrieved. "Bailable" and "cognizable" are First Schedule
+        words that appear nowhere in the BNS, so "is murder bailable" ranks BNS
+        103 sixth and it never reaches the model -- see
+        ``services.retrieval.offence_lookup``.
         """
-        seeds: list[str] = []
+        seeds: list[str] = list(find_offences(query))
         for metadata in search_results.get("metadatas", [])[:GRAPH_SEED_DEPTH]:
             act = metadata.get("short_name")
             section = metadata.get("section_number")
@@ -155,7 +164,9 @@ class RAGService:
                 )
             blocks.append(
                 "OFFENCE CLASSIFICATION (from the First Schedule to the BNSS; these "
-                "are facts and may be stated):\n" + "\n".join(rows)
+                "are facts and may be stated). Cite the section shown here for any "
+                "classification: it is the section that punishes the offence, which "
+                "is not always the one that defines it:\n" + "\n".join(rows)
             )
 
         if graph.doctrines:
@@ -297,7 +308,7 @@ ANSWER:"""
 
             # Step 2: Format context, and walk one step out over the graph
             context = self._format_context(search_results)
-            graph = self._expand_over_graph(search_results)
+            graph = self._expand_over_graph(search_results, query)
 
             # Step 3: Create prompt
             prompt = self._create_prompt(query, context, self._format_graph_context(graph))

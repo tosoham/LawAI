@@ -15,7 +15,8 @@ What they are for, one by one:
                          and is *not* counted as fidelity -- crediting it would
                          make the metric measure confidence rather than
                          accuracy.
-``unsupported``          claims removed from the answer. Zero to ship.
+``unsupported``          claims the verifier rejected and removed. The build
+                         gate: this must not rise across the golden set.
 ``unattributed_interpretation``
                          a settled judicial reading with no case behind it.
                          The classic way an invented holding gets through: the
@@ -64,13 +65,16 @@ class AnswerMetrics:
     abstained: bool = False
 
     @property
-    def ships(self) -> bool:
+    def clean(self) -> bool:
         """
-        Whether this answer may be shown as it stands.
+        Whether the answer came out of synthesis with nothing to remove.
 
-        One gate, and it is absolute: an answer carrying a claim with no
-        resolvable source is not shown. Everything else here is a trend to
-        watch, not a blocker.
+        Not a shipping gate for a single answer -- an answer that had two bad
+        claims stripped and four good ones left is still worth showing, and the
+        delivered answer never contains an unsupported claim by construction.
+        This is the per-answer signal that feeds the gate, which is an
+        aggregate: unsupported claims across the golden set must not rise
+        between builds.
         """
         return self.unsupported == 0
 
@@ -86,7 +90,7 @@ class AnswerMetrics:
             "inference_share": self.inference_share,
             "source_mix": dict(self.source_mix),
             "abstained": self.abstained,
-            "ships": self.ships,
+            "clean": self.clean,
         }
 
 
@@ -195,5 +199,5 @@ def aggregate(runs: list[AnswerMetrics]) -> dict[str, Any]:
             r.unattributed_interpretation for r in runs
         ),
         "abstained": sum(1 for r in runs if r.abstained),
-        "answers_that_ship": sum(1 for r in runs if r.ships),
+        "clean_answers": sum(1 for r in runs if r.clean),
     }

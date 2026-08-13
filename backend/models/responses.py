@@ -145,3 +145,101 @@ class HealthResponse(BaseModel):
                 "timestamp": "2024-01-01T12:00:00"
             }
         })
+
+
+class ClaimSourceResponse(BaseModel):
+    """One citation on a claim, with what it points at."""
+
+    ref: str = Field(..., description="Section key, judgement id, doctrine id or URL")
+    kind: str = Field(..., description="section | judgement | doctrine | live | unknown")
+
+
+class PositionResponse(BaseModel):
+    """One side of a contested question."""
+
+    summary: str = Field(..., description="What this line of authority holds")
+    authority: list[str] = Field(default_factory=list, description="Cases supporting it")
+
+
+class ClaimResponse(BaseModel):
+    """
+    One assertion, with the kind of assertion it is.
+
+    The epistemic class is the point of this shape. A client that renders every
+    claim identically has thrown away the only thing distinguishing enacted
+    text from the model's reasoning, which is the difference this system exists
+    to preserve.
+    """
+
+    text: str = Field(..., description="The claim as it will be read")
+    epistemic_class: str = Field(
+        ...,
+        description=(
+            "statute | classification | holding | interpretation | contested | "
+            "inference. Never 'unsupported': those are removed before the answer "
+            "is returned."
+        ),
+    )
+    sources: list[ClaimSourceResponse] = Field(default_factory=list)
+    verbatim_span: str | None = Field(
+        None, description="For a statute claim, the exact words taken from the section"
+    )
+    positions: list[PositionResponse] = Field(
+        default_factory=list, description="For a contested claim, the competing readings"
+    )
+
+
+class ClaimVerdictResponse(BaseModel):
+    """What the verifier found for one claim synthesis emitted."""
+
+    index: int
+    verified: bool
+    original_class: str = Field(..., description="The class synthesis asserted")
+    reason: str = Field("", description="Why it failed, if it did")
+
+
+class AnswerMetricsResponse(BaseModel):
+    """Grounding measured, rather than asserted."""
+
+    claims: int
+    by_class: dict[str, int]
+    grounding_rate: float
+    verbatim_fidelity: float
+    quoted_statute_claims: int
+    unsupported: int = Field(..., description="Claims the verifier rejected and removed")
+    unattributed_interpretation: int
+    inference_share: float
+    source_mix: dict[str, int]
+    abstained: bool
+    clean: bool = Field(..., description="Nothing had to be removed from this answer")
+
+
+class GroundedAnswerResponse(BaseModel):
+    """
+    A verified answer and the chain that makes it defensible afterwards.
+
+    ``sources`` and ``graph_context`` stay separate for the same reason
+    ``sources`` and ``live_sources`` do elsewhere: one was retrieved by
+    relevance and the other reached by an edge, and a client that merges them
+    is asserting something the API did not.
+    """
+
+    query: str
+    answer: str = Field(..., description="Prose rendered from the verified claims")
+    abstained: bool = Field(
+        ..., description="True when nothing could be supported and no answer is given"
+    )
+    claims: list[ClaimResponse] = Field(default_factory=list)
+    verdicts: list[ClaimVerdictResponse] = Field(default_factory=list)
+    metrics: AnswerMetricsResponse
+    sources: list[dict[str, Any]] = Field(default_factory=list)
+    graph_context: dict[str, Any] = Field(default_factory=dict)
+    trace: dict[str, Any] = Field(
+        default_factory=dict,
+        description=(
+            "Retrieved ids, graph edges traversed, generation attempts and per-claim "
+            "verdicts. Not a debugging aid: it is what makes an answer defensible "
+            "after the fact."
+        ),
+    )
+    timestamp: datetime = Field(default_factory=lambda: datetime.now(UTC))

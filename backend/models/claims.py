@@ -30,8 +30,13 @@ from enum import Enum
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-# A section key as the legal graph and the corpus use it.
-_SECTION_REF = re.compile(r"^(BNS|BNSS|BSA)\s+\d{1,3}$")
+# A section key as the legal graph and the corpus use it, optionally with the
+# sub-clause the model cited. The sub-clause has to be accepted: asked about
+# murder, a model correctly cites "BNS 103(1)", and rejecting that as
+# unparseable made every well-cited classification claim fail for citing no
+# section. It is normalised away because the corpus keys sections by their
+# parent number, and the offence table is looked up through the parent too.
+_SECTION_REF = re.compile(r"^(BNS|BNSS|BSA)\s+(\d{1,3})((?:\(\s*\w{1,3}\s*\))*)$")
 # Judgement ids are minted by scripts/ingest_judgments.py.
 _JUDGEMENT_REF = re.compile(r"^sc_[a-z0-9_]+$")
 _URL_REF = re.compile(r"^https?://", re.IGNORECASE)
@@ -119,7 +124,7 @@ class ClaimSource(BaseModel):
 
     @classmethod
     def parse(cls, ref: str) -> ClaimSource:
-        return cls(ref=ref.strip(), kind=classify_source(ref))
+        return cls(ref=normalise_ref(ref), kind=classify_source(ref))
 
 
 def classify_source(ref: str) -> SourceKind:
@@ -134,6 +139,12 @@ def classify_source(ref: str) -> SourceKind:
     if ref and "_" in ref and " " not in ref:
         return SourceKind.DOCTRINE
     return SourceKind.UNKNOWN
+
+
+def normalise_ref(ref: str) -> str:
+    """``"BNS 103(1)"`` -> ``"BNS 103"``; anything else is left alone."""
+    match = _SECTION_REF.match(ref.strip())
+    return f"{match.group(1)} {match.group(2)}" if match else ref.strip()
 
 
 def looks_like_law(text: str) -> bool:
@@ -196,6 +207,12 @@ class ClaimVerdict(BaseModel):
 
     index: int
     verified: bool
+    original_class: EpistemicClass
+    """What synthesis asserted. Kept because verification rewrites a failure to
+    ``unsupported``, and without this the metrics could not tell a statute
+    claim that failed its verbatim check from one that was never made -- the
+    denominator would shrink and fidelity would score 1.0 for catching it."""
+
     reason: str = ""
     """Why it failed, in words that can be shown to a user and fed back to the
     model on a regeneration attempt."""

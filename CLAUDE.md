@@ -36,7 +36,7 @@ pytest tests/unit/test_tools.py -v          # single file
 pytest tests/unit/test_tools.py::test_name  # single test
 pytest --cov=. --cov-report=html
 
-ruff check .                    # lint (the repo has a large pre-existing backlog)
+ruff check .                    # lint (clean; keep it that way)
 black .                         # format
 mypy .                          # type check
 
@@ -64,7 +64,7 @@ Four things here are load-bearing and easy to break:
 
 The image installs **CPU-only torch** (`--index-url .../whl/cpu`) before the requirements, or the default CUDA wheel adds ~2.5 GB for nothing, and bakes `all-MiniLM-L6-v2` in with `HF_HUB_OFFLINE=1` — without that flag sentence-transformers still makes ~20 revalidation calls to huggingface.co on every start.
 
-Tests requiring a live LLM are marked `live` and skip automatically unless `AIML_API_KEY` is set, so a plain `pytest` run is green without credentials (currently 523 passed, 8 skipped).
+Tests requiring a live LLM are marked `live` and skip automatically unless `AIML_API_KEY` is set, so a plain `pytest` run is green without credentials (currently 548 passed, 8 skipped (plus 41 live)).
 
 ## Architecture
 
@@ -91,6 +91,44 @@ Request flow: **frontend `lib/api.ts` → FastAPI router (`api/v1/*.py`) → ser
 - **Corpus queries are expanded before embedding** (`services/query_expansion.py`, applied inside `VectorService.search`). Terms of art often do not appear in the statute they govern — "anticipatory" occurs nowhere in BNSS 482 — and repealed code names ("IPC", "CrPC") appear nowhere in the corpus at all. The curated alias table appends the statutory phrasing; expansion is **additive**, so a working query cannot be made worse, and only the embedded text changes (the generation prompt still carries the user's own wording). Pass `expand=False` to measure unexpanded behaviour. Note a hybrid BM25 retriever would *not* fix this class of miss: the term is absent from the text, so there is nothing to match lexically.
 - **`LegalDataLoader` raises if `data/processed/` is missing** rather than falling back to sample data. Silently serving placeholder text from a legal assistant is worse than an error.
 - **`main.py` startup swallows init errors** (logs and continues) so `/health` stays up without credentials.
+
+## Grounding: typed claims, verification, abstention
+
+`POST /api/v1/search/grounded` answers a question as a list of **typed claims**, checks each one, and abstains when none stand. `services/grounded_answer.py` is the pipeline; `models/claims.py` is the shape everything downstream keys off.
+
+**Synthesis emits claims, not prose.** Each carries an `epistemic_class`, and prose is rendered from them. Emitted rather than annotated afterwards: a classifier reading "Section 103 provides for the death penalty in the rarest of rare cases" cannot tell which half came from the statute and which from Bachan Singh, so post-hoc labelling is a guess about a guess.
+
+**The class is a check, not a label** (`services/claim_verifier.py`). Nothing asks a model whether a model was right — the prior that invented BNS 999 will confirm BNS 999. Every check is a lookup against committed data:
+
+| Class | Check |
+|---|---|
+| `statute` | the section exists and any quoted span appears in it verbatim |
+| `classification` | matches the First Schedule row — checkable only because the Schedule was parsed into a table |
+| `holding` / `interpretation` | the case exists **and** the graph records it as bearing on the cited section |
+| `contested` | rejected below two positions, each with authority |
+| `inference` | may rest on nothing, but must not carry a citation formatted as law |
+
+Four findings from running it that are easy to reintroduce:
+
+- **A section's Schedule rows can disagree.** BNS 303: "Theft" is non-bailable, "Where value of property is less than 5,000 rupees" is bailable. Checking against the *union* let "theft is bailable" pass. `_rows_the_claim_is_about` picks the row by its own offence wording appearing in the claim, and rejects when the candidates disagree.
+- **A quotation is checked against the whole section, not the retrieved chunk.** A section is indexed in pieces; a true quotation from a piece that did not rank is still true. `SectionNode.text` carries the full text for this.
+- **Trailing punctuation is stripped from the span only.** BNS 303 reads "or with both and in case of second conviction…"; quoting "or with both." is the same words. Interior punctuation is not touched.
+- **Classification attaches to the section that punishes, not the one that defines.** The model reliably cited BNS 101 (defines murder) instead of BNS 103 (punishes it). The prompt, the graph block and the verifier's failure message all now say so; without the last one the model returned `{"claims": []}` on regeneration instead of re-citing.
+
+**Abstention falls out of verification; it is not a relevance threshold.** That was measured and rejected: the 69 answerable golden queries reach a worst best-distance of 0.577, the 6 adversarial ones go as low as 0.423. The distributions overlap, so any cutoff either refuses real questions or admits invented answers. The gate is whether one claim survives checking. One pre-check runs before generation — a cited section that does not exist ("section 999 of the BNS") is refused without a model call.
+
+**Failures are removed, not hedged**, and the removal is reported to the reader. One regeneration attempt naming the offending claims comes first; a second failure means the model cannot ground the claim and a third would only produce a more confident version of it.
+
+**Metrics** (`services/answer_metrics.py`) replace a confidence score. `verbatim_fidelity` is measured over *every* statute claim rather than the quoted ones, so a model that stops quoting to avoid being checked shows up as a drop. `unsupported` is totalled across the golden set, never averaged. `metrics.clean` is a per-answer signal, not a shipping gate — the delivered answer never contains an unsupported claim by construction.
+
+`tests/integration/test_grounded_answer_live.py` is the Phase 2 gate: all six adversarial queries must abstain, four answerable ones must not, and murder must never come back bailable. Marked `live`, so it needs `AIML_API_KEY`.
+
+## Structured lookups
+
+Two things the corpus holds under an exact key, looked up rather than searched for (`services/retrieval/`):
+
+- **`structured_filter.py`** — a cited section (see the retrieval note below).
+- **`offence_lookup.py`** — "is murder bailable" → BNS 103. Classification vocabulary ("bailable", "cognizable", "triable by") appears nowhere in the BNS, so the query pulls the embedder towards whatever prose is nearest: BNS 103 ranks *sixth* for that question and never reaches the model, and BNS 303 does not surface in the top 8 for "is theft bailable". The First Schedule names every offence in a column of its own, so the match is exact. Only fires on a classification question, and returns nothing for a phrase generic enough to hit the whole table.
 
 ## The legal graph
 
@@ -164,6 +202,7 @@ The BNSS First Schedule classifies every punishable BNS section as cognizable or
 
 - `agent/query`, `agent/query/stream` — main agent entry points
 - `search/rag` — direct RAG search over a chosen collection
+- `search/grounded` — typed claims, per-claim verdicts, grounding metrics and a trace; abstains rather than guessing
 - `research/case-law`, `research/judgment/{doc_id}`, `research/health` — live judiciary lookups
 - `documents/draft`, `documents/analyze`, `documents/export/docx`, `documents/templates`
 - `chat/*`, plus `health`/`info` at several levels

@@ -104,6 +104,11 @@ class SectionNode:
     section: str
     title: str
     chapter: str
+    text: str = ""
+    """The full enacted text. Carried so a quotation can be checked against the
+    whole section rather than against whichever chunk retrieval happened to
+    return -- a section is indexed in pieces, and a true quotation from a piece
+    that was not retrieved is still a true quotation."""
 
 
 @dataclass(frozen=True)
@@ -365,6 +370,7 @@ def build_graph() -> LegalGraph:
                 section=metadata["section_number"],
                 title=metadata.get("title", ""),
                 chapter=metadata.get("chapter", ""),
+                text=record["text"],
             )
             raw_texts[key] = (record["text"], act)
 

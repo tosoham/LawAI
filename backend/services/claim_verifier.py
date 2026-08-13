@@ -65,6 +65,7 @@ _WHITESPACE = re.compile(r"\s+")
 # must not be rejected for disagreeing with itself.
 _CLASSIFICATION_TERM = re.compile(r"\b(not\s+|non-)?(cognizable|bailable)\b")
 _COURTS = ("court of session", "magistrate")
+_TRAILING_PUNCTUATION = re.compile(r"[.,;:]+$")
 
 
 def _normalise(text: str) -> str:
@@ -117,6 +118,11 @@ class VerificationContext:
         )
 
 
+def _section_text(context: VerificationContext, key: str) -> str:
+    node = context.graph.sections.get(key)
+    return node.text if node else ""
+
+
 def _sections_of(claim: Claim) -> list[str]:
     return [s.ref for s in claim.sources if s.kind is SourceKind.SECTION]
 
@@ -139,16 +145,23 @@ def _verify_statute(claim: Claim, context: VerificationContext) -> tuple[bool, s
         # and the metrics count it separately rather than crediting it.
         return True, ""
 
-    span = _normalise(claim.verbatim_span)
+    # Checked against the whole section, not only the chunk retrieval returned.
+    # Whether a quotation is accurate does not depend on which piece of the
+    # section happened to rank: asked for the punishment for theft, the model
+    # quoted BNS 303 correctly while retrieval had returned that section's
+    # fifth chunk, and checking only the chunk rejected a true statement of the
+    # law. The corpus holds the section entire, so use it.
+    # Trailing punctuation is stripped from the span only. A quotation that
+    # stops mid-sentence and closes with a full stop is still a faithful
+    # quotation of the words -- BNS 303 reads "or with both and in case of
+    # second conviction...", and quoting "or with both." was being rejected as
+    # a misquote. Interior punctuation is left alone: that is the model
+    # rewriting the provision, not ending a sentence.
+    span = _normalise(claim.verbatim_span).rstrip(".,;: ")
     for key in sections:
-        text = context.section_texts.get(key)
-        if text and span in _normalise(text):
-            return True, ""
-    if not any(key in context.section_texts for key in sections):
-        return False, (
-            f"quotes {', '.join(sections)}, whose text was not retrieved this turn, "
-            "so the quotation cannot be checked"
-        )
+        for text in (context.section_texts.get(key), _section_text(context, key)):
+            if text and span in _normalise(text):
+                return True, ""
     return False, f"quoted text does not appear in {', '.join(sections)}"
 
 
@@ -159,9 +172,15 @@ def _verify_classification(claim: Claim, context: VerificationContext) -> tuple[
 
     rows = [row for key in sections for row in context.graph.offence_attributes(key)]
     if not rows:
+        # Said this way because the mistake is nearly always the same one, and
+        # a model told only that its citation was wrong re-answers with nothing
+        # instead of re-answering with the right section: asked whether murder
+        # is bailable it cites BNS 101, which defines murder, when the
+        # classification hangs off BNS 103, which punishes it.
         return False, (
-            f"{', '.join(sections)} has no row in the First Schedule, so it has no "
-            "classification to state"
+            f"{', '.join(sections)} has no row in the First Schedule. A "
+            "classification attaches to the section that punishes an offence, not "
+            "the one that defines it"
         )
 
     text = _normalise(claim.text)
@@ -174,8 +193,12 @@ def _verify_classification(claim: Claim, context: VerificationContext) -> tuple[
     if not asserted and court is None:
         return False, "a classification claim states no classification"
 
+    rows = _rows_the_claim_is_about(text, rows)
+
     for attribute, (value, phrase) in asserted.items():
         recorded = {row[attribute] for row in rows}
+        if len(recorded) > 1:
+            return False, _ambiguous(sections, rows, f"{attribute}_text")
         if value not in recorded:
             stated = ", ".join(row[f"{attribute}_text"] for row in rows)
             return False, (
@@ -183,13 +206,48 @@ def _verify_classification(claim: Claim, context: VerificationContext) -> tuple[
                 f"records: {stated}"
             )
 
-    if court is not None and not any(court in row["triable_by"].lower() for row in rows):
-        stated = ", ".join(row["triable_by"] for row in rows)
-        return False, (
-            f"names a {court} for {', '.join(sections)}, but the First Schedule "
-            f"records: {stated}"
-        )
+    if court is not None:
+        courts = {row["triable_by"] for row in rows}
+        if len(courts) > 1:
+            return False, _ambiguous(sections, rows, "triable_by")
+        if not any(court in row["triable_by"].lower() for row in rows):
+            return False, (
+                f"names a {court} for {', '.join(sections)}, but the First Schedule "
+                f"records: {', '.join(courts)}"
+            )
     return True, ""
+
+
+def _rows_the_claim_is_about(text: str, rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """
+    Narrow a section's Schedule rows to the ones the claim actually concerns.
+
+    A section is often classified more than once, and the rows can disagree.
+    BNS 303 is theft: "Theft" is cognizable and non-bailable, while "Where value
+    of property is less than 5,000 rupees" is neither. Checking a claim against
+    the union of the rows lets "theft is bailable" pass by matching the petty
+    case -- which is how a false bailability got through in testing, the exact
+    failure this verifier exists to prevent.
+
+    So the row is chosen by its own offence wording appearing in the claim.
+    Where that picks nothing out, every row stays a candidate and the caller
+    rejects the claim if they disagree.
+    """
+    selected = [
+        row
+        for row in rows
+        if (phrase := _TRAILING_PUNCTUATION.sub("", row["offence"]).strip().lower())
+        and phrase in text
+    ]
+    return selected or rows
+
+
+def _ambiguous(sections: list[str], rows: list[dict[str, Any]], field_name: str) -> str:
+    variants = "; ".join(f"{row['offence']} -> {row[field_name]}" for row in rows)
+    return (
+        f"{', '.join(sections)} is classified more than one way and the claim does "
+        f"not say which case it means ({variants})"
+    )
 
 
 def _verify_attributed_to_a_case(
@@ -307,6 +365,7 @@ def verify(
             ClaimVerdict(
                 index=index,
                 verified=verified,
+                original_class=claim.epistemic_class,
                 reason=reason,
                 reclassified_to=None if verified else EpistemicClass.UNSUPPORTED,
             )
@@ -342,11 +401,24 @@ def regeneration_feedback(
     if not failures:
         return ""
     lines = ["These claims did not verify and must be corrected or dropped:"]
+    misquoted = False
     for verdict in failures:
         claim = answer.claims[verdict.index]
         lines.append(f"- [{claim.epistemic_class.value}] {claim.text!r}: {verdict.reason}")
+        misquoted = misquoted or "quoted text does not appear" in verdict.reason
+
+    if misquoted:
+        # Without this the model drops the point altogether and an answerable
+        # question -- "what is the punishment for theft" -- comes back as an
+        # abstention because the quotation was a few words out. A paraphrase is
+        # still checked: the cited section has to exist and be the right one.
+        lines.append(
+            "Where a quotation did not match, you may keep the point and paraphrase "
+            "it instead: omit verbatim_span and state the substance. Only quote "
+            "words you can reproduce exactly."
+        )
     lines.append(
-        "Do not restate a failed claim more cautiously. Either cite a source that "
-        "supports it, or leave it out."
+        "Do not restate a failed claim more cautiously. Either support it, or leave "
+        "it out."
     )
     return "\n".join(lines)

@@ -129,6 +129,94 @@ export interface RAGSearchResponse {
   num_sources: number;
 }
 
+/**
+ * Mirrors backend/models/claims.py. Keep in sync.
+ *
+ * An answer is a list of claims, not a paragraph, and each one says what kind
+ * of thing it is. That distinction is the whole point: a reader must be able
+ * to tell enacted text from a settled judicial reading from the model applying
+ * law to facts. A component that renders every class identically has thrown
+ * that away, so `epistemic_class` is not optional metadata — it decides how
+ * the claim may be presented.
+ *
+ * `unsupported` never appears here. Claims that fail verification are removed
+ * from the answer before it is returned; `metrics.unsupported` counts them.
+ */
+export type EpistemicClass =
+  | 'statute'
+  | 'classification'
+  | 'holding'
+  | 'interpretation'
+  | 'contested'
+  | 'inference';
+
+export type ClaimSourceKind = 'section' | 'judgement' | 'doctrine' | 'live' | 'unknown';
+
+export interface ClaimSource {
+  /** "BNS 103", a judgement id, a doctrine id, or a URL for a live result. */
+  ref: string;
+  kind: ClaimSourceKind;
+}
+
+/** One side of a contested question. Never render one without the other. */
+export interface ClaimPosition {
+  summary: string;
+  authority: string[];
+}
+
+export interface Claim {
+  text: string;
+  epistemic_class: EpistemicClass;
+  sources: ClaimSource[];
+  /** For a statute claim, the exact words taken from the cited section. */
+  verbatim_span: string | null;
+  /** For a contested claim, the competing readings. Always two or more. */
+  positions: ClaimPosition[];
+}
+
+/** What the verifier found for one claim, including the ones it rejected. */
+export interface ClaimVerdict {
+  index: number;
+  verified: boolean;
+  /** The class synthesis asserted, before a failure was rewritten. */
+  original_class: EpistemicClass | 'unsupported';
+  reason: string;
+}
+
+export interface AnswerMetrics {
+  claims: number;
+  by_class: Record<string, number>;
+  grounding_rate: number;
+  verbatim_fidelity: number;
+  quoted_statute_claims: number;
+  /** Claims the verifier rejected and removed from the answer. */
+  unsupported: number;
+  unattributed_interpretation: number;
+  inference_share: number;
+  source_mix: Record<string, number>;
+  abstained: boolean;
+  /** Nothing had to be removed from this answer. */
+  clean: boolean;
+}
+
+export interface GroundedAnswerResponse {
+  query: string;
+  /** Prose rendered from the verified claims, with the disclaimer appended. */
+  answer: string;
+  /** True when nothing could be supported. `claims` is then empty. */
+  abstained: boolean;
+  claims: Claim[];
+  verdicts: ClaimVerdict[];
+  metrics: AnswerMetrics;
+  /** Retrieved by relevance. Never merge with `graph_context`. */
+  sources: RAGSource[];
+  /** Reached by a graph edge, not retrieved. Kept separate for that reason. */
+  graph_context: Record<string, any>;
+  /** Retrieved ids, edges traversed, generation attempts, per-claim verdicts. */
+  trace: Record<string, any>;
+  timestamp: string;
+}
+
 /** Mirrors the pattern on the backend's DraftDocumentRequest. Keep in sync. */
 export type DocumentType =
   | 'bail_application'
@@ -294,6 +382,19 @@ export const api = {
      */
     rag: async (request: RAGSearchRequest): Promise<RAGSearchResponse> => {
       const response = await apiClient.post('/search/rag', request);
+      return response.data;
+    },
+
+    /**
+     * Grounded search: every claim checked, and an abstention when none stand.
+     *
+     * Returns the epistemic class of each claim, the verifier's findings and
+     * an auditable trace. `answer` is already rendered from the verified
+     * claims, so a plain-text client can use it directly; a client that can do
+     * better should render `claims` and respect their classes.
+     */
+    grounded: async (request: RAGSearchRequest): Promise<GroundedAnswerResponse> => {
+      const response = await apiClient.post('/search/grounded', request);
       return response.data;
     },
   },
