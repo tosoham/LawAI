@@ -26,6 +26,7 @@ cp .env.example .env            # then set AIML_API_KEY — required for any LLM
 # One-time corpus setup (already committed under data/processed/, so usually unnecessary)
 python scripts/ingest_legal_acts.py   # MHA gazette PDFs -> data/processed/*.json
 python scripts/ingest_judgments.py    # Indian Kanoon -> sc_judgements.json
+python scripts/ingest_offence_schedule.py  # BNSS First Schedule -> offence_classification.json
 python scripts/init_vector_db.py      # chunk + embed into backend/chroma_db/
 
 uvicorn main:app --reload       # serves on :8000, docs at /docs
@@ -63,7 +64,7 @@ Four things here are load-bearing and easy to break:
 
 The image installs **CPU-only torch** (`--index-url .../whl/cpu`) before the requirements, or the default CUDA wheel adds ~2.5 GB for nothing, and bakes `all-MiniLM-L6-v2` in with `HF_HUB_OFFLINE=1` — without that flag sentence-transformers still makes ~20 revalidation calls to huggingface.co on every start.
 
-Tests requiring a live LLM are marked `live` and skip automatically unless `AIML_API_KEY` is set, so a plain `pytest` run is green without credentials (currently 105 passed, 28 skipped).
+Tests requiring a live LLM are marked `live` and skip automatically unless `AIML_API_KEY` is set, so a plain `pytest` run is green without credentials (currently 359 passed, 8 skipped).
 
 ## Architecture
 
@@ -100,10 +101,22 @@ Request flow: **frontend `lib/api.ts` → FastAPI router (`api/v1/*.py`) → ser
 | `bnss_sections` | MHA gazette PDF | 531 (complete) |
 | `bsa_sections` | MHA gazette PDF | 170 (complete) |
 | `sc_judgements` | Indian Kanoon (curated, id-pinned) | 30 |
+| `offence_classification.json` | BNSS First Schedule, Part I | 465 rows (not a vector collection) |
 
 Two things about `ingest_legal_acts.py` that look odd but are deliberate:
 - Text is extracted with `x_tolerance=1.0`; pdfplumber's default glues words together in this font ("isdoubtfulof"), wrecking embeddings and display.
 - Section titles are gazette *marginal notes* and extract out of order, so they are bound to sections by **vertical position**, not reading order.
+
+### Offence classification (`ingest_offence_schedule.py`)
+
+The BNSS First Schedule classifies every punishable BNS section as cognizable or not, bailable or not, and names the court that tries it. That is a lookup, not a retrieval problem, so it is parsed into `data/processed/offence_classification.json` and answered without a model. Four things about the parser are load-bearing:
+
+- **Column edges are measured per page, not assumed.** The gazette re-flows the table on every page: column 4 starts at x0 285 on page 158 and 304 on page 163. A single set of edges silently pushed "2 years" into the cognizable column on page 188, which then read "2 Non-cognizable." and resolved to nothing. Edges are recovered from the vocabulary each column opens with (`PUNISHMENT_OPENERS`, `COGNIZABLE_OPENERS`, …).
+- **Words are grouped into runs before being placed.** Wrapped text drifts right — a column-4 continuation reaches x0 367, inside column 5's tolerance — so only a run's leading word decides its column.
+- **Rows are found by asking whether a line refills a cell**, not by vertical gaps (page 161 sets rows and lines the same 10.2pt apart) and not by the section column (BNS 356(2) is classified twice, once for defamation of the President and once "in any other case", with column 1 blank on the second row).
+- **A conditional cell is never resolved to a boolean.** ~40 rows read "According as offence abetted is cognizable or non-cognizable"; those keep `cognizable`/`bailable` as `null` with the schedule's own wording in `cognizable_text`/`bailable_text`. A guessed "bailable" is the most dangerous value this system can emit.
+
+`tests/unit/test_offence_schedule.py` pins 21 offences transcribed by eye from the PDF, and asserts invariants over the other 444.
 
 `ingest_judgments.py` pins each judgement by document id and re-verifies the fetched page against `expect` tokens. Do not switch it to search-by-name: searching "Selvi vs State of Karnataka" returns the unrelated Jayalalitha appeal. It also honours robots.txt and rate limits.
 
