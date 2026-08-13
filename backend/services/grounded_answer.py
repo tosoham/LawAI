@@ -190,6 +190,9 @@ epistemic_class is one of:
                     number, cite it in sources.
 
 Rules:
+- Cite the act each provision appears under in the LEGAL CONTEXT. The context can
+  hold sections of more than one act, and they number independently: BNS 103 and
+  BNSS 103 are unrelated provisions.
 - Answer the question that was asked. Do not work through every entry in the
   context or the connected material; include only what bears on the question.
 - Every claim stands on its own. Do not split one thought across two claims or
@@ -273,20 +276,44 @@ class GroundedAnswerService:
         )
         return parse_synthesis(raw)
 
+    def _retrieve(self, query: str, collections: list[str], top_k: int) -> dict[str, Any]:
+        """
+        Retrieve from one or several collections, ranked together.
+
+        Merged by distance, which puts exact citation hits first for free --
+        they carry a distance of zero. Searching several is what the agent
+        needs, since it does not know in advance whether a question is about
+        offences, procedure or evidence.
+        """
+        merged: dict[str, list[Any]] = {
+            "ids": [], "documents": [], "metadatas": [], "distances": []
+        }
+        for name in collections:
+            results = self.vector_service.search(
+                collection_name=name, query=query, top_k=top_k
+            )
+            for key in merged:
+                merged[key].extend(results.get(key, []))
+
+        order = sorted(range(len(merged["ids"])), key=lambda i: merged["distances"][i])[:top_k]
+        return {key: [values[i] for i in order] for key, values in merged.items()}
+
     def answer(
-        self, query: str, collection: str = "bns_sections", top_k: int = 5
+        self,
+        query: str,
+        collection: str | list[str] = "bns_sections",
+        top_k: int = 5,
     ) -> GroundedAnswer:
         """Answer one question, or say honestly that it cannot be answered."""
-        trace: dict[str, Any] = {"query": query, "collection": collection, "steps": []}
+        collections = [collection] if isinstance(collection, str) else list(collection)
+        trace: dict[str, Any] = {"query": query, "collections": collections, "steps": []}
 
         refusal = self.check_citation(query)
         if refusal:
             trace["steps"].append({"step": "citation_precheck", "outcome": "refused"})
             return self._abstain(query, refusal, trace)
 
-        search_results = self.vector_service.search(
-            collection_name=collection, query=query, top_k=top_k
-        )
+        search_results = self._retrieve(query, collections, top_k)
         trace["steps"].append({
             "step": "retrieve",
             "ids": list(search_results.get("ids", [])),
@@ -295,7 +322,10 @@ class GroundedAnswerService:
         if not search_results.get("documents"):
             return self._abstain(query, ABSTENTION_NOTHING_RETRIEVED, trace)
 
-        graph = self.rag._expand_over_graph(search_results)
+        # The query is passed, not just the results: a classification question
+        # is answered from the offence table, which is reached by name rather
+        # than by what retrieval happened to return.
+        graph = self.rag._expand_over_graph(search_results, query)
         trace["steps"].append({"step": "graph_expansion", **_graph_trace(graph)})
 
         context = self.rag._format_context(search_results)

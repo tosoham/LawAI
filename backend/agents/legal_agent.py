@@ -13,10 +13,57 @@ from langgraph.graph import END, StateGraph
 from agents.citations import format_citation, source_payload
 from agents.intent_classifier import IntentClassifier
 from agents.state import AgentState, IntentType, set_error, update_state
+from services.grounded_answer import GroundedAnswer, get_grounded_answer_service
+from services.legal_graph import ACT_LONG_NAMES, get_legal_graph
+from services.vector_service import VectorService
 from tools.base_tool import ToolResult
 from tools.registry import ToolRegistry
 
 logger = logging.getLogger(__name__)
+
+# The three statute collections, searched together. Judgements are reached
+# through the graph rather than by searching that collection directly: a
+# judgement chunk carries no section number, so it seeds no expansion and
+# cannot be verified against a provision.
+CORPUS_COLLECTIONS = [
+    VectorService.BNS_COLLECTION,
+    VectorService.BNSS_COLLECTION,
+    VectorService.BSA_COLLECTION,
+]
+
+
+def _grounded_payload(grounded: GroundedAnswer) -> dict[str, Any]:
+    """
+    Flatten a GroundedAnswer into the shape the rest of the agent expects.
+
+    ``answer`` and ``sources`` keep their existing meaning so nothing
+    downstream breaks; ``verification`` is additive, and carries the part a
+    client needs in order to render a claim as what it actually is.
+    """
+    return {
+        "answer": grounded.answer,
+        "sources": grounded.sources,
+        "abstained": grounded.abstained,
+        "graph_context": grounded.graph_context,
+        "verification": {
+            "claims": [
+                {
+                    "text": claim.text,
+                    "epistemic_class": claim.epistemic_class.value,
+                    "sources": [s.ref for s in claim.sources],
+                    "verbatim_span": claim.verbatim_span,
+                    "positions": [
+                        {"summary": p.summary, "authority": p.authority}
+                        for p in claim.positions
+                    ],
+                }
+                for claim in grounded.structured.claims
+            ],
+            "metrics": grounded.metrics.to_dict(),
+            "removed": grounded.metrics.unsupported,
+        },
+        "trace": grounded.trace,
+    }
 
 
 class LegalAgent:
@@ -137,28 +184,35 @@ class LegalAgent:
 
     async def _execute_rag_search_node(self, state: AgentState) -> AgentState:
         """
-        Node: Execute RAG search tool.
+        Node: answer from the corpus, with every claim checked.
 
-        Args:
-            state: Current agent state
+        This is the grounded pipeline rather than the plain RAG tool, so the
+        agent's main path gets the verifier: a claim that cannot be supported
+        is removed, and a question nothing supports is refused instead of
+        answered. The tool is still registered and still reachable through
+        ``/search/rag`` -- what changed is what the agent does by default.
 
-        Returns:
-            Updated state with tool results
+        All three statute collections are searched. The agent cannot know in
+        advance whether a question is about offences, procedure or evidence,
+        and a merged ranking puts an exact citation hit first for free.
         """
         try:
-            tool = self.tool_registry.get_tool("rag_search")
             query = state["user_query"]
+            logger.info(f"Executing grounded search for: {query[:50]}...")
 
-            logger.info(f"Executing RAG search for: {query[:50]}...")
-
-            result = await tool.execute(query=query, top_k=5)
+            grounded = await asyncio.to_thread(
+                get_grounded_answer_service().answer,
+                query=query,
+                collection=CORPUS_COLLECTIONS,
+                top_k=5,
+            )
 
             return update_state(
                 state,
-                tool_results={"rag_search": result}
+                tool_results={"rag_search": _grounded_payload(grounded)},
             )
         except Exception as e:
-            logger.error(f"RAG search execution error: {e}")
+            logger.error(f"Grounded search execution error: {e}", exc_info=True)
             return set_error(state, f"RAG search failed: {e!s}")
 
     async def _execute_chat_node(self, state: AgentState) -> AgentState:
@@ -450,15 +504,63 @@ class LegalAgent:
             result = result.data
 
         answer = result.get("answer", "")
-        sources = result.get("sources", [])
+        cited = self._cited_sources(result)
 
         response = answer
-        if sources:
+        if cited:
             response += "\n\n**Sources:**\n"
-            for i, source in enumerate(sources[:3], 1):
-                response += f"{i}. {format_citation(source.get('metadata', {}))}\n"
+            for i, citation in enumerate(cited, 1):
+                response += f"{i}. {citation}\n"
 
         return response
+
+    @staticmethod
+    def _cited_sources(result: dict[str, Any]) -> list[str]:
+        """
+        The authority the answer actually rests on, not what retrieval returned.
+
+        Listing the retrieved chunks was misleading in both directions: it
+        repeated a section whose chunks both ranked, and it named provisions no
+        claim relied on. An answer about theft footnoted BNSS 480 twice and a
+        section about failing to appear on bail, none of which it cited.
+
+        Falls back to the retrieved sources when there are no typed claims --
+        an abstention, or a caller that is not using the grounded path.
+        """
+        claims = (result.get("verification") or {}).get("claims") or []
+        refs: list[str] = []
+        for claim in claims:
+            for ref in claim.get("sources", []):
+                if ref not in refs:
+                    refs.append(ref)
+
+        if refs:
+            graph = get_legal_graph()
+            citations = []
+            for ref in refs:
+                node = graph.sections.get(ref)
+                if node:
+                    citations.append(
+                        format_citation({
+                            "section_number": node.section,
+                            "act": ACT_LONG_NAMES.get(node.act, node.act),
+                            "title": node.title,
+                        })
+                    )
+                elif ref in graph.judgements:
+                    judgement = graph.judgements[ref]
+                    citations.append(
+                        format_citation({
+                            "case_name": judgement.case_name,
+                            "citation": judgement.citation,
+                        })
+                    )
+            return citations
+
+        return [
+            format_citation(source.get("metadata", {}))
+            for source in result.get("sources", [])[:3]
+        ]
 
     def _format_chat_response(self, result: dict[str, Any]) -> str:
         """Format chat results."""

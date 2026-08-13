@@ -209,6 +209,21 @@ class TestDeliveredAnswer:
         assert result.metrics.unsupported == 1
 
 
+class TestGraphExpansion:
+    def test_the_query_reaches_the_offence_lookup(self, service):
+        """
+        A classification question is answered from the offence table, which is
+        reached by the offence's *name*, not by what retrieval returned.
+        Expanding from the results alone silently disabled that on this path:
+        asked whether theft is bailable, the model was handed BNS 304 --
+        snatching, whose text opens "Theft is snatching if..." -- and cited it
+        three times over two attempts.
+        """
+        service.llm_service.generate.return_value = GOOD_SYNTHESIS
+        result = service.answer("is theft bailable and which court tries it")
+        assert "BNS 303" in result.trace["steps"][1]["seeds"]
+
+
 class TestTrace:
     def test_every_stage_is_recorded(self, service):
         service.llm_service.generate.return_value = GOOD_SYNTHESIS

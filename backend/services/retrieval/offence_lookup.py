@@ -100,9 +100,28 @@ def _index() -> list[tuple[str, str, re.Pattern[str]]]:
     return entries
 
 
+def match_offences(text: str) -> list[str]:
+    """
+    Section keys whose First Schedule offence name appears in a passage.
+
+    Used two ways. Retrieval asks it what section a classification question is
+    about; the verifier asks it what section a classification *claim* is about,
+    so a claim naming one offence cannot be cited to another. Those came apart
+    in testing: an answer stated correctly that theft is non-bailable and cited
+    BNS 304, which is snatching, and the classification check passed because
+    snatching happens to carry the same attributes.
+    """
+    lowered = text.lower()
+    matched: list[str] = []
+    for _, key, matcher in _index():
+        if matcher.search(lowered) and key not in matched:
+            matched.append(key)
+    return matched
+
+
 def find_offences(query: str) -> list[str]:
     """
-    Section keys whose offence name the query contains.
+    The offence a classification question is asking about.
 
     Returns nothing unless the query is asking a classification question:
     injecting the offence table into every query would crowd the prompt with
@@ -112,14 +131,10 @@ def find_offences(query: str) -> list[str]:
     if not is_classification_question(query):
         return []
 
-    text = query.lower()
-    matched: list[str] = []
-    for _, key, matcher in _index():
-        if matcher.search(text) and key not in matched:
-            matched.append(key)
-            if len(matched) > MAX_MATCHES:
-                logger.debug(f"offence lookup: {query!r} is too generic to resolve")
-                return []
+    matched = match_offences(query)
+    if len(matched) > MAX_MATCHES:
+        logger.debug(f"offence lookup: {query!r} is too generic to resolve")
+        return []
     if matched:
         logger.info(f"offence lookup resolved {query!r} to {matched}")
     return matched

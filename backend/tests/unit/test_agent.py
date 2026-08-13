@@ -192,6 +192,40 @@ class TestLegalAgent:
     """Test LangGraph legal agent"""
 
     @pytest.fixture
+    def grounded(self):
+        """
+        Stub the grounded pipeline the RAG node now calls.
+
+        Patched rather than left live because the node reaches the vector store
+        and the model otherwise -- which is how this fixture came to exist: the
+        test that used to mock the RAG tool silently started making real calls
+        when the node changed under it.
+        """
+        from models.claims import Claim, EpistemicClass, StructuredAnswer
+        from services.answer_metrics import compute
+        from services.grounded_answer import GroundedAnswer
+
+        answer = StructuredAnswer(claims=[
+            Claim(
+                text="Murder is punished with death or imprisonment for life.",
+                epistemic_class=EpistemicClass.STATUTE,
+                sources=["BNS 103"],
+                verbatim_span="death or imprisonment for life",
+            )
+        ])
+        service = Mock()
+        service.answer = Mock(return_value=GroundedAnswer(
+            query="q",
+            answer=answer.render(),
+            structured=answer,
+            metrics=compute(answer),
+            sources=[{"id": "bns_103", "metadata": {"section_number": "103",
+                                                    "act": "Bharatiya Nyaya Sanhita"}}],
+        ))
+        with patch("agents.legal_agent.get_grounded_answer_service", return_value=service):
+            yield service
+
+    @pytest.fixture
     def mock_tools(self):
         """Create mock tool registry"""
         mock_registry = Mock()
@@ -276,16 +310,67 @@ class TestLegalAgent:
         assert agent.graph is not None
 
     @pytest.mark.asyncio
-    async def test_agent_process_rag_search(self, mock_classifier, mock_tools):
-        """Test agent processing RAG search query"""
+    async def test_agent_process_rag_search(self, mock_classifier, mock_tools, grounded):
+        """
+        The RAG intent goes through the grounded pipeline, not the plain tool.
+
+        The tool is still registered and still served by /search/rag; what
+        changed is that the agent's main path now runs the verifier, so a claim
+        it cannot support never reaches the user.
+        """
         mock_classifier.classify.return_value = IntentType.RAG_SEARCH.value
         agent = LegalAgent(mock_classifier, mock_tools)
 
         result = await agent.process("What are bail provisions?")
 
-        assert "response" in result
         assert result["intent"] == IntentType.RAG_SEARCH.value
-        assert "Test RAG answer" in result["response"]
+        assert "Murder is punished with death" in result["response"]
+        grounded.answer.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_the_agent_searches_every_statute_collection(
+        self, mock_classifier, mock_tools, grounded
+    ):
+        """It cannot know in advance whether a question is about offences,
+        procedure or evidence."""
+        mock_classifier.classify.return_value = IntentType.RAG_SEARCH.value
+        await LegalAgent(mock_classifier, mock_tools).process("what is bail")
+
+        assert grounded.answer.call_args.kwargs["collection"] == [
+            "bns_sections", "bnss_sections", "bsa_sections"
+        ]
+
+    @pytest.mark.asyncio
+    async def test_verification_reaches_the_client(self, mock_classifier, mock_tools, grounded):
+        """
+        Additive to the existing response shape: a client that ignores it still
+        works, and one that reads it can render a claim as what it actually is.
+        """
+        mock_classifier.classify.return_value = IntentType.RAG_SEARCH.value
+        agent = LegalAgent(mock_classifier, mock_tools)
+
+        state = await agent.graph.ainvoke(create_initial_state("what is bail"))
+        verification = state["tool_results"]["rag_search"]["verification"]
+
+        assert verification["claims"][0]["epistemic_class"] == "statute"
+        assert verification["metrics"]["claims"] == 1
+        assert verification["removed"] == 0
+
+    @pytest.mark.asyncio
+    async def test_an_abstention_is_passed_through(self, mock_classifier, mock_tools, grounded):
+        """A refusal is an answer, and must not be dressed up as a failure."""
+        from models.claims import StructuredAnswer
+        from services.grounded_answer import GroundedAnswer
+
+        grounded.answer.return_value = GroundedAnswer(
+            query="q",
+            answer="I could not support any part of an answer.",
+            structured=StructuredAnswer(abstained=True, abstention_reason="no"),
+        )
+        mock_classifier.classify.return_value = IntentType.RAG_SEARCH.value
+
+        result = await LegalAgent(mock_classifier, mock_tools).process("parole days")
+        assert "could not support" in result["response"]
 
     @pytest.mark.asyncio
     async def test_agent_process_chat(self, mock_classifier, mock_tools):

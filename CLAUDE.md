@@ -65,7 +65,7 @@ Four things here are load-bearing and easy to break:
 
 The image installs **CPU-only torch** (`--index-url .../whl/cpu`) before the requirements, or the default CUDA wheel adds ~2.5 GB for nothing, and bakes `all-MiniLM-L6-v2` in with `HF_HUB_OFFLINE=1` — without that flag sentence-transformers still makes ~20 revalidation calls to huggingface.co on every start.
 
-Tests requiring a live LLM are marked `live` and skip automatically unless `AIML_API_KEY` is set, so a plain `pytest` run is green without credentials (currently 590 passed, 8 skipped (plus 41 live)).
+Tests requiring a live LLM are marked `live` and skip automatically unless `AIML_API_KEY` is set, so a plain `pytest` run is green without credentials (currently 597 passed, 8 skipped (plus 41 live)).
 
 ## Architecture
 
@@ -95,7 +95,7 @@ Request flow: **frontend `lib/api.ts` → FastAPI router (`api/v1/*.py`) → ser
 
 ## Grounding: typed claims, verification, abstention
 
-`POST /api/v1/search/grounded` answers a question as a list of **typed claims**, checks each one, and abstains when none stand. `services/grounded_answer.py` is the pipeline; `models/claims.py` is the shape everything downstream keys off.
+`POST /api/v1/search/grounded` answers a question as a list of **typed claims**, checks each one, and abstains when none stand. **The agent's `rag_search` path uses it too**, searching all three statute collections together and returning a `verification` block alongside the existing `response`/`sources` keys. The plain `RAGSearchTool` is still registered and still served by `/search/rag`. `services/grounded_answer.py` is the pipeline; `models/claims.py` is the shape everything downstream keys off.
 
 **Synthesis emits claims, not prose.** Each carries an `epistemic_class`, and prose is rendered from them. Emitted rather than annotated afterwards: a classifier reading "Section 103 provides for the death penalty in the rarest of rare cases" cannot tell which half came from the statute and which from Bachan Singh, so post-hoc labelling is a guess about a guess.
 
@@ -111,6 +111,7 @@ Request flow: **frontend `lib/api.ts` → FastAPI router (`api/v1/*.py`) → ser
 
 Four findings from running it that are easy to reintroduce:
 
+- **A classification claim must be cited to its own offence's section.** A live answer said correctly that theft is non-bailable and cited BNS 304 — snatching, whose text opens "Theft is snatching if…" — and it passed, because snatching carries the same attributes. Right facts, wrong provision, and the citation is what the reader follows. `match_offences` now binds the claim to the section the First Schedule keys that offence to.
 - **A section's Schedule rows can disagree.** BNS 303: "Theft" is non-bailable, "Where value of property is less than 5,000 rupees" is bailable. Checking against the *union* let "theft is bailable" pass. `_rows_the_claim_is_about` picks the row by its own offence wording appearing in the claim, and rejects when the candidates disagree.
 - **A quotation is checked against the whole section, not the retrieved chunk.** A section is indexed in pieces; a true quotation from a piece that did not rank is still true. `SectionNode.text` carries the full text for this.
 - **Trailing punctuation is stripped from the span only.** BNS 303 reads "or with both and in case of second conviction…"; quoting "or with both." is the same words. Interior punctuation is not touched.

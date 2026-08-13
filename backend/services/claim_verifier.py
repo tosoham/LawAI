@@ -49,6 +49,7 @@ from models.claims import (
 )
 
 from .legal_graph import LegalGraph, get_legal_graph
+from .retrieval.offence_lookup import match_offences
 
 logger = logging.getLogger(__name__)
 
@@ -169,6 +170,18 @@ def _verify_classification(claim: Claim, context: VerificationContext) -> tuple[
     sections = _sections_of(claim)
     if not sections:
         return False, "a classification claim cites no section"
+
+    # A claim naming an offence must be cited to that offence's own section.
+    # Checking only the attributes is not enough: an answer said correctly that
+    # theft is non-bailable and cited BNS 304, which is snatching, and it
+    # passed because snatching carries the same attributes. Right facts, wrong
+    # provision, and the citation is what the reader will follow.
+    named = match_offences(claim.text)
+    if named and not set(named) & set(sections):
+        return False, (
+            f"names an offence the First Schedule keys to {', '.join(named)}, but "
+            f"cites {', '.join(sections)}"
+        )
 
     rows = [row for key in sections for row in context.graph.offence_attributes(key)]
     if not rows:

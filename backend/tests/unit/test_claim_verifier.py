@@ -200,6 +200,48 @@ class TestClassificationClaims:
         assert not verified
         assert "no row in the First Schedule" in reason
 
+    def test_an_offence_must_be_cited_to_its_own_section(self, context):
+        """
+        Found in a live answer. It said correctly that theft is non-bailable
+        and cited BNS 304, which is snatching, and the check passed because
+        snatching carries the same attributes. Right facts, wrong provision --
+        and the citation is what the reader will follow.
+        """
+        verified, reason = verify_claim(
+            claim(
+                text="Theft is a cognizable offence and is non-bailable.",
+                epistemic_class=EpistemicClass.CLASSIFICATION,
+                sources=["BNS 304"],
+            ),
+            context,
+        )
+        assert not verified
+        assert "BNS 303" in reason
+
+    def test_the_same_offence_cited_correctly_passes(self, context):
+        verified, _ = verify_claim(
+            claim(
+                text="Theft is a cognizable offence and is non-bailable.",
+                epistemic_class=EpistemicClass.CLASSIFICATION,
+                sources=["BNS 303"],
+            ),
+            context,
+        )
+        assert verified
+
+    def test_a_claim_naming_no_offence_is_not_constrained_by_this(self, context):
+        """Most of the table's offence names are too long to appear in a
+        sentence, so the check has to be silent when it recognises nothing."""
+        verified, reason = verify_claim(
+            claim(
+                text="This provision is cognizable.",
+                epistemic_class=EpistemicClass.CLASSIFICATION,
+                sources=["BNS 103"],
+            ),
+            context,
+        )
+        assert verified, reason
+
     def test_a_false_bailability_cannot_hide_behind_a_second_row(self, context):
         """
         The bug this was written for. BNS 303 is classified twice: "Theft" is
