@@ -27,6 +27,7 @@ cp .env.example .env            # then set AIML_API_KEY — required for any LLM
 python scripts/ingest_legal_acts.py   # MHA gazette PDFs -> data/processed/*.json
 python scripts/ingest_judgments.py    # Indian Kanoon -> sc_judgements.json
 python scripts/ingest_offence_schedule.py  # BNSS First Schedule -> offence_classification.json
+python scripts/ingest_concordance.py  # BPR&D tables -> repealed_concordance.json
 python scripts/init_vector_db.py      # chunk + embed into backend/chroma_db/
 
 uvicorn main:app --reload       # serves on :8000, docs at /docs
@@ -64,7 +65,7 @@ Four things here are load-bearing and easy to break:
 
 The image installs **CPU-only torch** (`--index-url .../whl/cpu`) before the requirements, or the default CUDA wheel adds ~2.5 GB for nothing, and bakes `all-MiniLM-L6-v2` in with `HF_HUB_OFFLINE=1` — without that flag sentence-transformers still makes ~20 revalidation calls to huggingface.co on every start.
 
-Tests requiring a live LLM are marked `live` and skip automatically unless `AIML_API_KEY` is set, so a plain `pytest` run is green without credentials (currently 548 passed, 8 skipped (plus 41 live)).
+Tests requiring a live LLM are marked `live` and skip automatically unless `AIML_API_KEY` is set, so a plain `pytest` run is green without credentials (currently 590 passed, 8 skipped (plus 41 live)).
 
 ## Architecture
 
@@ -127,7 +128,7 @@ Four findings from running it that are easy to reintroduce:
 
 Two things the corpus holds under an exact key, looked up rather than searched for (`services/retrieval/`):
 
-- **`structured_filter.py`** — a cited section (see the retrieval note below).
+- **`structured_filter.py`** — a cited section (see the retrieval note below), including a repealed one, translated through the concordance.
 - **`offence_lookup.py`** — "is murder bailable" → BNS 103. Classification vocabulary ("bailable", "cognizable", "triable by") appears nowhere in the BNS, so the query pulls the embedder towards whatever prose is nearest: BNS 103 ranks *sixth* for that question and never reaches the model, and BNS 303 does not surface in the top 8 for "is theft bailable". The First Schedule names every offence in a column of its own, so the match is exact. Only fires on a classification question, and returns nothing for a phrase generic enough to hit the whole table.
 
 ## The legal graph
@@ -170,6 +171,7 @@ Flattening pointers and content into one "related material" block is exactly how
 | `bsa_sections` | MHA gazette PDF | 170 (complete) |
 | `sc_judgements` | Indian Kanoon (curated, id-pinned) | 30 |
 | `offence_classification.json` | BNSS First Schedule, Part I | 465 rows (not a vector collection) |
+| `repealed_concordance.json` | BPR&D correspondence tables | 1,195 mappings (not a vector collection) |
 
 Two things about `ingest_legal_acts.py` that look odd but are deliberate:
 - Text is extracted with `x_tolerance=1.0`; pdfplumber's default glues words together in this font ("isdoubtfulof"), wrecking embeddings and display.
@@ -185,6 +187,16 @@ The BNSS First Schedule classifies every punishable BNS section as cognizable or
 - **A conditional cell is never resolved to a boolean.** ~40 rows read "According as offence abetted is cognizable or non-cognizable"; those keep `cognizable`/`bailable` as `null` with the schedule's own wording in `cognizable_text`/`bailable_text`. A guessed "bailable" is the most dangerous value this system can emit.
 
 `tests/unit/test_offence_schedule.py` pins 21 offences transcribed by eye from the PDF, and asserts invariants over the other 444.
+
+### Repealed-code concordance (`ingest_concordance.py`)
+
+IPC → BNS, CrPC → BNSS, Evidence Act → BSA, built from the correspondence tables published by the **Bureau of Police Research and Development** (an MHA body; `bprd.nic.in/robots.txt` allows everything). This is the one dataset here that is *asserted* by a third party rather than parsed from enacted text, so the script is explicit about what it can and cannot check:
+
+- **Checked**: every target section must exist in our own parse of the gazette; and the whole extraction is cross-checked against a **second, independently typeset table** — the comparative chart in the same publisher's BNS handbook — with the run *failing* if the two disagree beyond 5%. Currently **117/117 agree**. That tests the thing most likely to break, which is not the source but the parser: a 38-page table slips a row and mis-pairs sections silently.
+- **Recorded, not gated**: `title_agreement` per row. It was built as a filter and demoted on evidence — all 58 rows scoring below a third were *correct* (IPC 501/502 → BNS 356, titled just "Defamation"; forty definitional rows → BNS 2, "Definitions"), so a title gate would have dropped good mappings and caught nothing.
+- **Not checked**: whether the Bureau's view is right. Every row carries its `source` and `source_url`.
+
+Two things to know when working on it: a qualifier ("3, para 1", "23 Clause-2") names *part* of a section, and reading those numbers as sections mapped IPC 1/2/3 onto the BNS definitions clause; and one repealed provision often became several (IPC 498A → BNS 85 **and** 86), so mappings are one-to-many and the filter returns all of them.
 
 `ingest_judgments.py` pins each judgement by document id and re-verifies the fetched page against `expect` tokens. Do not switch it to search-by-name: searching "Selvi vs State of Karnataka" returns the unrelated Jayalalitha appeal. It also honours robots.txt and rate limits.
 

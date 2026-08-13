@@ -54,36 +54,50 @@ class TestParsingCurrentCitations:
         assert citation.resolvable
 
 
-class TestRefusingRepealedCitations:
+class TestTranslatingRepealedCitations:
     """
-    The dangerous case. CrPC 438 is BNSS 482, but BNSS 438 exists and is about
-    something else, so resolving the number would replace a miss with a
-    confident wrong answer.
+    The dangerous case, and the reason the number was refused outright until
+    there was a source: CrPC 438 is BNSS 482, but BNSS 438 exists and is about
+    something else, so carrying the number across would replace a miss with a
+    confident wrong answer. It is now translated through the concordance in
+    data/processed/, and still refused where the concordance is silent.
     """
 
     @pytest.mark.parametrize(
-        "query",
+        "query,expected",
         [
-            "IPC 302 murder",
-            "what replaced IPC section 420 cheating",
-            "CrPC 438 anticipatory bail",
-            "CrPC 482 inherent powers",
-            "section 154 of the Code of Criminal Procedure",
-            "Evidence Act section 65B electronic records",
-            "IPC 498A cruelty",
+            ("IPC 302 murder", {"103"}),
+            ("what replaced IPC section 420 cheating", {"318"}),
+            ("CrPC 438 anticipatory bail", {"482"}),
+            ("CrPC 482 inherent powers", {"528"}),
+            ("section 154 of the Code of Criminal Procedure", {"173"}),
+            ("Evidence Act section 65B electronic records", {"63"}),
         ],
     )
-    def test_the_number_is_refused(self, query):
+    def test_the_number_is_translated(self, query, expected):
         citation = parse_citation(query)
         assert citation is not None
         assert citation.repealed
-        assert not citation.resolvable
+        assert citation.resolvable
+        assert expected <= set(citation.sections)
 
-    def test_the_act_is_still_resolved(self):
-        """Knowing which act replaced it is safe, and useful downstream."""
+    def test_a_provision_split_across_several_sections_returns_all_of_them(self):
+        """
+        IPC 498A became both BNS 85, which punishes cruelty to a married woman,
+        and BNS 86, which defines it. Picking one would be an editorial
+        judgement about which the user meant, and the point of an exact lookup
+        is that it makes none.
+        """
+        assert set(parse_citation("IPC 498A cruelty").sections) == {"85", "86"}
+
+    def test_the_old_number_is_never_carried_across_unchanged(self):
+        """The failure this component exists to prevent."""
+        assert "438" not in parse_citation("CrPC 438 anticipatory bail").sections
+
+    def test_the_act_is_resolved_even_when_the_number_is_not(self):
         assert parse_citation("IPC 302").collection == "bns_sections"
 
-    def test_a_repealed_act_named_far_from_the_number_still_refuses(self):
+    def test_a_repealed_act_named_far_from_the_number_is_still_translated(self):
         """
         "Indian Evidence Act dying declaration section 32" cites a repealed
         provision even though the act and the number are twenty characters
@@ -92,11 +106,19 @@ class TestRefusingRepealedCitations:
         citation = parse_citation("Indian Evidence Act dying declaration section 32")
         assert citation.section == "32"
         assert citation.repealed
-        assert not citation.resolvable
+        assert citation.sections == ("26",)
 
-    def test_a_lettered_section_is_refused_even_without_a_named_act(self):
+    def test_a_repealed_section_the_concordance_does_not_cover_is_refused(self):
+        """Silence in the source is not permission to guess."""
+        citation = parse_citation("IPC 999")
+        assert citation.repealed
+        assert not citation.resolvable
+        assert citation.sections == ()
+
+    def test_a_lettered_section_without_a_named_act_is_refused(self):
         """No section of the 2023 codes carries a letter, so "41A" is a CrPC
-        citation whether or not the query said so."""
+        citation whether or not the query said so -- and with no act named
+        there is nothing to translate it through."""
         citation = parse_citation("tell me about section 41A")
         assert citation.suffix == "A"
         assert not citation.resolvable
@@ -150,13 +172,24 @@ class TestExactSectionHits:
         assert hits == {}
         collection.get.assert_not_called()
 
-    def test_a_repealed_citation_is_not_looked_up(self):
+    def test_a_repealed_citation_is_looked_up_under_its_new_number(self):
         collection = self.collection()
-        hits = self.service()._exact_section_hits(
+        self.service()._exact_section_hits(
             collection, "bnss_sections", "CrPC 438 anticipatory bail"
         )
+        assert collection.get.call_args.kwargs["where"] == {"section_number": "482"}
+
+    def test_a_repealed_citation_the_concordance_misses_is_not_looked_up(self):
+        collection = self.collection()
+        hits = self.service()._exact_section_hits(collection, "bns_sections", "IPC 999")
         assert hits == {}
         collection.get.assert_not_called()
+
+    def test_a_provision_split_in_two_is_fetched_as_either(self):
+        collection = self.collection()
+        self.service()._exact_section_hits(collection, "bns_sections", "IPC 498A cruelty")
+        clause = collection.get.call_args.kwargs["where"]
+        assert clause == {"$or": [{"section_number": "85"}, {"section_number": "86"}]}
 
     def test_a_bare_section_number_resolves_against_the_collection_searched(self):
         collection = self.collection()

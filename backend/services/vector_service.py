@@ -148,19 +148,27 @@ class VectorService:
         if citation.collection is not None and citation.collection != collection_name:
             return {}
 
+        # More than one section where a repealed provision was split across
+        # several: IPC 376 is answered by BNS 64 and BNS 65 alike.
+        sections = list(citation.sections)
         found = collection.get(
-            where={"section_number": citation.section},
+            where=(
+                {"section_number": sections[0]}
+                if len(sections) == 1
+                else {"$or": [{"section_number": s} for s in sections]}
+            ),
             include=["documents", "metadatas"],
         )
         if not found.get("ids"):
             logger.debug(
-                f"{collection_name}: no section {citation.section} for cited {query!r}"
+                f"{collection_name}: no section {', '.join(sections)} for cited {query!r}"
             )
             return {}
 
         logger.info(
             f"{collection_name}: citation {citation.act_name} {citation.section} "
-            f"resolved to {len(found['ids'])} chunks by exact lookup"
+            f"resolved to section {', '.join(sections)} "
+            f"({len(found['ids'])} chunks) by exact lookup"
         )
         return {
             "ids": list(found["ids"]),
