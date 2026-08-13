@@ -1,0 +1,206 @@
+{
+  "about": "Doctrine nodes for the legal graph. Hand-curated, not derived.",
+  "why_curated": [
+    "Every judgement in the corpus already carries a `subject` that names the",
+    "principle it turns on, so the nodes themselves are close to free. The",
+    "lineage between them is not: saying that one case refined another is an",
+    "interpretive claim, and a model asked to infer it will produce plausible",
+    "edges that are wrong. Each edge below is one a lawyer would state without",
+    "hesitation, and nothing further is asserted.",
+    "",
+    "There are deliberately no `overruled_by` or `still_good_law` fields.",
+    "Precedential status is the highest-value and highest-harm thing this file",
+    "could carry, and it is not something to infer or to freeze into a JSON",
+    "file that ages. Where a line of authority is genuinely split, the doctrine",
+    "is marked `contested` and both sides are named, without either being",
+    "declared the winner."
+  ],
+  "edge_meanings": {
+    "established_by": "The judgement the principle is attributed to.",
+    "refined_by": "Later judgements that applied, narrowed or elaborated it, in date order.",
+    "applies_to_sections": "Provisions the doctrine governs, as `<act> <section>`.",
+    "contested": "There are competing lines of authority; see `contest_note`."
+  },
+  "doctrines": [
+    {
+      "id": "rarest_of_rare",
+      "name": "Rarest of rare",
+      "summary": "The death sentence is reserved for the rarest of rare cases, where the alternative of life imprisonment is unquestionably foreclosed, and aggravating and mitigating circumstances must both be weighed.",
+      "established_by": ["sc_bachan_singh_v_state_of_punjab_1980"],
+      "refined_by": [
+        "sc_machhi_singh_v_state_of_punjab_1983",
+        "sc_mohd_arif_ashfaq_v_registrar_supreme_court_of_india_2014"
+      ],
+      "applies_to_sections": ["BNS 103"],
+      "contested": false,
+      "contest_note": null
+    },
+    {
+      "id": "anticipatory_bail",
+      "name": "Anticipatory bail",
+      "summary": "The power to grant bail in anticipation of arrest is not to be read narrowly, is not confined to exceptional cases, and an order granting it is not ordinarily limited in time.",
+      "established_by": ["sc_gurbaksh_singh_sibbia_v_state_of_punjab_1980"],
+      "refined_by": [
+        "sc_siddharam_satlingappa_mhetre_v_state_of_maharashtra_2010",
+        "sc_sushila_aggarwal_v_state_nct_of_delhi_2020"
+      ],
+      "applies_to_sections": ["BNSS 482"],
+      "contested": false,
+      "contest_note": null
+    },
+    {
+      "id": "bail_is_the_rule",
+      "name": "Bail is the rule, jail the exception",
+      "summary": "Pre-trial detention is not punishment; the personal liberty of an accused presumed innocent is the starting point, and refusal of bail requires reasons.",
+      "established_by": ["sc_state_of_rajasthan_jaipur_v_balchand_1977"],
+      "refined_by": [
+        "sc_moti_ram_v_state_of_madhya_pradesh_1978",
+        "sc_arnab_manoranjan_goswami_v_state_of_maharashtra_2020",
+        "sc_satender_kumar_antil_v_central_bureau_of_investigation_2022"
+      ],
+      "applies_to_sections": ["BNSS 478", "BNSS 480", "BNSS 482"],
+      "contested": false,
+      "contest_note": null
+    },
+    {
+      "id": "arrest_must_be_justified",
+      "name": "Arrest must be justified, not routine",
+      "summary": "The power to arrest is distinct from the justification for exercising it; an officer must record reasons, and arrest is not automatic on the existence of a cognizable offence.",
+      "established_by": ["sc_joginder_kumar_v_state_of_uttar_pradesh_1994"],
+      "refined_by": [
+        "sc_d_k_basu_v_state_of_west_bengal_1997",
+        "sc_arnesh_kumar_v_state_of_bihar_2014"
+      ],
+      "applies_to_sections": ["BNSS 35", "BNSS 47", "BNSS 179"],
+      "contested": false,
+      "contest_note": null
+    },
+    {
+      "id": "custodial_safeguards",
+      "name": "Custodial safeguards",
+      "summary": "Requirements attaching to a person in police custody: identification of the arresting officers, a memo of arrest, information to a relative or friend, medical examination, and specific protections for women.",
+      "established_by": ["sc_d_k_basu_v_state_of_west_bengal_1997"],
+      "refined_by": ["sc_sheela_barse_v_state_of_maharashtra_1983"],
+      "applies_to_sections": ["BNSS 43", "BNSS 47"],
+      "contested": false,
+      "contest_note": null
+    },
+    {
+      "id": "mandatory_fir",
+      "name": "Registration of an FIR is mandatory",
+      "summary": "Where information discloses a cognizable offence, registration of a first information report is mandatory and no preliminary inquiry is permissible, subject to the limited categories the judgement itself identifies.",
+      "established_by": ["sc_lalita_kumari_v_government_of_uttar_pradesh_2013"],
+      "refined_by": [],
+      "applies_to_sections": ["BNSS 173"],
+      "contested": false,
+      "contest_note": null
+    },
+    {
+      "id": "quashing_of_proceedings",
+      "name": "Quashing of criminal proceedings",
+      "summary": "The categories in which the inherent power of the High Court may be exercised to quash an FIR or a proceeding, including where the allegations do not make out an offence or the proceeding is manifestly mala fide.",
+      "established_by": ["sc_state_of_haryana_v_bhajan_lal_1990"],
+      "refined_by": [],
+      "applies_to_sections": ["BNSS 528"],
+      "contested": false,
+      "contest_note": null
+    },
+    {
+      "id": "speedy_trial",
+      "name": "Speedy trial and prolonged undertrial detention",
+      "summary": "A speedy trial is part of the guarantee of personal liberty, and detention as an undertrial that has outrun the trial itself is a ground for release.",
+      "established_by": ["sc_hussainara_khatoon_v_home_secretary_state_of_bihar_1979"],
+      "refined_by": ["sc_union_of_india_v_k_a_najeeb_2021"],
+      "applies_to_sections": ["BNSS 479"],
+      "contested": false,
+      "contest_note": null
+    },
+    {
+      "id": "statutory_bail_bar",
+      "name": "Statutory twin conditions on bail",
+      "summary": "Special statutes impose twin conditions before bail may be granted -- that the court be satisfied the accused is not guilty and will not offend again. Whether, and on what terms, such a bar survives constitutional scrutiny has been answered differently in different cases.",
+      "established_by": ["sc_nikesh_tarachand_shah_v_union_of_india_2017"],
+      "refined_by": [
+        "sc_union_of_india_v_k_a_najeeb_2021",
+        "sc_vijay_madanlal_choudhary_v_union_of_india_2022"
+      ],
+      "applies_to_sections": ["BNSS 480"],
+      "contested": true,
+      "contest_note": "Nikesh Tarachand Shah struck down the twin conditions then in force under the Prevention of Money Laundering Act; Vijay Madanlal Choudhary considered the provision as later amended and reached a different conclusion; K.A. Najeeb held that a statutory bar does not displace the constitutional court's power where trial has been inordinately delayed. A question about a statutory bail bar has more than one answer in the authorities and must not be given one."
+    },
+    {
+      "id": "electronic_evidence_certificate",
+      "name": "Certificate for electronic records",
+      "summary": "An electronic record produced from a computer is admissible only with the statutory certificate, which is a condition precedent rather than a formality.",
+      "established_by": ["sc_anvar_p_v_v_p_k_basheer_2014"],
+      "refined_by": ["sc_arjun_panditrao_khotkar_v_kailash_kushanrao_gorantyal_2020"],
+      "applies_to_sections": ["BSA 63"],
+      "contested": false,
+      "contest_note": null
+    },
+    {
+      "id": "circumstantial_evidence",
+      "name": "Circumstantial evidence: the five golden principles",
+      "summary": "A conviction on circumstantial evidence requires that the circumstances be fully established, be consistent only with guilt, be conclusive in nature, exclude every other hypothesis, and form a complete chain.",
+      "established_by": ["sc_sharad_birdhichand_sarda_v_state_of_maharashtra_1984"],
+      "refined_by": [],
+      "applies_to_sections": ["BSA 6"],
+      "contested": false,
+      "contest_note": null
+    },
+    {
+      "id": "self_incrimination",
+      "name": "Right against self-incrimination",
+      "summary": "The protection against being compelled to be a witness against oneself extends beyond the courtroom to interrogation, and covers involuntary administration of narcoanalysis, polygraph and brain-mapping techniques.",
+      "established_by": ["sc_nandini_satpathy_v_p_l_dani_1978"],
+      "refined_by": ["sc_selvi_v_state_of_karnataka_2010"],
+      "applies_to_sections": ["BSA 23"],
+      "contested": false,
+      "contest_note": null
+    },
+    {
+      "id": "fair_just_and_reasonable_procedure",
+      "name": "Procedure established by law must be fair, just and reasonable",
+      "summary": "A law depriving a person of life or personal liberty must lay down a procedure that is fair, just and reasonable, not arbitrary or oppressive. The foundation on which most of the criminal-procedure doctrine in this corpus rests.",
+      "established_by": ["sc_maneka_gandhi_v_union_of_india_1978"],
+      "refined_by": [
+        "sc_hussainara_khatoon_v_home_secretary_state_of_bihar_1979",
+        "sc_d_k_basu_v_state_of_west_bengal_1997",
+        "sc_justice_k_s_puttaswamy_retd_v_union_of_india_2017"
+      ],
+      "applies_to_sections": [],
+      "contested": false,
+      "contest_note": null
+    },
+    {
+      "id": "privacy",
+      "name": "Privacy as a fundamental right",
+      "summary": "Privacy is a fundamental right intrinsic to life and personal liberty; a restriction on it must satisfy legality, necessity and proportionality.",
+      "established_by": ["sc_justice_k_s_puttaswamy_retd_v_union_of_india_2017"],
+      "refined_by": [],
+      "applies_to_sections": [],
+      "contested": false,
+      "contest_note": null
+    },
+    {
+      "id": "free_speech_and_vagueness",
+      "name": "Free speech, vagueness and overbreadth",
+      "summary": "A penal restriction on speech that is vague or overbroad chills protected expression and cannot stand; incitement is distinguished from advocacy and from discussion.",
+      "established_by": ["sc_shreya_singhal_v_union_of_india_2015"],
+      "refined_by": [],
+      "applies_to_sections": [],
+      "contested": false,
+      "contest_note": null
+    },
+    {
+      "id": "sedition_confined_to_incitement",
+      "name": "Sedition confined to incitement to violence",
+      "summary": "Words critical of the government are punishable only where they incite violence or public disorder; strong criticism alone is not an offence.",
+      "established_by": ["sc_kedar_nath_singh_v_state_of_bihar_1962"],
+      "refined_by": ["sc_shreya_singhal_v_union_of_india_2015"],
+      "applies_to_sections": ["BNS 152"],
+      "contested": true,
+      "contest_note": "Kedar Nath Singh read down the sedition provision then in force. BNS 152 is a differently worded provision, not a re-enactment of it, and how far the reading-down carries across to the new section has not been settled by this corpus. Treat any answer about the reach of BNS 152 as open."
+    }
+  ]
+}

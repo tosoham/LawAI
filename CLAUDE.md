@@ -64,7 +64,7 @@ Four things here are load-bearing and easy to break:
 
 The image installs **CPU-only torch** (`--index-url .../whl/cpu`) before the requirements, or the default CUDA wheel adds ~2.5 GB for nothing, and bakes `all-MiniLM-L6-v2` in with `HF_HUB_OFFLINE=1` — without that flag sentence-transformers still makes ~20 revalidation calls to huggingface.co on every start.
 
-Tests requiring a live LLM are marked `live` and skip automatically unless `AIML_API_KEY` is set, so a plain `pytest` run is green without credentials (currently 390 passed, 8 skipped).
+Tests requiring a live LLM are marked `live` and skip automatically unless `AIML_API_KEY` is set, so a plain `pytest` run is green without credentials (currently 421 passed, 8 skipped).
 
 ## Architecture
 
@@ -91,6 +91,23 @@ Request flow: **frontend `lib/api.ts` → FastAPI router (`api/v1/*.py`) → ser
 - **Corpus queries are expanded before embedding** (`services/query_expansion.py`, applied inside `VectorService.search`). Terms of art often do not appear in the statute they govern — "anticipatory" occurs nowhere in BNSS 482 — and repealed code names ("IPC", "CrPC") appear nowhere in the corpus at all. The curated alias table appends the statutory phrasing; expansion is **additive**, so a working query cannot be made worse, and only the embedded text changes (the generation prompt still carries the user's own wording). Pass `expand=False` to measure unexpanded behaviour. Note a hybrid BM25 retriever would *not* fix this class of miss: the term is absent from the text, so there is nothing to match lexically.
 - **`LegalDataLoader` raises if `data/processed/` is missing** rather than falling back to sample data. Silently serving placeholder text from a legal assistant is worse than an error.
 - **`main.py` startup swallows init errors** (logs and continues) so `/health` stays up without credentials.
+
+## The legal graph
+
+`services/legal_graph.py` builds an in-memory graph at first use (`get_legal_graph()`, `reset_legal_graph()` for tests) over committed data only. Nodes are keyed by citation — `"BNS 103"`, `"BNSS 482"` — and judgements and doctrines by their own ids. Currently 1,059 sections, 931 cross-references, 34 interprets edges, 16 doctrines, 288 classified sections.
+
+| Edge | Source |
+|---|---|
+| `section --cross_references--> section` | regex over the statute text |
+| `judgement --interprets--> section` | the judgement's `relevant_sections` metadata |
+| `doctrine --established_by/refined_by--> judgement` | `data/curated/doctrines.json` |
+| `doctrine --applies_to--> section` | same |
+| `section --classified_as--> attributes` | `offence_classification.json` |
+
+- **No LLM-inferred edges, ever.** A false relation propagates into every answer touching either endpoint with nothing in the output to show it was invented. Cross-references are mechanical, judgement edges are transcribed metadata, doctrine edges are curated by hand.
+- **A reference to another statute is dropped, not redirected.** "section 2 of the Dowry Prohibition Act" must not become an edge to BNS 2. 28 of 2,038 references are foreign and are dropped; a named act ("of the Bharatiya Sakshya Adhiniyam") redirects instead.
+- **`data/curated/doctrines.json` carries no precedential status.** No `overruled_by`, no `still_good_law` — highest value, highest harm, and not something to infer or freeze into a file that ages. Where authority genuinely splits, the doctrine is marked `contested` with both sides named and neither declared the winner (`statutory_bail_bar`, `sedition_confined_to_incitement`). `graph.contested_sections()` is what the contested path will consult, since a user who does not know a question is contested will not think to ask.
+- Offence rows key sub-sections (`103(1)`) while the corpus keys the parent (`103`); the graph attaches them to the parent so either lookup works.
 
 ## Legal corpus
 
