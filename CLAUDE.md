@@ -65,7 +65,7 @@ Four things here are load-bearing and easy to break:
 
 The image installs **CPU-only torch** (`--index-url .../whl/cpu`) before the requirements, or the default CUDA wheel adds ~2.5 GB for nothing, and bakes `all-MiniLM-L6-v2` in with `HF_HUB_OFFLINE=1` — without that flag sentence-transformers still makes ~20 revalidation calls to huggingface.co on every start.
 
-Tests requiring a live LLM are marked `live` and skip automatically unless `AIML_API_KEY` is set, so a plain `pytest` run is green without credentials (currently 597 passed, 8 skipped (plus 41 live)).
+Tests requiring a live LLM are marked `live` and skip automatically unless `AIML_API_KEY` is set, so a plain `pytest` run is green without credentials (currently 627 passed, 8 skipped (plus 41 live)).
 
 ## Architecture
 
@@ -199,14 +199,23 @@ IPC → BNS, CrPC → BNSS, Evidence Act → BSA, built from the correspondence 
 
 Two things to know when working on it: a qualifier ("3, para 1", "23 Clause-2") names *part* of a section, and reading those numbers as sections mapped IPC 1/2/3 onto the BNS definitions clause; and one repealed provision often became several (IPC 498A → BNS 85 **and** 86), so mappings are one-to-many and the filter returns all of them.
 
+### Judgement discovery (`discover_judgments.py`) — blocked on source access
+
+Topic-driven expansion of the judgement corpus, written and tested but **unrunnable** while the source is challenged (see below). Its verification model differs from the pinned one by design: rather than "is this the case I expected?", it asks "is this a real judgement, and are its recorded attributes correct?" — title parses into parties and a date, body long enough to be a decision, citations extract.
+
+The finding worth keeping is what it *cannot* do. `relevant_sections` means "is an authority on" and becomes a `judgement --interprets--> section` edge, and **that cannot be derived from a judgement's text.** Measured against the 30 curated judgements: reading the act out of each citation recovers 1 of 27, because judgements write a bare "Section 438" and rely on context — Sushila Aggarwal says it 75 times and names the Code beside it only occasionally. Taking each judgement's most-mentioned act was tested and is worse: Nandini Satpathy is an authority on the Evidence Act while mentioning the CrPC 32 times to its 2; Mohd. Arif is curated to BNS 103 while mentioning CrPC 19 to IPC 6. It would produce confident, wrong edges. So derived sections are written to `cited_sections` — a checkable claim about the document — and never to `relevant_sections`.
+
 `ingest_judgments.py` pins each judgement by document id and re-verifies the fetched page against `expect` tokens. Do not switch it to search-by-name: searching "Selvi vs State of Karnataka" returns the unrelated Jayalalitha appeal. It also honours robots.txt and rate limits.
 
 ## Live judiciary access
 
-`services/judiciary_service.py` queries authentic public judiciary records (Indian Kanoon: Supreme Court, High Courts, tribunals) at request time. The corpus is a snapshot; this covers judgements handed down after ingestion — verified working against 2026 decisions.
+`services/judiciary_service.py` queries authentic public judiciary records (Indian Kanoon: Supreme Court, High Courts, tribunals) at request time. The corpus is a snapshot; this covers judgements handed down after ingestion.
+
+> **The source is currently unreachable.** As of 2026-08-14 indiankanoon.org sits behind a Cloudflare managed challenge and returns 403 to every path *including `/robots.txt`*. Live research therefore returns errors, and `scripts/discover_judgments.py` cannot run. This is an access control the site has deliberately put in place: **do not attempt to work around it.** The fail-soft path is doing its job — every endpoint degrades to the local corpus rather than erroring — and `GET /research/health` now reports `reachable` and `last_error` so the state is visible instead of showing `enabled: true` while nothing works.
 
 - **Two paths in**: the agent's `live_research` intent (model-driven, via function calling), and the REST endpoints under `/api/v1/research/*` for direct access.
 - **It fails soft on purpose.** Errors are returned, never raised, so a slow or unreachable source degrades to the local corpus instead of 500-ing a request. Preserve that.
+- **`is_allowed()` fails closed.** If robots.txt cannot be read there is no list to check against, and the disallow list names several thousand documents individually — so not knowing is not permission. It previously logged "proceeding cautiously" and then allowed everything, which is the opposite; found when the whole site went behind a challenge and robots.txt started 403-ing with it. The failure is not cached, since it is usually transient.
 - **Live results are retrieved, not curated.** Every hit carries court, date and `source_url`, and both the API and the agent label them as unverified. Do not blend them into corpus output.
 - Requests are rate limited (`JUDICIARY_MIN_REQUEST_INTERVAL`), TTL-cached, and the source's robots.txt disallow list is parsed and honoured — it names several thousand individual documents.
 - `ENABLE_LIVE_JUDICIARY=false` turns the whole thing off for offline operation; everything else keeps working.

@@ -249,3 +249,78 @@ class TestSingleton:
         first = get_judiciary_service()
         reset_judiciary_service()
         assert get_judiciary_service() is not first
+
+
+class TestRobotsFailsClosed:
+    """
+    Not knowing is not permission.
+
+    The disallow list names several thousand documents individually, so an
+    unreadable robots.txt leaves no basis for fetching any of them. This used
+    to log "proceeding cautiously" and then treat everything as allowed, which
+    is the opposite of cautious -- found when the source put its whole site
+    behind a challenge and robots.txt started returning 403 along with it.
+    """
+
+    def service(self, robots_status=200, robots_body="User-agent: *\nDisallow: /doc/999/"):
+        from unittest.mock import Mock
+
+        import requests
+
+        from services.judiciary_service import JudiciaryService
+
+        session = Mock(spec=requests.Session)
+        session.headers = {}
+        response = Mock()
+        response.status_code = robots_status
+        response.text = robots_body
+        if robots_status != 200:
+            response.raise_for_status.side_effect = requests.HTTPError(f"{robots_status}")
+        else:
+            response.raise_for_status.return_value = None
+        session.get.return_value = response
+        return JudiciaryService(session=session)
+
+    def test_a_listed_document_is_refused(self):
+        assert not self.service().is_allowed("999")
+
+    def test_an_unlisted_document_is_allowed(self):
+        assert self.service().is_allowed("1290514")
+
+    def test_every_document_is_refused_when_robots_cannot_be_read(self):
+        assert not self.service(robots_status=403).is_allowed("1290514")
+
+    def test_the_failure_is_not_cached(self):
+        """A bad response is usually transient; caching it would keep the
+        source off limits for the life of the process."""
+        service = self.service(robots_status=403)
+        assert not service.is_allowed("1290514")
+        assert service._disallowed is None
+
+
+class TestHealthReportsReachability:
+    """"enabled: true" was the whole answer, and read as healthy while every
+    request was being refused."""
+
+    def test_reachability_is_unknown_before_anything_is_attempted(self):
+        from services.judiciary_service import JudiciaryService
+
+        assert JudiciaryService().health_check()["reachable"] is None
+
+    def test_a_failure_is_recorded(self):
+        from services.judiciary_service import JudiciaryService
+
+        service = JudiciaryService()
+        service._record_outcome("403 Client Error: Forbidden")
+        health = service.health_check()
+        assert health["reachable"] is False
+        assert "403" in health["last_error"]
+
+    def test_a_success_clears_the_error(self):
+        from services.judiciary_service import JudiciaryService
+
+        service = JudiciaryService()
+        service._record_outcome("boom")
+        service._record_outcome(None)
+        assert service.health_check() == {**service.health_check(), "reachable": True}
+        assert service.health_check()["last_error"] is None

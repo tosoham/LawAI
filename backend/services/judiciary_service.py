@@ -142,6 +142,8 @@ class JudiciaryService:
         self._disallowed: set[str] | None = None
         self._last_request_at = 0.0
         self._request_lock = threading.Lock()
+        self._reachable: bool | None = None
+        self._last_error: str | None = None
 
     # -- politeness ------------------------------------------------------
 
@@ -153,8 +155,15 @@ class JudiciaryService:
                 time.sleep(MIN_REQUEST_INTERVAL - elapsed)
             self._last_request_at = time.monotonic()
 
-    def _load_disallowed(self) -> set[str]:
-        """Document ids robots.txt puts off limits for generic agents."""
+    def _load_disallowed(self) -> set[str] | None:
+        """
+        Document ids robots.txt puts off limits for generic agents.
+
+        Returns ``None`` when robots.txt could not be read at all, which is a
+        different thing from an empty disallow list and has to stay
+        distinguishable: the caller must not fetch on the strength of a list it
+        never obtained.
+        """
         if self._disallowed is not None:
             return self._disallowed
 
@@ -179,14 +188,29 @@ class JudiciaryService:
                     if match:
                         disallowed.add(match.group(1))
         except Exception as exc:
-            logger.warning(f"Could not read robots.txt ({exc}); proceeding cautiously")
+            # Not cached: an unreadable robots.txt is usually transient, and
+            # caching the failure would keep the source off limits for the
+            # life of the process after one bad response.
+            logger.warning(f"Could not read robots.txt ({exc}); treating every document as off limits")
+            return None
 
         self._disallowed = disallowed
         logger.info(f"Judiciary source lists {len(disallowed)} disallowed documents")
         return disallowed
 
     def is_allowed(self, doc_id: str) -> bool:
-        return doc_id not in self._load_disallowed()
+        """
+        Whether robots.txt permits fetching a document.
+
+        Fails **closed**. If robots.txt cannot be read there is no list to
+        check against, and answering "allowed" would mean fetching documents
+        the source may well have excluded -- the disallow list names several
+        thousand of them individually. Not knowing is not permission.
+        """
+        disallowed = self._load_disallowed()
+        if disallowed is None:
+            return False
+        return doc_id not in disallowed
 
     # -- helpers ---------------------------------------------------------
 
@@ -292,7 +316,10 @@ class JudiciaryService:
             response.raise_for_status()
         except Exception as exc:
             logger.error(f"Live case law search failed: {exc}")
+            self._record_outcome(str(exc))
             return {"success": False, "error": str(exc), "results": []}
+
+        self._record_outcome(None)
 
         results = self._parse_search(response.text, limit)
         payload = {
@@ -387,7 +414,10 @@ class JudiciaryService:
             response.raise_for_status()
         except Exception as exc:
             logger.error(f"Fetching judgement {doc_id} failed: {exc}")
+            self._record_outcome(str(exc))
             return {"success": False, "error": str(exc)}
+
+        self._record_outcome(None)
 
         soup = BeautifulSoup(response.text, "html.parser")
         title_el = soup.select_one(".doc_title")
@@ -429,15 +459,32 @@ class JudiciaryService:
         return payload
 
     def health_check(self) -> dict[str, Any]:
-        """Report configuration without calling the source."""
+        """
+        Report configuration, and whether the source last answered.
+
+        ``reachable`` is recorded from real traffic rather than probed: a
+        health check that calls out on every request adds load to a source we
+        rate-limit ourselves against. It stays ``None`` until something has
+        been attempted, which is honest about knowing nothing yet.
+
+        This exists because "enabled: true" was the whole answer, and read as
+        healthy while every request was being refused.
+        """
         return {
             "enabled": live_fetching_enabled(),
             "source": BASE_URL,
+            "reachable": self._reachable,
+            "last_error": self._last_error,
             "timeout_seconds": DEFAULT_TIMEOUT,
             "min_request_interval": MIN_REQUEST_INTERVAL,
             "cached_searches": len(self._search_cache.entries),
             "cached_judgements": len(self._doc_cache.entries),
         }
+
+    def _record_outcome(self, error: str | None) -> None:
+        """Remember whether the source answered, for the health check."""
+        self._reachable = error is None
+        self._last_error = error
 
     def clear_caches(self) -> None:
         self._search_cache.clear()
