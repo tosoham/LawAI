@@ -143,6 +143,71 @@ export interface RAGSearchResponse {
 }
 
 /**
+ * Mirrors backend/services/procedural_timeline.py and api/v1/offences.py.
+ *
+ * Everything under here is answered from committed data with no model
+ * involved, so it is the same on every request and every value traces to a
+ * provision. Render it as fact — it is the one part of the system that is.
+ */
+export interface OffenceRow {
+  section: string;
+  short_name: string;
+  offence: string;
+  punishment: string;
+  /** null where the First Schedule defers to another offence. Never guess it. */
+  cognizable: boolean | null;
+  cognizable_text: string;
+  bailable: boolean | null;
+  bailable_text: string;
+  triable_by: string;
+}
+
+export interface TimelineStep {
+  stage: string;
+  detail: string;
+  /** Section key, e.g. "BNSS 187". Every step cites one. */
+  section: string;
+  section_title: string;
+  /** Applies only in some cases — said on the page, never hidden. */
+  conditional: boolean;
+}
+
+export interface ProceduralTimeline {
+  steps: TimelineStep[];
+  /** null when the punishment could not be read, and the limit is unknown. */
+  custody_limit_days: number | null;
+  limit_basis: string;
+}
+
+export interface OffenceDoctrine {
+  id: string;
+  name: string;
+  summary: string;
+  contested: boolean;
+}
+
+export interface OffenceJudgement {
+  id: string;
+  case_name: string;
+  citation: string;
+  year: string;
+}
+
+export interface OffenceResponse {
+  section: string;
+  act: string;
+  number: string;
+  title: string;
+  chapter: string;
+  /** Empty for a section with no First Schedule row — all of the BNSS. */
+  classification: OffenceRow[];
+  doctrines: OffenceDoctrine[];
+  judgements: OffenceJudgement[];
+  /** null where there is no classification to build one from. */
+  timeline: ProceduralTimeline | null;
+}
+
+/**
  * Mirrors backend/models/claims.py. Keep in sync.
  *
  * An answer is a list of claims, not a paragraph, and each one says what kind
@@ -408,6 +473,20 @@ export const api = {
      */
     grounded: async (request: RAGSearchRequest): Promise<GroundedAnswerResponse> => {
       const response = await apiClient.post('/search/grounded', request);
+      return response.data;
+    },
+  },
+
+  /**
+   * Offence classification and procedural timeline.
+   *
+   * No model is involved on the backend, so these responses are stable and
+   * cacheable in a way the generated ones are not.
+   */
+  offences: {
+    /** Classification, connected authority and custody timeline for a section. */
+    get: async (act: string, section: string): Promise<OffenceResponse> => {
+      const response = await apiClient.get(`/offences/${act}/${section}`);
       return response.data;
     },
   },

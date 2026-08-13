@@ -30,6 +30,7 @@ import { TypingDots } from '@/components/shared/LoadingSpinner';
 import ErrorMessage from '@/components/shared/ErrorMessage';
 import LegalDisclaimer from '@/components/shared/LegalDisclaimer';
 import ClaimList from '@/components/legal/ClaimList';
+import OffencePanel from '@/components/legal/OffencePanel';
 
 interface Message {
   id: string;
@@ -205,10 +206,13 @@ export const ChatInterface: React.FC = () => {
                   for chat, drafting and anything else that is not a claim.
                 */}
                 {message.verification && message.verification.claims.length > 0 ? (
-                  <ClaimList
-                    claims={message.verification.claims}
-                    removed={message.verification.removed}
-                  />
+                  <>
+                    <ClaimList
+                      claims={message.verification.claims}
+                      removed={message.verification.removed}
+                    />
+                    <OffencePanel claims={message.verification.claims} className="mt-4" />
+                  </>
                 ) : (
                   <div className="prose-legal">
                     <ReactMarkdown>{message.content}</ReactMarkdown>
