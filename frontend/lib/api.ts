@@ -100,7 +100,20 @@ export interface AgentQueryResponse {
    * unverified — render them distinctly, never merged into one list.
    */
   live_sources?: LiveJudgment[];
+  /**
+   * Present when the answer went through the grounded path. Additive: an
+   * older client ignoring it still gets the same `response`, and one that
+   * reads it can render each claim as what it actually is.
+   */
+  verification?: AnswerVerification | null;
   error?: string | null;
+}
+
+export interface AnswerVerification {
+  claims: Claim[];
+  metrics: AnswerMetrics;
+  /** How many claims the verifier removed. Reported, never hidden. */
+  removed: number;
 }
 
 export interface RAGSearchRequest {

@@ -36,6 +36,15 @@ class AgentQueryResponse(BaseModel):
             "Citable hits from the verified local corpus that back this answer."
         ),
     )
+    verification: dict[str, Any] | None = Field(
+        None,
+        description=(
+            "Present when the answer went through the grounded path: the typed "
+            "claims with their epistemic class, the grounding metrics, and how "
+            "many claims the verifier removed. Additive — a client that ignores "
+            "it gets the same `response` it always did."
+        ),
+    )
     live_sources: list[dict[str, Any]] = Field(
         default_factory=list,
         description=(
@@ -89,6 +98,7 @@ async def process_query(request: AgentQueryRequest):
             metadata=result.get("metadata", {}),
             sources=result.get("sources", []),
             live_sources=result.get("live_sources", []),
+            verification=result.get("verification"),
             error=result.get("error")
         )
 

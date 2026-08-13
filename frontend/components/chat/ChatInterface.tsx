@@ -14,6 +14,7 @@ import ReactMarkdown from 'react-markdown';
 import api, {
   AgentQueryResponse,
   AgentSource,
+  AnswerVerification,
   LiveJudgment,
   stripAppendedBlocks,
 } from '@/lib/api';
@@ -28,6 +29,7 @@ import {
 import { TypingDots } from '@/components/shared/LoadingSpinner';
 import ErrorMessage from '@/components/shared/ErrorMessage';
 import LegalDisclaimer from '@/components/shared/LegalDisclaimer';
+import ClaimList from '@/components/legal/ClaimList';
 
 interface Message {
   id: string;
@@ -36,6 +38,7 @@ interface Message {
   intent?: string;
   sources?: AgentSource[];
   liveSources?: LiveJudgment[];
+  verification?: AnswerVerification | null;
 }
 
 /** How the classified intent is described to the user. */
@@ -94,6 +97,7 @@ export const ChatInterface: React.FC = () => {
           intent: result.intent,
           sources: result.sources,
           liveSources: result.live_sources,
+          verification: result.verification,
         },
       ]);
     } catch (err) {
@@ -191,9 +195,25 @@ export const ChatInterface: React.FC = () => {
                   </button>
                 </header>
 
-                <div className="prose-legal">
-                  <ReactMarkdown>{message.content}</ReactMarkdown>
-                </div>
+                {/*
+                  Where the answer came back as typed claims, render those
+                  rather than the prose the backend rendered from them. The
+                  prose is a faithful flattening, and flattening is exactly
+                  what loses the distinction between what the statute says and
+                  what the model worked out — which is the distinction the
+                  whole pipeline exists to establish. The markdown path stays
+                  for chat, drafting and anything else that is not a claim.
+                */}
+                {message.verification && message.verification.claims.length > 0 ? (
+                  <ClaimList
+                    claims={message.verification.claims}
+                    removed={message.verification.removed}
+                  />
+                ) : (
+                  <div className="prose-legal">
+                    <ReactMarkdown>{message.content}</ReactMarkdown>
+                  </div>
+                )}
 
                 {message.sources && message.sources.length > 0 && (
                   <CitationList sources={message.sources} />

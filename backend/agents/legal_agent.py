@@ -737,11 +737,19 @@ class LegalAgent:
             final_state.get("tool_results", {}) or {}
         )
 
+        tool_results = final_state.get("tool_results", {}) or {}
+        verification = self._unwrap(tool_results.get("rag_search")).get("verification")
+
         return {
             "response": final_state["final_response"],
             "intent": final_state.get("intent", ""),
             "metadata": final_state.get("metadata", {}),
             "sources": corpus_sources,
             "live_sources": live_sources,
+            # Present only on the grounded path, and additive: a client that
+            # ignores it still gets the same answer it always did, and one that
+            # reads it can show a claim as what it actually is rather than as
+            # another sentence.
+            "verification": verification,
             "error": final_state.get("error")
         }
