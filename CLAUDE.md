@@ -65,7 +65,7 @@ Four things here are load-bearing and easy to break:
 
 The image installs **CPU-only torch** (`--index-url .../whl/cpu`) before the requirements, or the default CUDA wheel adds ~2.5 GB for nothing, and bakes `all-MiniLM-L6-v2` in with `HF_HUB_OFFLINE=1` — without that flag sentence-transformers still makes ~20 revalidation calls to huggingface.co on every start.
 
-Tests requiring a live LLM are marked `live` and skip automatically unless `AIML_API_KEY` is set, so a plain `pytest` run is green without credentials (currently 627 passed, 8 skipped (plus 41 live)).
+Tests requiring a live LLM are marked `live` and skip automatically unless `AIML_API_KEY` is set, so a plain `pytest` run is green without credentials (currently 660 passed, 8 skipped (plus 41 live)).
 
 ## Architecture
 
@@ -131,6 +131,18 @@ Two things the corpus holds under an exact key, looked up rather than searched f
 
 - **`structured_filter.py`** — a cited section (see the retrieval note below), including a repealed one, translated through the concordance.
 - **`offence_lookup.py`** — "is murder bailable" → BNS 103. Classification vocabulary ("bailable", "cognizable", "triable by") appears nowhere in the BNS, so the query pulls the embedder towards whatever prose is nearest: BNS 103 ranks *sixth* for that question and never reaches the model, and BNS 303 does not surface in the top 8 for "is theft bailable". The First Schedule names every offence in a column of its own, so the match is exact. Only fires on a classification question, and returns nothing for a phrase generic enough to hit the whole table.
+
+## The procedural timeline
+
+`services/procedural_timeline.py` answers the question behind "is this bailable?" — *how long can they hold me, and when does something have to happen?* — from five sections of the BNSS that scatter the answer: 35 (arrest without warrant), 57 (production before a Magistrate), 58 (24 hours), 187 (remand, and the 60/90-day limit), 193 (investigation report), 479 (undertrial release). Served by `GET /api/v1/offences/{act}/{section}`.
+
+Nothing is generated. The steps and their sections are fixed; the only variation is a branch the statute itself draws in **BNSS 187(3)** — ninety days where the offence is "punishable with death, imprisonment for life or imprisonment for a term of ten years or more", sixty otherwise — read off the First Schedule's punishment column.
+
+- **Where the punishment cannot be read, it refuses to pick.** ~110 rows say things like "Same as for offence abetted" or "Fine only". Telling someone they have sixty days when they have ninety is precisely the confident wrong answer this system exists to refuse, so the step reads "60 or 90 days" and says why.
+- **BNSS 479 is withheld where the statute withholds it** — it excludes offences punishable with death or life imprisonment, so it does not appear on a murder timeline.
+- A non-cognizable offence marks the warrantless-arrest step *conditional* rather than dropping it; the step still belongs in the sequence.
+- Where a section is classified more than once and the rows disagree on severity (theft vs petty theft), the timeline is built from the **most serious**, since that is the exposure a person actually faces.
+- The gazette's line-break hyphens survive into the Schedule ("imprison- ment for life"), and are normalised before parsing — otherwise a life sentence reads as no sentence at all.
 
 ## The legal graph
 
@@ -225,6 +237,7 @@ The finding worth keeping is what it *cannot* do. `relevant_sections` means "is 
 - `agent/query`, `agent/query/stream` — main agent entry points
 - `search/rag` — direct RAG search over a chosen collection
 - `search/grounded` — typed claims, per-claim verdicts, grounding metrics and a trace; abstains rather than guessing
+- `offences/{act}/{section}`, `offences` — classification, connected doctrine and case law, and the custody timeline. No model involved
 - `research/case-law`, `research/judgment/{doc_id}`, `research/health` — live judiciary lookups
 - `documents/draft`, `documents/analyze`, `documents/export/docx`, `documents/templates`
 - `chat/*`, plus `health`/`info` at several levels

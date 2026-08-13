@@ -92,6 +92,7 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
 from api.v1.agent import router as agent_router
 from api.v1.chat import router as chat_router
 from api.v1.documents import router as documents_router
+from api.v1.offences import router as offences_router
 from api.v1.research import router as research_router
 from api.v1.search import router as search_router
 
@@ -100,6 +101,7 @@ app.include_router(search_router, prefix="/api/v1")
 app.include_router(documents_router, prefix="/api/v1")
 app.include_router(agent_router, prefix="/api/v1")
 app.include_router(research_router, prefix="/api/v1")
+app.include_router(offences_router, prefix="/api/v1")
 
 # Initialize tools on startup
 from services.llm_service import llm_service
@@ -196,14 +198,27 @@ async def api_info() -> dict[str, Any]:
 # Error handlers
 @app.exception_handler(404)
 async def not_found_handler(request, exc):
-    """Handle 404 errors"""
+    """
+    Handle 404s, keeping any message the route took the trouble to write.
+
+    This used to replace every 404 body with "The requested resource was not
+    found", which is right for a wrong URL and wrong for a route that raised
+    one deliberately: "BNS has no section 999" and "Unknown act 'IPC'. Must be
+    one of: BNS, BNSS, BSA" were both being thrown away, and those are the
+    answer rather than an error.
+    """
+    # Starlette gives an unmatched route the stock detail "Not Found", which is
+    # not a message a route wrote and should not displace the generic one.
+    detail = getattr(exc, "detail", None)
+    written = detail if detail and detail != "Not Found" else None
     return JSONResponse(
         status_code=404,
         content={
             "error": "Not Found",
-            "message": "The requested resource was not found",
-            "path": str(request.url)
-        }
+            "message": written or "The requested resource was not found",
+            "detail": written,
+            "path": str(request.url),
+        },
     )
 
 
