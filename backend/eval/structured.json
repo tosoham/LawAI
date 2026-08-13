@@ -1,0 +1,2220 @@
+{
+  "generated_at": "2026-08-13T13:35:56.242813+00:00",
+  "config": {
+    "expand": true,
+    "top_k": 20,
+    "class_filter": null
+  },
+  "overall": {
+    "n": 69,
+    "recall@1": 0.7246,
+    "recall@3": 0.8551,
+    "recall@5": 0.9275,
+    "recall@10": 0.9275,
+    "mrr": 0.8022,
+    "ndcg@10": 0.8153
+  },
+  "by_class": {
+    "citation": {
+      "n": 8,
+      "recall@1": 1.0,
+      "recall@3": 1.0,
+      "recall@5": 1.0,
+      "recall@10": 1.0,
+      "mrr": 1.0,
+      "ndcg@10": 1.0
+    },
+    "judgement": {
+      "n": 12,
+      "recall@1": 0.6667,
+      "recall@3": 0.8333,
+      "recall@5": 1.0,
+      "recall@10": 1.0,
+      "mrr": 0.7639,
+      "ndcg@10": 0.8084
+    },
+    "plain": {
+      "n": 25,
+      "recall@1": 0.8,
+      "recall@3": 0.96,
+      "recall@5": 1.0,
+      "recall@10": 1.0,
+      "mrr": 0.89,
+      "ndcg@10": 0.8966
+    },
+    "repealed_code": {
+      "n": 8,
+      "recall@1": 0.25,
+      "recall@3": 0.375,
+      "recall@5": 0.5,
+      "recall@10": 0.5,
+      "mrr": 0.3421,
+      "ndcg@10": 0.3563
+    },
+    "term_of_art": {
+      "n": 16,
+      "recall@1": 0.75,
+      "recall@3": 0.875,
+      "recall@5": 0.9375,
+      "recall@10": 0.9375,
+      "mrr": 0.825,
+      "ndcg@10": 0.8307
+    }
+  },
+  "queries": [
+    {
+      "id": "p01",
+      "class": "plain",
+      "query": "punishment for murder",
+      "collection": "bns_sections",
+      "expected": [
+        "103"
+      ],
+      "score": {
+        "recall": {
+          "@1": false,
+          "@3": true,
+          "@5": true,
+          "@10": true
+        },
+        "rr": 0.5,
+        "ndcg@10": 0.6309297535714575,
+        "first_rank": 2,
+        "returned": [
+          "104",
+          "103",
+          "109",
+          "105",
+          "110",
+          "101",
+          "143",
+          "55",
+          "3",
+          "238"
+        ]
+      }
+    },
+    {
+      "id": "p02",
+      "class": "plain",
+      "query": "punishment for culpable homicide not amounting to murder",
+      "collection": "bns_sections",
+      "expected": [
+        "105"
+      ],
+      "score": {
+        "recall": {
+          "@1": true,
+          "@3": true,
+          "@5": true,
+          "@10": true
+        },
+        "rr": 1.0,
+        "ndcg@10": 1.0,
+        "first_rank": 1,
+        "returned": [
+          "105",
+          "110",
+          "101",
+          "100",
+          "92",
+          "102",
+          "103",
+          "109",
+          "3",
+          "30"
+        ]
+      }
+    },
+    {
+      "id": "p03",
+      "class": "plain",
+      "query": "what is the punishment for rape",
+      "collection": "bns_sections",
+      "expected": [
+        "64",
+        "63"
+      ],
+      "score": {
+        "recall": {
+          "@1": false,
+          "@3": true,
+          "@5": true,
+          "@10": true
+        },
+        "rr": 0.5,
+        "ndcg@10": 0.6509209298071326,
+        "first_rank": 2,
+        "returned": [
+          "65",
+          "64",
+          "70",
+          "63",
+          "75",
+          "68",
+          "78",
+          "238",
+          "96",
+          "309"
+        ]
+      }
+    },
+    {
+      "id": "p04",
+      "class": "plain",
+      "query": "gang rape punishment",
+      "collection": "bns_sections",
+      "expected": [
+        "70"
+      ],
+      "score": {
+        "recall": {
+          "@1": false,
+          "@3": true,
+          "@5": true,
+          "@10": true
+        },
+        "rr": 0.5,
+        "ndcg@10": 0.6309297535714575,
+        "first_rank": 2,
+        "returned": [
+          "313",
+          "70",
+          "64",
+          "65",
+          "309",
+          "140",
+          "68",
+          "112",
+          "144",
+          "143"
+        ]
+      }
+    },
+    {
+      "id": "p05",
+      "class": "plain",
+      "query": "dowry death",
+      "collection": "bns_sections",
+      "expected": [
+        "80"
+      ],
+      "score": {
+        "recall": {
+          "@1": true,
+          "@3": true,
+          "@5": true,
+          "@10": true
+        },
+        "rr": 1.0,
+        "ndcg@10": 1.0,
+        "first_rank": 1,
+        "returned": [
+          "80",
+          "90",
+          "103",
+          "104",
+          "105",
+          "147",
+          "3",
+          "143",
+          "173",
+          "55"
+        ]
+      }
+    },
+    {
+      "id": "p06",
+      "class": "plain",
+      "query": "cruelty by husband or his relatives",
+      "collection": "bns_sections",
+      "expected": [
+        "85",
+        "86"
+      ],
+      "score": {
+        "recall": {
+          "@1": true,
+          "@3": true,
+          "@5": true,
+          "@10": true
+        },
+        "rr": 1.0,
+        "ndcg@10": 1.0,
+        "first_rank": 1,
+        "returned": [
+          "85",
+          "86",
+          "291",
+          "81",
+          "325",
+          "271",
+          "27",
+          "286",
+          "119",
+          "115"
+        ]
+      }
+    },
+    {
+      "id": "p07",
+      "class": "plain",
+      "query": "criminal breach of trust",
+      "collection": "bns_sections",
+      "expected": [
+        "316"
+      ],
+      "score": {
+        "recall": {
+          "@1": true,
+          "@3": true,
+          "@5": true,
+          "@10": true
+        },
+        "rr": 1.0,
+        "ndcg@10": 1.0,
+        "first_rank": 1,
+        "returned": [
+          "316",
+          "318",
+          "317",
+          "111",
+          "246",
+          "127",
+          "335",
+          "78",
+          "336",
+          "321"
+        ]
+      }
+    },
+    {
+      "id": "p08",
+      "class": "plain",
+      "query": "cheating and dishonestly inducing delivery of property",
+      "collection": "bns_sections",
+      "expected": [
+        "318"
+      ],
+      "score": {
+        "recall": {
+          "@1": true,
+          "@3": true,
+          "@5": true,
+          "@10": true
+        },
+        "rr": 1.0,
+        "ndcg@10": 1.0,
+        "first_rank": 1,
+        "returned": [
+          "318",
+          "322",
+          "316",
+          "320",
+          "323",
+          "315",
+          "314",
+          "321",
+          "335",
+          "317"
+        ]
+      }
+    },
+    {
+      "id": "p09",
+      "class": "plain",
+      "query": "extortion",
+      "collection": "bns_sections",
+      "expected": [
+        "308"
+      ],
+      "score": {
+        "recall": {
+          "@1": true,
+          "@3": true,
+          "@5": true,
+          "@10": true
+        },
+        "rr": 1.0,
+        "ndcg@10": 1.0,
+        "first_rank": 1,
+        "returned": [
+          "308",
+          "309",
+          "120",
+          "127",
+          "119",
+          "321",
+          "139",
+          "173",
+          "140",
+          "356"
+        ]
+      }
+    },
+    {
+      "id": "p10",
+      "class": "plain",
+      "query": "robbery and dacoity",
+      "collection": "bns_sections",
+      "expected": [
+        "309",
+        "310"
+      ],
+      "score": {
+        "recall": {
+          "@1": true,
+          "@3": true,
+          "@5": true,
+          "@10": true
+        },
+        "rr": 1.0,
+        "ndcg@10": 0.8772153153380493,
+        "first_rank": 1,
+        "returned": [
+          "310",
+          "311",
+          "312",
+          "309",
+          "313",
+          "317",
+          "254",
+          "112",
+          "307",
+          "51"
+        ]
+      }
+    },
+    {
+      "id": "p11",
+      "class": "plain",
+      "query": "criminal conspiracy",
+      "collection": "bns_sections",
+      "expected": [
+        "61"
+      ],
+      "score": {
+        "recall": {
+          "@1": true,
+          "@3": true,
+          "@5": true,
+          "@10": true
+        },
+        "rr": 1.0,
+        "ndcg@10": 1.0,
+        "first_rank": 1,
+        "returned": [
+          "61",
+          "111",
+          "45",
+          "148",
+          "46",
+          "228",
+          "49",
+          "318",
+          "112",
+          "229"
+        ]
+      }
+    },
+    {
+      "id": "p12",
+      "class": "plain",
+      "query": "defamation",
+      "collection": "bns_sections",
+      "expected": [
+        "356"
+      ],
+      "score": {
+        "recall": {
+          "@1": true,
+          "@3": true,
+          "@5": true,
+          "@10": true
+        },
+        "rr": 1.0,
+        "ndcg@10": 1.0,
+        "first_rank": 1,
+        "returned": [
+          "356",
+          "246",
+          "351",
+          "335",
+          "352",
+          "242",
+          "298",
+          "212",
+          "294",
+          "308"
+        ]
+      }
+    },
+    {
+      "id": "p13",
+      "class": "plain",
+      "query": "causing death by negligence",
+      "collection": "bns_sections",
+      "expected": [
+        "106"
+      ],
+      "score": {
+        "recall": {
+          "@1": true,
+          "@3": true,
+          "@5": true,
+          "@10": true
+        },
+        "rr": 1.0,
+        "ndcg@10": 1.0,
+        "first_rank": 1,
+        "returned": [
+          "106",
+          "100",
+          "101",
+          "3",
+          "29",
+          "53",
+          "271",
+          "90",
+          "27",
+          "26"
+        ]
+      }
+    },
+    {
+      "id": "p14",
+      "class": "plain",
+      "query": "grievous hurt",
+      "collection": "bns_sections",
+      "expected": [
+        "116",
+        "117"
+      ],
+      "score": {
+        "recall": {
+          "@1": true,
+          "@3": true,
+          "@5": true,
+          "@10": true
+        },
+        "rr": 1.0,
+        "ndcg@10": 1.0,
+        "first_rank": 1,
+        "returned": [
+          "116",
+          "117",
+          "38",
+          "124",
+          "122",
+          "120",
+          "119",
+          "121",
+          "27",
+          "118"
+        ]
+      }
+    },
+    {
+      "id": "p15",
+      "class": "plain",
+      "query": "terrorist act",
+      "collection": "bns_sections",
+      "expected": [
+        "113"
+      ],
+      "score": {
+        "recall": {
+          "@1": true,
+          "@3": true,
+          "@5": true,
+          "@10": true
+        },
+        "rr": 1.0,
+        "ndcg@10": 1.0,
+        "first_rank": 1,
+        "returned": [
+          "113",
+          "34",
+          "44",
+          "14",
+          "288",
+          "37",
+          "299",
+          "41",
+          "32",
+          "354"
+        ]
+      }
+    },
+    {
+      "id": "p16",
+      "class": "plain",
+      "query": "when may police arrest without a warrant",
+      "collection": "bnss_sections",
+      "expected": [
+        "35"
+      ],
+      "score": {
+        "recall": {
+          "@1": false,
+          "@3": false,
+          "@5": true,
+          "@10": true
+        },
+        "rr": 0.25,
+        "ndcg@10": 0.43067655807339306,
+        "first_rank": 4,
+        "returned": [
+          "58",
+          "57",
+          "55",
+          "35",
+          "78",
+          "482",
+          "75",
+          "82",
+          "90",
+          "41"
+        ]
+      }
+    },
+    {
+      "id": "p17",
+      "class": "plain",
+      "query": "right of an arrested person to meet an advocate",
+      "collection": "bnss_sections",
+      "expected": [
+        "38"
+      ],
+      "score": {
+        "recall": {
+          "@1": true,
+          "@3": true,
+          "@5": true,
+          "@10": true
+        },
+        "rr": 1.0,
+        "ndcg@10": 1.0,
+        "first_rank": 1,
+        "returned": [
+          "38",
+          "356",
+          "48",
+          "36",
+          "40",
+          "35",
+          "376",
+          "374",
+          "47",
+          "291"
+        ]
+      }
+    },
+    {
+      "id": "p18",
+      "class": "plain",
+      "query": "compounding of offences",
+      "collection": "bnss_sections",
+      "expected": [
+        "359"
+      ],
+      "score": {
+        "recall": {
+          "@1": true,
+          "@3": true,
+          "@5": true,
+          "@10": true
+        },
+        "rr": 1.0,
+        "ndcg@10": 1.0,
+        "first_rank": 1,
+        "returned": [
+          "359",
+          "243",
+          "289",
+          "234",
+          "244",
+          "236",
+          "235",
+          "245",
+          "337",
+          "229"
+        ]
+      }
+    },
+    {
+      "id": "p19",
+      "class": "plain",
+      "query": "order for maintenance of wives children and parents",
+      "collection": "bnss_sections",
+      "expected": [
+        "144"
+      ],
+      "score": {
+        "recall": {
+          "@1": true,
+          "@3": true,
+          "@5": true,
+          "@10": true
+        },
+        "rr": 1.0,
+        "ndcg@10": 1.0,
+        "first_rank": 1,
+        "returned": [
+          "144",
+          "146",
+          "145",
+          "147",
+          "219",
+          "194",
+          "136",
+          "153",
+          "163",
+          "152"
+        ]
+      }
+    },
+    {
+      "id": "p20",
+      "class": "plain",
+      "query": "search of an arrested person",
+      "collection": "bnss_sections",
+      "expected": [
+        "49"
+      ],
+      "score": {
+        "recall": {
+          "@1": true,
+          "@3": true,
+          "@5": true,
+          "@10": true
+        },
+        "rr": 1.0,
+        "ndcg@10": 1.0,
+        "first_rank": 1,
+        "returned": [
+          "49",
+          "54",
+          "44",
+          "108",
+          "48",
+          "185",
+          "186",
+          "82",
+          "103",
+          "83"
+        ]
+      }
+    },
+    {
+      "id": "p21",
+      "class": "plain",
+      "query": "opinions of experts",
+      "collection": "bsa_sections",
+      "expected": [
+        "39",
+        "40"
+      ],
+      "score": {
+        "recall": {
+          "@1": true,
+          "@3": true,
+          "@5": true,
+          "@10": true
+        },
+        "rr": 1.0,
+        "ndcg@10": 0.9197207891481876,
+        "first_rank": 1,
+        "returned": [
+          "39",
+          "45",
+          "40",
+          "43",
+          "55",
+          "42",
+          "8",
+          "26",
+          "124",
+          "152"
+        ]
+      }
+    },
+    {
+      "id": "p22",
+      "class": "plain",
+      "query": "on whom does the burden of proof lie",
+      "collection": "bsa_sections",
+      "expected": [
+        "104",
+        "105"
+      ],
+      "score": {
+        "recall": {
+          "@1": false,
+          "@3": true,
+          "@5": true,
+          "@10": true
+        },
+        "rr": 0.5,
+        "ndcg@10": 0.6934264036172708,
+        "first_rank": 2,
+        "returned": [
+          "106",
+          "105",
+          "104",
+          "107",
+          "109",
+          "113",
+          "108",
+          "141",
+          "112",
+          "2"
+        ]
+      }
+    },
+    {
+      "id": "p23",
+      "class": "plain",
+      "query": "confession to a police officer",
+      "collection": "bsa_sections",
+      "expected": [
+        "23"
+      ],
+      "score": {
+        "recall": {
+          "@1": true,
+          "@3": true,
+          "@5": true,
+          "@10": true
+        },
+        "rr": 1.0,
+        "ndcg@10": 1.0,
+        "first_rank": 1,
+        "returned": [
+          "23",
+          "22",
+          "24",
+          "79",
+          "48",
+          "149",
+          "156",
+          "75",
+          "129",
+          "127"
+        ]
+      }
+    },
+    {
+      "id": "p24",
+      "class": "plain",
+      "query": "proof of contents of documents",
+      "collection": "bsa_sections",
+      "expected": [
+        "56",
+        "57"
+      ],
+      "score": {
+        "recall": {
+          "@1": true,
+          "@3": true,
+          "@5": true,
+          "@10": true
+        },
+        "rr": 1.0,
+        "ndcg@10": 0.6131471927654584,
+        "first_rank": 1,
+        "returned": [
+          "56",
+          "76",
+          "59",
+          "60",
+          "58",
+          "78",
+          "95",
+          "79",
+          "33",
+          "94"
+        ]
+      }
+    },
+    {
+      "id": "p25",
+      "class": "plain",
+      "query": "admissibility of electronic records",
+      "collection": "bsa_sections",
+      "expected": [
+        "63",
+        "61",
+        "62"
+      ],
+      "score": {
+        "recall": {
+          "@1": true,
+          "@3": true,
+          "@5": true,
+          "@10": true
+        },
+        "rr": 1.0,
+        "ndcg@10": 0.9674679834891693,
+        "first_rank": 1,
+        "returned": [
+          "63",
+          "61",
+          "81",
+          "62",
+          "93",
+          "85",
+          "86",
+          "57",
+          "39",
+          "136"
+        ]
+      }
+    },
+    {
+      "id": "t01",
+      "class": "term_of_art",
+      "query": "anticipatory bail",
+      "collection": "bnss_sections",
+      "expected": [
+        "482"
+      ],
+      "score": {
+        "recall": {
+          "@1": true,
+          "@3": true,
+          "@5": true,
+          "@10": true
+        },
+        "rr": 1.0,
+        "ndcg@10": 1.0,
+        "first_rank": 1,
+        "returned": [
+          "482",
+          "83",
+          "483",
+          "480",
+          "478",
+          "479",
+          "73",
+          "485",
+          "47",
+          "189"
+        ]
+      }
+    },
+    {
+      "id": "t02",
+      "class": "term_of_art",
+      "query": "grounds for anticipatory bail",
+      "collection": "bnss_sections",
+      "expected": [
+        "482"
+      ],
+      "score": {
+        "recall": {
+          "@1": true,
+          "@3": true,
+          "@5": true,
+          "@10": true
+        },
+        "rr": 1.0,
+        "ndcg@10": 1.0,
+        "first_rank": 1,
+        "returned": [
+          "482",
+          "83",
+          "480",
+          "483",
+          "478",
+          "479",
+          "189",
+          "47",
+          "369",
+          "73"
+        ]
+      }
+    },
+    {
+      "id": "t03",
+      "class": "term_of_art",
+      "query": "pre-arrest bail application",
+      "collection": "bnss_sections",
+      "expected": [
+        "482"
+      ],
+      "score": {
+        "recall": {
+          "@1": false,
+          "@3": true,
+          "@5": true,
+          "@10": true
+        },
+        "rr": 0.5,
+        "ndcg@10": 0.6309297535714575,
+        "first_rank": 2,
+        "returned": [
+          "83",
+          "482",
+          "483",
+          "478",
+          "73",
+          "485",
+          "479",
+          "92",
+          "489",
+          "480"
+        ]
+      }
+    },
+    {
+      "id": "t04",
+      "class": "term_of_art",
+      "query": "default bail",
+      "collection": "bnss_sections",
+      "expected": [
+        "187",
+        "479"
+      ],
+      "score": {
+        "recall": {
+          "@1": true,
+          "@3": true,
+          "@5": true,
+          "@10": true
+        },
+        "rr": 1.0,
+        "ndcg@10": 0.9197207891481876,
+        "first_rank": 1,
+        "returned": [
+          "479",
+          "480",
+          "187",
+          "369",
+          "483",
+          "478",
+          "189",
+          "481",
+          "141",
+          "193"
+        ]
+      }
+    },
+    {
+      "id": "t05",
+      "class": "term_of_art",
+      "query": "statutory bail on expiry of investigation period",
+      "collection": "bnss_sections",
+      "expected": [
+        "187",
+        "479"
+      ],
+      "score": {
+        "recall": {
+          "@1": true,
+          "@3": true,
+          "@5": true,
+          "@10": true
+        },
+        "rr": 1.0,
+        "ndcg@10": 1.0,
+        "first_rank": 1,
+        "returned": [
+          "187",
+          "479",
+          "480",
+          "483",
+          "141",
+          "430",
+          "232",
+          "369",
+          "468"
+        ]
+      }
+    },
+    {
+      "id": "t06",
+      "class": "term_of_art",
+      "query": "double jeopardy",
+      "collection": "bnss_sections",
+      "expected": [
+        "337"
+      ],
+      "score": {
+        "recall": {
+          "@1": true,
+          "@3": true,
+          "@5": true,
+          "@10": true
+        },
+        "rr": 1.0,
+        "ndcg@10": 1.0,
+        "first_rank": 1,
+        "returned": [
+          "337",
+          "271",
+          "359",
+          "259",
+          "334",
+          "345",
+          "278",
+          "264",
+          "234",
+          "269"
+        ]
+      }
+    },
+    {
+      "id": "t07",
+      "class": "term_of_art",
+      "query": "how do I get an FIR registered",
+      "collection": "bnss_sections",
+      "expected": [
+        "173"
+      ],
+      "score": {
+        "recall": {
+          "@1": false,
+          "@3": false,
+          "@5": true,
+          "@10": true
+        },
+        "rr": 0.2,
+        "ndcg@10": 0.38685280723454163,
+        "first_rank": 5,
+        "returned": [
+          "233",
+          "52",
+          "327",
+          "174",
+          "173",
+          "184",
+          "232",
+          "193",
+          "112",
+          "328"
+        ]
+      }
+    },
+    {
+      "id": "t08",
+      "class": "term_of_art",
+      "query": "quashing of criminal proceedings by the High Court",
+      "collection": "bnss_sections",
+      "expected": [
+        "528"
+      ],
+      "score": {
+        "recall": {
+          "@1": false,
+          "@3": false,
+          "@5": false,
+          "@10": false
+        },
+        "rr": 0.0,
+        "ndcg@10": 0.0,
+        "first_rank": null,
+        "returned": [
+          "447",
+          "442",
+          "206",
+          "318",
+          "357",
+          "379",
+          "523",
+          "400",
+          "443",
+          "215"
+        ]
+      }
+    },
+    {
+      "id": "t09",
+      "class": "term_of_art",
+      "query": "plea bargaining",
+      "collection": "bnss_sections",
+      "expected": [
+        "290",
+        "291",
+        "296"
+      ],
+      "score": {
+        "recall": {
+          "@1": true,
+          "@3": true,
+          "@5": true,
+          "@10": true
+        },
+        "rr": 1.0,
+        "ndcg@10": 0.8854598815714874,
+        "first_rank": 1,
+        "returned": [
+          "290",
+          "276",
+          "296",
+          "269",
+          "291",
+          "275",
+          "252",
+          "447",
+          "264",
+          "419"
+        ]
+      }
+    },
+    {
+      "id": "t10",
+      "class": "term_of_art",
+      "query": "dying declaration",
+      "collection": "bsa_sections",
+      "expected": [
+        "26"
+      ],
+      "score": {
+        "recall": {
+          "@1": true,
+          "@3": true,
+          "@5": true,
+          "@10": true
+        },
+        "rr": 1.0,
+        "ndcg@10": 1.0,
+        "first_rank": 1,
+        "returned": [
+          "26",
+          "125",
+          "124",
+          "55",
+          "157",
+          "147",
+          "19",
+          "2",
+          "67",
+          "144"
+        ]
+      }
+    },
+    {
+      "id": "t11",
+      "class": "term_of_art",
+      "query": "hostile witness cross examination",
+      "collection": "bsa_sections",
+      "expected": [
+        "148",
+        "149",
+        "157"
+      ],
+      "score": {
+        "recall": {
+          "@1": true,
+          "@3": true,
+          "@5": true,
+          "@10": true
+        },
+        "rr": 1.0,
+        "ndcg@10": 0.8179809735263114,
+        "first_rank": 1,
+        "returned": [
+          "157",
+          "142",
+          "143",
+          "144",
+          "148",
+          "149",
+          "126",
+          "55",
+          "151",
+          "158"
+        ]
+      }
+    },
+    {
+      "id": "t12",
+      "class": "term_of_art",
+      "query": "digital evidence certificate requirement",
+      "collection": "bsa_sections",
+      "expected": [
+        "63",
+        "62"
+      ],
+      "score": {
+        "recall": {
+          "@1": false,
+          "@3": true,
+          "@5": true,
+          "@10": true
+        },
+        "rr": 0.5,
+        "ndcg@10": 0.6509209298071326,
+        "first_rank": 2,
+        "returned": [
+          "61",
+          "62",
+          "81",
+          "63",
+          "85",
+          "93",
+          "73",
+          "39",
+          "86",
+          "87"
+        ]
+      }
+    },
+    {
+      "id": "t13",
+      "class": "term_of_art",
+      "query": "mob lynching",
+      "collection": "bns_sections",
+      "expected": [
+        "103"
+      ],
+      "score": {
+        "recall": {
+          "@1": true,
+          "@3": true,
+          "@5": true,
+          "@10": true
+        },
+        "rr": 1.0,
+        "ndcg@10": 1.0,
+        "first_rank": 1,
+        "returned": [
+          "103",
+          "101",
+          "212",
+          "313",
+          "47",
+          "111",
+          "48",
+          "230",
+          "191",
+          "310"
+        ]
+      }
+    },
+    {
+      "id": "t14",
+      "class": "term_of_art",
+      "query": "organised crime syndicate",
+      "collection": "bns_sections",
+      "expected": [
+        "111",
+        "112"
+      ],
+      "score": {
+        "recall": {
+          "@1": true,
+          "@3": true,
+          "@5": true,
+          "@10": true
+        },
+        "rr": 1.0,
+        "ndcg@10": 1.0,
+        "first_rank": 1,
+        "returned": [
+          "111",
+          "112",
+          "61",
+          "189",
+          "190",
+          "313",
+          "113",
+          "212",
+          "328",
+          "193"
+        ]
+      }
+    },
+    {
+      "id": "t15",
+      "class": "term_of_art",
+      "query": "hit and run causing death",
+      "collection": "bns_sections",
+      "expected": [
+        "106"
+      ],
+      "score": {
+        "recall": {
+          "@1": true,
+          "@3": true,
+          "@5": true,
+          "@10": true
+        },
+        "rr": 1.0,
+        "ndcg@10": 1.0,
+        "first_rank": 1,
+        "returned": [
+          "106",
+          "281",
+          "101",
+          "100",
+          "19",
+          "212",
+          "3",
+          "18",
+          "29",
+          "271"
+        ]
+      }
+    },
+    {
+      "id": "t16",
+      "class": "term_of_art",
+      "query": "snatching a chain in the street",
+      "collection": "bns_sections",
+      "expected": [
+        "304"
+      ],
+      "score": {
+        "recall": {
+          "@1": true,
+          "@3": true,
+          "@5": true,
+          "@10": true
+        },
+        "rr": 1.0,
+        "ndcg@10": 1.0,
+        "first_rank": 1,
+        "returned": [
+          "304",
+          "309",
+          "285",
+          "281",
+          "305",
+          "112",
+          "303",
+          "330",
+          "328",
+          "289"
+        ]
+      }
+    },
+    {
+      "id": "c01",
+      "class": "citation",
+      "query": "BNS 103",
+      "collection": "bns_sections",
+      "expected": [
+        "103"
+      ],
+      "score": {
+        "recall": {
+          "@1": true,
+          "@3": true,
+          "@5": true,
+          "@10": true
+        },
+        "rr": 1.0,
+        "ndcg@10": 1.0,
+        "first_rank": 1,
+        "returned": [
+          "103",
+          "181",
+          "179",
+          "342",
+          "348",
+          "190",
+          "322",
+          "327",
+          "349",
+          "203"
+        ]
+      }
+    },
+    {
+      "id": "c02",
+      "class": "citation",
+      "query": "what does section 111 of the Bharatiya Nyaya Sanhita say",
+      "collection": "bns_sections",
+      "expected": [
+        "111"
+      ],
+      "score": {
+        "recall": {
+          "@1": true,
+          "@3": true,
+          "@5": true,
+          "@10": true
+        },
+        "rr": 1.0,
+        "ndcg@10": 1.0,
+        "first_rank": 1,
+        "returned": [
+          "111",
+          "1",
+          "358",
+          "211",
+          "113",
+          "212",
+          "292",
+          "114",
+          "200",
+          "2"
+        ]
+      }
+    },
+    {
+      "id": "c03",
+      "class": "citation",
+      "query": "section 482 BNSS",
+      "collection": "bnss_sections",
+      "expected": [
+        "482"
+      ],
+      "score": {
+        "recall": {
+          "@1": true,
+          "@3": true,
+          "@5": true,
+          "@10": true
+        },
+        "rr": 1.0,
+        "ndcg@10": 1.0,
+        "first_rank": 1,
+        "returned": [
+          "482",
+          "522",
+          "498",
+          "204",
+          "518",
+          "270",
+          "94",
+          "502",
+          "200",
+          "411"
+        ]
+      }
+    },
+    {
+      "id": "c04",
+      "class": "citation",
+      "query": "BNSS section 187",
+      "collection": "bnss_sections",
+      "expected": [
+        "187"
+      ],
+      "score": {
+        "recall": {
+          "@1": true,
+          "@3": true,
+          "@5": true,
+          "@10": true
+        },
+        "rr": 1.0,
+        "ndcg@10": 1.0,
+        "first_rank": 1,
+        "returned": [
+          "187",
+          "270",
+          "256",
+          "188",
+          "197",
+          "169",
+          "209",
+          "171",
+          "177",
+          "178"
+        ]
+      }
+    },
+    {
+      "id": "c05",
+      "class": "citation",
+      "query": "BSA 63",
+      "collection": "bsa_sections",
+      "expected": [
+        "63"
+      ],
+      "score": {
+        "recall": {
+          "@1": true,
+          "@3": true,
+          "@5": true,
+          "@10": true
+        },
+        "rr": 1.0,
+        "ndcg@10": 1.0,
+        "first_rank": 1,
+        "returned": [
+          "63",
+          "62",
+          "76",
+          "77",
+          "48",
+          "61",
+          "84",
+          "68",
+          "65",
+          "83"
+        ]
+      }
+    },
+    {
+      "id": "c06",
+      "class": "citation",
+      "query": "section 318 BNS",
+      "collection": "bns_sections",
+      "expected": [
+        "318"
+      ],
+      "score": {
+        "recall": {
+          "@1": true,
+          "@3": true,
+          "@5": true,
+          "@10": true
+        },
+        "rr": 1.0,
+        "ndcg@10": 1.0,
+        "first_rank": 1,
+        "returned": [
+          "318",
+          "348",
+          "342",
+          "320",
+          "190",
+          "350",
+          "205",
+          "349",
+          "327",
+          "340"
+        ]
+      }
+    },
+    {
+      "id": "c07",
+      "class": "citation",
+      "query": "section 35 of BNSS on arrest without warrant",
+      "collection": "bnss_sections",
+      "expected": [
+        "35"
+      ],
+      "score": {
+        "recall": {
+          "@1": true,
+          "@3": true,
+          "@5": true,
+          "@10": true
+        },
+        "rr": 1.0,
+        "ndcg@10": 1.0,
+        "first_rank": 1,
+        "returned": [
+          "35",
+          "47",
+          "55",
+          "83",
+          "170",
+          "42",
+          "58",
+          "40",
+          "57",
+          "41"
+        ]
+      }
+    },
+    {
+      "id": "c08",
+      "class": "citation",
+      "query": "section 39 Bharatiya Sakshya Adhiniyam",
+      "collection": "bsa_sections",
+      "expected": [
+        "39"
+      ],
+      "score": {
+        "recall": {
+          "@1": true,
+          "@3": true,
+          "@5": true,
+          "@10": true
+        },
+        "rr": 1.0,
+        "ndcg@10": 1.0,
+        "first_rank": 1,
+        "returned": [
+          "39",
+          "1",
+          "170",
+          "115",
+          "48",
+          "74",
+          "120",
+          "2",
+          "60",
+          "77"
+        ]
+      }
+    },
+    {
+      "id": "r01",
+      "class": "repealed_code",
+      "query": "IPC 302 murder",
+      "collection": "bns_sections",
+      "expected": [
+        "103"
+      ],
+      "score": {
+        "recall": {
+          "@1": false,
+          "@3": false,
+          "@5": false,
+          "@10": false
+        },
+        "rr": 0.0625,
+        "ndcg@10": 0.0,
+        "first_rank": 16,
+        "returned": [
+          "1",
+          "212",
+          "200",
+          "47",
+          "230",
+          "48",
+          "231",
+          "209",
+          "240",
+          "358"
+        ]
+      }
+    },
+    {
+      "id": "r02",
+      "class": "repealed_code",
+      "query": "what replaced IPC section 420 cheating",
+      "collection": "bns_sections",
+      "expected": [
+        "318"
+      ],
+      "score": {
+        "recall": {
+          "@1": false,
+          "@3": false,
+          "@5": false,
+          "@10": false
+        },
+        "rr": 0.0,
+        "ndcg@10": 0.0,
+        "first_rank": null,
+        "returned": [
+          "1",
+          "358",
+          "212",
+          "240",
+          "317",
+          "320",
+          "211",
+          "322",
+          "254",
+          "243"
+        ]
+      }
+    },
+    {
+      "id": "r03",
+      "class": "repealed_code",
+      "query": "CrPC 438 anticipatory bail",
+      "collection": "bnss_sections",
+      "expected": [
+        "482"
+      ],
+      "score": {
+        "recall": {
+          "@1": true,
+          "@3": true,
+          "@5": true,
+          "@10": true
+        },
+        "rr": 1.0,
+        "ndcg@10": 1.0,
+        "first_rank": 1,
+        "returned": [
+          "482",
+          "483",
+          "83",
+          "478",
+          "480",
+          "39",
+          "479",
+          "488",
+          "92",
+          "73"
+        ]
+      }
+    },
+    {
+      "id": "r04",
+      "class": "repealed_code",
+      "query": "CrPC 482 inherent powers",
+      "collection": "bnss_sections",
+      "expected": [
+        "528"
+      ],
+      "score": {
+        "recall": {
+          "@1": false,
+          "@3": false,
+          "@5": false,
+          "@10": false
+        },
+        "rr": 0.09090909090909091,
+        "ndcg@10": 0.0,
+        "first_rank": 11,
+        "returned": [
+          "283",
+          "34",
+          "222",
+          "320",
+          "28",
+          "26",
+          "1",
+          "218",
+          "477",
+          "112"
+        ]
+      }
+    },
+    {
+      "id": "r05",
+      "class": "repealed_code",
+      "query": "section 154 of the Code of Criminal Procedure",
+      "collection": "bnss_sections",
+      "expected": [
+        "173"
+      ],
+      "score": {
+        "recall": {
+          "@1": false,
+          "@3": false,
+          "@5": false,
+          "@10": false
+        },
+        "rr": 0.0,
+        "ndcg@10": 0.0,
+        "first_rank": null,
+        "returned": [
+          "33",
+          "393",
+          "4",
+          "217",
+          "21",
+          "363",
+          "283",
+          "384",
+          "220",
+          "243"
+        ]
+      }
+    },
+    {
+      "id": "r06",
+      "class": "repealed_code",
+      "query": "Evidence Act section 65B electronic records",
+      "collection": "bsa_sections",
+      "expected": [
+        "63"
+      ],
+      "score": {
+        "recall": {
+          "@1": false,
+          "@3": true,
+          "@5": true,
+          "@10": true
+        },
+        "rr": 0.3333333333333333,
+        "ndcg@10": 0.5,
+        "first_rank": 3,
+        "returned": [
+          "62",
+          "61",
+          "63",
+          "60",
+          "81",
+          "93",
+          "170",
+          "33",
+          "74",
+          "39"
+        ]
+      }
+    },
+    {
+      "id": "r07",
+      "class": "repealed_code",
+      "query": "Indian Evidence Act dying declaration section 32",
+      "collection": "bsa_sections",
+      "expected": [
+        "26"
+      ],
+      "score": {
+        "recall": {
+          "@1": false,
+          "@3": false,
+          "@5": true,
+          "@10": true
+        },
+        "rr": 0.25,
+        "ndcg@10": 0.43067655807339306,
+        "first_rank": 4,
+        "returned": [
+          "170",
+          "67",
+          "1",
+          "26",
+          "3",
+          "2",
+          "60",
+          "27",
+          "55",
+          "108"
+        ]
+      }
+    },
+    {
+      "id": "r08",
+      "class": "repealed_code",
+      "query": "IPC 498A cruelty",
+      "collection": "bns_sections",
+      "expected": [
+        "85",
+        "86"
+      ],
+      "score": {
+        "recall": {
+          "@1": true,
+          "@3": true,
+          "@5": true,
+          "@10": true
+        },
+        "rr": 1.0,
+        "ndcg@10": 0.9197207891481876,
+        "first_rank": 1,
+        "returned": [
+          "86",
+          "1",
+          "85",
+          "292",
+          "358",
+          "325",
+          "291",
+          "286",
+          "200",
+          "113"
+        ]
+      }
+    },
+    {
+      "id": "j01",
+      "class": "judgement",
+      "query": "anticipatory bail cannot be limited in time",
+      "collection": "sc_judgements",
+      "expected": [
+        "sc_sushila_aggarwal_v_state_nct_of_delhi_2020"
+      ],
+      "score": {
+        "recall": {
+          "@1": true,
+          "@3": true,
+          "@5": true,
+          "@10": true
+        },
+        "rr": 1.0,
+        "ndcg@10": 1.0,
+        "first_rank": 1,
+        "returned": [
+          "sc_sushila_aggarwal_v_state_nct_of_delhi_2020",
+          "sc_gurbaksh_singh_sibbia_v_state_of_punjab_1980",
+          "sc_siddharam_satlingappa_mhetre_v_state_of_maharashtra_2010",
+          "sc_satender_kumar_antil_v_central_bureau_of_investigation_2022"
+        ]
+      }
+    },
+    {
+      "id": "j02",
+      "class": "judgement",
+      "query": "bail is the rule and jail the exception",
+      "collection": "sc_judgements",
+      "expected": [
+        "sc_state_of_rajasthan_jaipur_v_balchand_1977"
+      ],
+      "score": {
+        "recall": {
+          "@1": false,
+          "@3": false,
+          "@5": true,
+          "@10": true
+        },
+        "rr": 0.25,
+        "ndcg@10": 0.43067655807339306,
+        "first_rank": 4,
+        "returned": [
+          "sc_satender_kumar_antil_v_central_bureau_of_investigation_2022",
+          "sc_moti_ram_v_state_of_madhya_pradesh_1978",
+          "sc_nikesh_tarachand_shah_v_union_of_india_2017",
+          "sc_state_of_rajasthan_jaipur_v_balchand_1977",
+          "sc_gurbaksh_singh_sibbia_v_state_of_punjab_1980",
+          "sc_hussainara_khatoon_v_home_secretary_state_of_bihar_1979",
+          "sc_siddharam_satlingappa_mhetre_v_state_of_maharashtra_2010",
+          "sc_p_chidambaram_v_directorate_of_enforcement_2019"
+        ]
+      }
+    },
+    {
+      "id": "j03",
+      "class": "judgement",
+      "query": "guidelines on arrest and notice of appearance",
+      "collection": "sc_judgements",
+      "expected": [
+        "sc_arnesh_kumar_v_state_of_bihar_2014",
+        "sc_joginder_kumar_v_state_of_uttar_pradesh_1994"
+      ],
+      "score": {
+        "recall": {
+          "@1": true,
+          "@3": true,
+          "@5": true,
+          "@10": true
+        },
+        "rr": 1.0,
+        "ndcg@10": 0.9197207891481876,
+        "first_rank": 1,
+        "returned": [
+          "sc_arnesh_kumar_v_state_of_bihar_2014",
+          "sc_satender_kumar_antil_v_central_bureau_of_investigation_2022",
+          "sc_joginder_kumar_v_state_of_uttar_pradesh_1994",
+          "sc_d_k_basu_v_state_of_west_bengal_1997",
+          "sc_p_chidambaram_v_directorate_of_enforcement_2019"
+        ]
+      }
+    },
+    {
+      "id": "j04",
+      "class": "judgement",
+      "query": "registration of FIR is mandatory in cognizable cases",
+      "collection": "sc_judgements",
+      "expected": [
+        "sc_lalita_kumari_v_government_of_uttar_pradesh_2013"
+      ],
+      "score": {
+        "recall": {
+          "@1": true,
+          "@3": true,
+          "@5": true,
+          "@10": true
+        },
+        "rr": 1.0,
+        "ndcg@10": 1.0,
+        "first_rank": 1,
+        "returned": [
+          "sc_lalita_kumari_v_government_of_uttar_pradesh_2013"
+        ]
+      }
+    },
+    {
+      "id": "j05",
+      "class": "judgement",
+      "query": "rarest of rare doctrine death penalty",
+      "collection": "sc_judgements",
+      "expected": [
+        "sc_bachan_singh_v_state_of_punjab_1980",
+        "sc_machhi_singh_v_state_of_punjab_1983"
+      ],
+      "score": {
+        "recall": {
+          "@1": true,
+          "@3": true,
+          "@5": true,
+          "@10": true
+        },
+        "rr": 1.0,
+        "ndcg@10": 0.9197207891481876,
+        "first_rank": 1,
+        "returned": [
+          "sc_machhi_singh_v_state_of_punjab_1983",
+          "sc_mohd_arif_ashfaq_v_registrar_supreme_court_of_india_2014",
+          "sc_bachan_singh_v_state_of_punjab_1980"
+        ]
+      }
+    },
+    {
+      "id": "j06",
+      "class": "judgement",
+      "query": "certificate requirement for electronic evidence",
+      "collection": "sc_judgements",
+      "expected": [
+        "sc_arjun_panditrao_khotkar_v_kailash_kushanrao_gorantyal_2020",
+        "sc_anvar_p_v_v_p_k_basheer_2014"
+      ],
+      "score": {
+        "recall": {
+          "@1": true,
+          "@3": true,
+          "@5": true,
+          "@10": true
+        },
+        "rr": 1.0,
+        "ndcg@10": 1.0,
+        "first_rank": 1,
+        "returned": [
+          "sc_anvar_p_v_v_p_k_basheer_2014",
+          "sc_arjun_panditrao_khotkar_v_kailash_kushanrao_gorantyal_2020"
+        ]
+      }
+    },
+    {
+      "id": "j07",
+      "class": "judgement",
+      "query": "narcoanalysis and polygraph tests without consent",
+      "collection": "sc_judgements",
+      "expected": [
+        "sc_selvi_v_state_of_karnataka_2010"
+      ],
+      "score": {
+        "recall": {
+          "@1": true,
+          "@3": true,
+          "@5": true,
+          "@10": true
+        },
+        "rr": 1.0,
+        "ndcg@10": 1.0,
+        "first_rank": 1,
+        "returned": [
+          "sc_selvi_v_state_of_karnataka_2010"
+        ]
+      }
+    },
+    {
+      "id": "j08",
+      "class": "judgement",
+      "query": "custodial safeguards and rights on arrest",
+      "collection": "sc_judgements",
+      "expected": [
+        "sc_d_k_basu_v_state_of_west_bengal_1997"
+      ],
+      "score": {
+        "recall": {
+          "@1": false,
+          "@3": true,
+          "@5": true,
+          "@10": true
+        },
+        "rr": 0.3333333333333333,
+        "ndcg@10": 0.5,
+        "first_rank": 3,
+        "returned": [
+          "sc_joginder_kumar_v_state_of_uttar_pradesh_1994",
+          "sc_p_chidambaram_v_directorate_of_enforcement_2019",
+          "sc_d_k_basu_v_state_of_west_bengal_1997",
+          "sc_satender_kumar_antil_v_central_bureau_of_investigation_2022",
+          "sc_arnesh_kumar_v_state_of_bihar_2014",
+          "sc_sushila_aggarwal_v_state_nct_of_delhi_2020"
+        ]
+      }
+    },
+    {
+      "id": "j09",
+      "class": "judgement",
+      "query": "five golden principles of circumstantial evidence",
+      "collection": "sc_judgements",
+      "expected": [
+        "sc_sharad_birdhichand_sarda_v_state_of_maharashtra_1984"
+      ],
+      "score": {
+        "recall": {
+          "@1": false,
+          "@3": true,
+          "@5": true,
+          "@10": true
+        },
+        "rr": 0.3333333333333333,
+        "ndcg@10": 0.5,
+        "first_rank": 3,
+        "returned": [
+          "sc_d_k_basu_v_state_of_west_bengal_1997",
+          "sc_selvi_v_state_of_karnataka_2010",
+          "sc_sharad_birdhichand_sarda_v_state_of_maharashtra_1984",
+          "sc_nandini_satpathy_v_p_l_dani_1978",
+          "sc_anvar_p_v_v_p_k_basheer_2014",
+          "sc_arjun_panditrao_khotkar_v_kailash_kushanrao_gorantyal_2020",
+          "sc_lalita_kumari_v_government_of_uttar_pradesh_2013"
+        ]
+      }
+    },
+    {
+      "id": "j10",
+      "class": "judgement",
+      "query": "privacy is a fundamental right",
+      "collection": "sc_judgements",
+      "expected": [
+        "sc_justice_k_s_puttaswamy_retd_v_union_of_india_2017"
+      ],
+      "score": {
+        "recall": {
+          "@1": true,
+          "@3": true,
+          "@5": true,
+          "@10": true
+        },
+        "rr": 1.0,
+        "ndcg@10": 1.0,
+        "first_rank": 1,
+        "returned": [
+          "sc_justice_k_s_puttaswamy_retd_v_union_of_india_2017"
+        ]
+      }
+    },
+    {
+      "id": "j11",
+      "class": "judgement",
+      "query": "bail in economic offences",
+      "collection": "sc_judgements",
+      "expected": [
+        "sc_p_chidambaram_v_directorate_of_enforcement_2019"
+      ],
+      "score": {
+        "recall": {
+          "@1": false,
+          "@3": false,
+          "@5": true,
+          "@10": true
+        },
+        "rr": 0.25,
+        "ndcg@10": 0.43067655807339306,
+        "first_rank": 4,
+        "returned": [
+          "sc_moti_ram_v_state_of_madhya_pradesh_1978",
+          "sc_satender_kumar_antil_v_central_bureau_of_investigation_2022",
+          "sc_hussainara_khatoon_v_home_secretary_state_of_bihar_1979",
+          "sc_p_chidambaram_v_directorate_of_enforcement_2019",
+          "sc_nikesh_tarachand_shah_v_union_of_india_2017"
+        ]
+      }
+    },
+    {
+      "id": "j12",
+      "class": "judgement",
+      "query": "sedition confined to incitement to violence",
+      "collection": "sc_judgements",
+      "expected": [
+        "sc_kedar_nath_singh_v_state_of_bihar_1962"
+      ],
+      "score": {
+        "recall": {
+          "@1": true,
+          "@3": true,
+          "@5": true,
+          "@10": true
+        },
+        "rr": 1.0,
+        "ndcg@10": 1.0,
+        "first_rank": 1,
+        "returned": [
+          "sc_kedar_nath_singh_v_state_of_bihar_1962",
+          "sc_nandini_satpathy_v_p_l_dani_1978",
+          "sc_machhi_singh_v_state_of_punjab_1983"
+        ]
+      }
+    }
+  ]
+}

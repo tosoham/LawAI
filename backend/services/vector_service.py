@@ -12,10 +12,15 @@ from chromadb.errors import NotFoundError
 
 from .embedding_service import get_embedding_service
 from .query_expansion import expand_query
+from .retrieval.structured_filter import parse_citation
 
 logger = logging.getLogger(__name__)
 
 DEFAULT_CHROMADB_PATH = "./chroma_db"
+# An exact citation match is not a distance, but every consumer sorts and
+# formats by one. Zero is the value a perfect cosine match would carry, and it
+# keeps exact hits at the head of a merged multi-collection ranking.
+EXACT_MATCH_DISTANCE = 0.0
 
 
 class VectorService:
@@ -124,12 +129,53 @@ class VectorService:
             logger.error(f"Error adding documents to {collection_name}: {e}")
             raise
 
+    def _exact_section_hits(
+        self, collection: chromadb.Collection, collection_name: str, query: str
+    ) -> dict[str, list[Any]]:
+        """
+        Fetch the section a query cites, by metadata rather than by embedding.
+
+        A section number is nearly invisible to a dense embedder -- "482" and
+        "483" land in almost the same place, and a section's text rarely
+        repeats its own number -- so a cited section has to be looked up, not
+        searched for. Returns empty when the query cites nothing, cites another
+        act, or cites a repealed provision whose number cannot be translated
+        (see ``services.retrieval.structured_filter``).
+        """
+        citation = parse_citation(query)
+        if citation is None or not citation.resolvable:
+            return {}
+        if citation.collection is not None and citation.collection != collection_name:
+            return {}
+
+        found = collection.get(
+            where={"section_number": citation.section},
+            include=["documents", "metadatas"],
+        )
+        if not found.get("ids"):
+            logger.debug(
+                f"{collection_name}: no section {citation.section} for cited {query!r}"
+            )
+            return {}
+
+        logger.info(
+            f"{collection_name}: citation {citation.act_name} {citation.section} "
+            f"resolved to {len(found['ids'])} chunks by exact lookup"
+        )
+        return {
+            "ids": list(found["ids"]),
+            "documents": list(found["documents"]),
+            "metadatas": list(found["metadatas"]),
+            "distances": [EXACT_MATCH_DISTANCE] * len(found["ids"]),
+        }
+
     def search(
         self,
         collection_name: str,
         query: str,
         top_k: int = 5,
-        expand: bool = True
+        expand: bool = True,
+        structured: bool = True
     ) -> dict[str, Any]:
         """
         Search for similar documents in a collection
@@ -144,12 +190,21 @@ class VectorService:
                 affected — callers still hold the user's original wording for
                 display and for the generation prompt. Pass False to measure
                 unexpanded behaviour.
+            structured: Resolve a cited section by exact metadata lookup and
+                rank it first, ahead of the vector results. Pass False to
+                measure retrieval without it.
 
         Returns:
             Dict with 'documents', 'metadatas', 'distances', 'ids'
         """
         try:
             collection = self._get_or_create_collection(collection_name)
+
+            exact = (
+                self._exact_section_hits(collection, collection_name, query)
+                if structured
+                else {}
+            )
 
             search_text = expand_query(query) if expand else query
 
@@ -170,11 +225,41 @@ class VectorService:
                 'ids': results['ids'][0] if results['ids'] else []
             }
 
+            if exact:
+                formatted_results = self._merge_exact_hits(
+                    exact, formatted_results, top_k
+                )
+
             logger.info(f"Search in {collection_name} returned {len(formatted_results['documents'])} results")
             return formatted_results
         except Exception as e:
             logger.error(f"Error searching {collection_name}: {e}")
             raise
+
+    @staticmethod
+    def _merge_exact_hits(
+        exact: dict[str, list[Any]], vector: dict[str, list[Any]], top_k: int
+    ) -> dict[str, Any]:
+        """
+        Put the cited section first, then fill the rest from the vector hits.
+
+        The vector results are kept rather than replaced: a citation is usually
+        only part of what was asked ("section 35 of BNSS on arrest without
+        warrant"), and the neighbouring sections are often what the reader
+        actually needs. ``top_k`` still bounds the total, so an exact hit costs
+        a vector hit rather than being added on top of one.
+        """
+        seen = set(exact["ids"])
+        merged = {key: list(values) for key, values in exact.items()}
+        for index, doc_id in enumerate(vector["ids"]):
+            if len(merged["ids"]) >= top_k:
+                break
+            if doc_id in seen:
+                continue
+            seen.add(doc_id)
+            for key in ("ids", "documents", "metadatas", "distances"):
+                merged[key].append(vector[key][index])
+        return merged
 
     def get_collection_stats(self, collection_name: str) -> dict[str, Any]:
         """
