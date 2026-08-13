@@ -64,7 +64,7 @@ Four things here are load-bearing and easy to break:
 
 The image installs **CPU-only torch** (`--index-url .../whl/cpu`) before the requirements, or the default CUDA wheel adds ~2.5 GB for nothing, and bakes `all-MiniLM-L6-v2` in with `HF_HUB_OFFLINE=1` — without that flag sentence-transformers still makes ~20 revalidation calls to huggingface.co on every start.
 
-Tests requiring a live LLM are marked `live` and skip automatically unless `AIML_API_KEY` is set, so a plain `pytest` run is green without credentials (currently 421 passed, 8 skipped).
+Tests requiring a live LLM are marked `live` and skip automatically unless `AIML_API_KEY` is set, so a plain `pytest` run is green without credentials (currently 440 passed, 8 skipped).
 
 ## Architecture
 
@@ -108,6 +108,18 @@ Request flow: **frontend `lib/api.ts` → FastAPI router (`api/v1/*.py`) → ser
 - **A reference to another statute is dropped, not redirected.** "section 2 of the Dowry Prohibition Act" must not become an edge to BNS 2. 28 of 2,038 references are foreign and are dropped; a named act ("of the Bharatiya Sakshya Adhiniyam") redirects instead.
 - **`data/curated/doctrines.json` carries no precedential status.** No `overruled_by`, no `still_good_law` — highest value, highest harm, and not something to infer or freeze into a file that ages. Where authority genuinely splits, the doctrine is marked `contested` with both sides named and neither declared the winner (`statutory_bail_bar`, `sedition_confined_to_incitement`). `graph.contested_sections()` is what the contested path will consult, since a user who does not know a question is contested will not think to ask.
 - Offence rows key sub-sections (`103(1)`) while the corpus keys the parent (`103`); the graph attaches them to the parent so either lookup works.
+
+**Expansion into generation.** `RAGService` seeds `graph.expand()` from the top 3 retrieved chunks (a low-ranked chunk drags in material about something the user did not ask about) and renders the result into a `CONNECTED MATERIAL` prompt block. It does **not** change retrieval ranking — the eval is byte-identical with it on and off. The four kinds are rendered separately and that separation is load-bearing, not cosmetic:
+
+| Kind | What the prompt says |
+|---|---|
+| Offence classification | facts from the First Schedule; **may be stated** |
+| Doctrine | curated summary; **may be stated**, attributed to its cases |
+| Judgements | case name + one-line subject only; may be cited, **must not** be described as holding anything |
+| Cross-referenced sections | titles only; may be pointed to, **must not** be described |
+| Contested | both positions must be given; one must not be presented as the answer |
+
+Flattening pointers and content into one "related material" block is exactly how a pointer becomes a fabricated holding. `graph_context` is returned separately from `sources` for the same reason: it was reached by an edge, not retrieved by relevance, and the two must stay distinguishable to the UI. Judgement citations are trimmed to the leading report by `agents/citations.py::primary_citation` — Indian Kanoon lists every reporter, and Siddharam Mhetre alone carries 24 parallel citations past 900 characters.
 
 ## Legal corpus
 

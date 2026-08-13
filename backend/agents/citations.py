@@ -15,7 +15,7 @@ from typing import Any
 _PROVENANCE_KEY = "source"
 
 
-def _primary_citation(reported: Any) -> str:
+def primary_citation(reported: Any) -> str:
     """
     Reduce a judgement's citation list to the one a lawyer would actually cite.
 
@@ -58,7 +58,7 @@ def format_citation(metadata: dict[str, Any]) -> str:
 
     case_name = metadata.get("case_name")
     if case_name:
-        reported = _primary_citation(metadata.get("citation"))
+        reported = primary_citation(metadata.get("citation"))
         return f"{case_name}, {reported}" if reported else case_name
 
     return metadata.get("title") or metadata.get(_PROVENANCE_KEY) or "Source not identified"

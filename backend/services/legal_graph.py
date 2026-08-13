@@ -36,6 +36,12 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
+# A dependency-free formatting leaf, shared rather than duplicated. Indian
+# Kanoon lists every reporter that carried a judgement, so Siddharam Mhetre
+# arrives with 24 parallel citations running past 900 characters -- unusable in
+# a prompt and useless on a source card.
+from agents.citations import primary_citation
+
 logger = logging.getLogger(__name__)
 
 BACKEND_DIR = Path(__file__).resolve().parent.parent
@@ -106,6 +112,7 @@ class JudgementNode:
     case_name: str
     year: str
     citation: str
+    """The leading report only; the parallel citations are dropped."""
     subject: str
     source_url: str
 
@@ -125,6 +132,40 @@ class DoctrineNode:
     def judgements(self) -> tuple[str, ...]:
         """Every judgement the doctrine rests on, oldest attribution first."""
         return self.established_by + self.refined_by
+
+
+@dataclass(frozen=True)
+class GraphContext:
+    """
+    What the graph adds to a set of retrieved sections.
+
+    Each field is a different kind of claim, which is why they are kept apart
+    rather than flattened into one "related material" list:
+
+    ``related_sections`` are **pointers only** -- the graph holds their titles,
+    not their text, so they can be cited but nothing may be said about what
+    they provide. ``judgements`` likewise carry a one-line subject from the
+    corpus, not a holding. ``doctrines`` and ``classification`` carry real
+    content and can be stated. ``contested`` is a warning that the question has
+    more than one answer in the authorities.
+    """
+
+    seeds: tuple[str, ...]
+    related_sections: tuple[SectionNode, ...]
+    judgements: tuple[JudgementNode, ...]
+    doctrines: tuple[DoctrineNode, ...]
+    classification: tuple[dict[str, Any], ...]
+    contested: tuple[DoctrineNode, ...]
+
+    @property
+    def is_empty(self) -> bool:
+        return not (
+            self.related_sections
+            or self.judgements
+            or self.doctrines
+            or self.classification
+            or self.contested
+        )
 
 
 @dataclass
@@ -208,6 +249,54 @@ class LegalGraph:
             "classification": self.offence_attributes(key),
             "contested": key in self.contested_sections(),
         }
+
+    def expand(
+        self,
+        keys: list[str],
+        max_related: int = 6,
+        max_judgements: int = 5,
+    ) -> GraphContext:
+        """
+        Walk one step out from the sections retrieval already found.
+
+        Seeded from the top hits rather than all of them: expansion is only
+        worth anything if the seeds are right, and a low-ranked chunk drags in
+        material about something the user did not ask about.
+
+        Related sections are capped because a heavily cross-referenced
+        provision can reach dozens, which would crowd out the sections that
+        were actually retrieved. Sections already among the seeds are never
+        returned as related to themselves.
+        """
+        seeds = [key for key in dict.fromkeys(keys) if key in self.sections]
+        seen_sections: set[str] = set(seeds)
+        related: list[SectionNode] = []
+        judgements: list[JudgementNode] = []
+        doctrine_ids: list[str] = []
+        classification: list[dict[str, Any]] = []
+
+        for seed in seeds:
+            for key in self.related_sections(seed):
+                if key not in seen_sections and len(related) < max_related:
+                    seen_sections.add(key)
+                    related.append(self.sections[key])
+            for judgement in self.judgements_on(seed):
+                if judgement not in judgements and len(judgements) < max_judgements:
+                    judgements.append(judgement)
+            for doctrine_id in self.doctrines_for_section.get(seed, []):
+                if doctrine_id not in doctrine_ids:
+                    doctrine_ids.append(doctrine_id)
+            classification.extend(self.offence_attributes(seed))
+
+        doctrines = [self.doctrines[d] for d in doctrine_ids]
+        return GraphContext(
+            seeds=tuple(seeds),
+            related_sections=tuple(related),
+            judgements=tuple(judgements),
+            doctrines=tuple(doctrines),
+            classification=tuple(classification),
+            contested=tuple(d for d in doctrines if d.contested),
+        )
 
     def stats(self) -> dict[str, int]:
         return {
@@ -297,7 +386,7 @@ def build_graph() -> LegalGraph:
             id=record["id"],
             case_name=metadata.get("case_name", ""),
             year=str(metadata.get("year", "")),
-            citation=metadata.get("citation", ""),
+            citation=primary_citation(metadata.get("citation")),
             subject=metadata.get("subject", ""),
             source_url=metadata.get("source_url", ""),
         )

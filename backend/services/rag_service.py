@@ -5,10 +5,16 @@ Combines vector search with LLM for contextual legal responses
 import logging
 from typing import Any
 
+from .legal_graph import GraphContext, get_legal_graph, section_key
 from .llm_service import llm_service
 from .vector_service import get_vector_service
 
 logger = logging.getLogger(__name__)
+
+# How many retrieved chunks seed graph expansion. Expansion is only worth
+# anything if the seeds are right, and a low-ranked chunk drags in material
+# about something the user did not ask about.
+GRAPH_SEED_DEPTH = 3
 
 # The one canonical disclaimer. Every generated answer carries it, and the marker
 # is stable so a client that renders its own styled version can strip this copy
@@ -103,17 +109,136 @@ class RAGService:
 
         return sources
 
-    def _create_prompt(self, query: str, context: str) -> str:
+    def _expand_over_graph(self, search_results: dict[str, Any]) -> GraphContext:
+        """
+        Ask the graph what the top retrieved sections connect to.
+
+        This closes a gap embedding distance cannot: the five judgements
+        construing BNSS 482 never use the words someone asking about
+        anticipatory bail would, so they are unreachable by similarity no
+        matter how the query is phrased.
+        """
+        seeds: list[str] = []
+        for metadata in search_results.get("metadatas", [])[:GRAPH_SEED_DEPTH]:
+            act = metadata.get("short_name")
+            section = metadata.get("section_number")
+            if act and section:
+                seeds.append(section_key(act, section))
+        if not seeds:
+            return GraphContext((), (), (), (), (), ())
+        return get_legal_graph().expand(seeds)
+
+    def _format_graph_context(self, graph: GraphContext) -> str:
+        """
+        Render graph material for the prompt, keeping its kinds apart.
+
+        The separation is not cosmetic. Related sections and judgements are
+        *pointers*: the graph holds their titles and one-line subjects, not
+        their text, so the model must be able to name them without being
+        licensed to say what they provide. Doctrine summaries and offence
+        attributes are real content and can be stated. Flattening these into
+        one "related material" block is how a pointer becomes a fabricated
+        holding.
+        """
+        if graph.is_empty:
+            return ""
+
+        blocks: list[str] = []
+        if graph.classification:
+            rows = []
+            for row in graph.classification:
+                cognizable = row["cognizable_text"].rstrip(".")
+                bailable = row["bailable_text"].rstrip(".")
+                rows.append(
+                    f"- {row['short_name']} {row['section']} ({row['offence']}) — "
+                    f"{cognizable}; {bailable}; triable by {row['triable_by'].rstrip('.')}"
+                )
+            blocks.append(
+                "OFFENCE CLASSIFICATION (from the First Schedule to the BNSS; these "
+                "are facts and may be stated):\n" + "\n".join(rows)
+            )
+
+        if graph.doctrines:
+            rows = [f"- {d.name}: {d.summary}" for d in graph.doctrines]
+            blocks.append(
+                "DOCTRINE (curated; may be stated, attributed to the cases below):\n"
+                + "\n".join(rows)
+            )
+
+        if graph.judgements:
+            rows = [
+                f"- {j.case_name}"
+                + (f", {j.citation}" if j.citation else "")
+                + (f" — {j.subject}" if j.subject else "")
+                for j in graph.judgements
+            ]
+            blocks.append(
+                "JUDGEMENTS RECORDED AS INTERPRETING THESE PROVISIONS. Only the case "
+                "name and a one-line subject are given here, not the judgement text. "
+                "You may say that a case bears on the provision and cite it, but you "
+                "must NOT state what it held:\n" + "\n".join(rows)
+            )
+
+        if graph.related_sections:
+            rows = [
+                f"- {s.act} {s.section}" + (f" — {s.title}" if s.title else "")
+                for s in graph.related_sections
+            ]
+            blocks.append(
+                "CROSS-REFERENCED PROVISIONS. Titles only; their text is not before "
+                "you. You may point the reader to them by number and title, but you "
+                "must NOT state what they provide:\n" + "\n".join(rows)
+            )
+
+        if graph.contested:
+            rows = [f"- {d.name}: {d.contest_note}" for d in graph.contested]
+            blocks.append(
+                "CONTESTED. This question touches a provision on which the "
+                "authorities differ. Say so plainly and set out both positions; do "
+                "not present one of them as the answer:\n" + "\n".join(rows)
+            )
+
+        return "\n\n".join(blocks)
+
+    def _create_prompt(self, query: str, context: str, graph_context: str = "") -> str:
         """
         Create prompt for LLM with query and context
 
         Args:
             query: User's question
             context: Retrieved legal context
+            graph_context: Connected material from the legal graph, already
+                rendered with its own use restrictions (see
+                ``_format_graph_context``)
 
         Returns:
             Formatted prompt
         """
+        # The instruction lives with the block, and the list is numbered here
+        # rather than in the template: an instruction about a section that is
+        # not in the prompt is noise, and a gap in the numbering reads as one
+        # that went missing.
+        connected = f"\n\nCONNECTED MATERIAL:\n{graph_context}" if graph_context else ""
+        rules = [
+            "Provide a clear, accurate answer based on the legal context provided",
+            "Cite specific sections, cases, or provisions when relevant",
+            "Use proper legal terminology and citation format",
+            "If the context doesn't fully answer the question, acknowledge limitations",
+        ]
+        if graph_context:
+            rules.append(
+                "Observe the use restrictions stated inside CONNECTED MATERIAL. Where "
+                "it gives you only a title or a one-line subject, you know the "
+                "provision or the case is connected and nothing more — cite it, and "
+                "say that it bears on the question, but do not describe what it says "
+                "or what it held."
+            )
+        rules.append(
+            "Do NOT write your own disclaimer. One canonical disclaimer is appended "
+            "to every answer by this service; a second one written here means the "
+            "user sees the same warning twice, which trains them to skip past it."
+        )
+        instructions = "\n".join(f"{n}. {rule}" for n, rule in enumerate(rules, 1))
         prompt = f"""You are a legal AI assistant specializing in Indian law. Answer the following question based on the provided legal context.
 
 THE APPLICABLE CODES (use these names exactly; do not mix them up):
@@ -124,19 +249,13 @@ Never expand BNSS as "Bharatiya Nyaya Sanhita"; they are different statutes with
 different section numbering, and confusing them misstates the law.
 
 LEGAL CONTEXT:
-{context}
+{context}{connected}
 
 USER QUESTION:
 {query}
 
 INSTRUCTIONS:
-1. Provide a clear, accurate answer based on the legal context provided
-2. Cite specific sections, cases, or provisions when relevant
-3. Use proper legal terminology and citation format
-4. If the context doesn't fully answer the question, acknowledge limitations
-5. Do NOT write your own disclaimer. One canonical disclaimer is appended to
-   every answer by this service; a second one written here means the user sees
-   the same warning twice, which trains them to skip past it.
+{instructions}
 
 ANSWER:"""
         return prompt
@@ -176,11 +295,12 @@ ANSWER:"""
                     'collection': collection
                 }
 
-            # Step 2: Format context
+            # Step 2: Format context, and walk one step out over the graph
             context = self._format_context(search_results)
+            graph = self._expand_over_graph(search_results)
 
             # Step 3: Create prompt
-            prompt = self._create_prompt(query, context)
+            prompt = self._create_prompt(query, context, self._format_graph_context(graph))
 
             # Step 4: Generate response with LLM
             llm_response = self.llm_service.generate(prompt=prompt)
@@ -196,7 +316,39 @@ ANSWER:"""
                 'sources': sources,
                 'query': query,
                 'collection': collection,
-                'num_sources': len(sources)
+                'num_sources': len(sources),
+                # Kept out of `sources`: this material was reached by an edge,
+                # not retrieved by relevance, and the two must stay
+                # distinguishable all the way to the UI.
+                'graph_context': {
+                    'seeds': list(graph.seeds),
+                    'related_sections': [
+                        {'key': s.key, 'act': s.act, 'section': s.section, 'title': s.title}
+                        for s in graph.related_sections
+                    ],
+                    'judgements': [
+                        {
+                            'id': j.id,
+                            'case_name': j.case_name,
+                            'citation': j.citation,
+                            'year': j.year,
+                            'subject': j.subject,
+                            'source_url': j.source_url,
+                        }
+                        for j in graph.judgements
+                    ],
+                    'doctrines': [
+                        {
+                            'id': d.id,
+                            'name': d.name,
+                            'summary': d.summary,
+                            'contested': d.contested,
+                            'contest_note': d.contest_note,
+                        }
+                        for d in graph.doctrines
+                    ],
+                    'classification': list(graph.classification),
+                },
             }
 
             logger.info(f"RAG search completed: {len(sources)} sources, answer length={len(answer)}")

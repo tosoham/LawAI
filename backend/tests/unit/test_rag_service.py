@@ -229,3 +229,70 @@ class TestRAGServiceIntegration:
 
         assert sources[0]['relevance_score'] == 1.0  # 1 - 0.0
         assert sources[1]['relevance_score'] == 0.5  # 1 - 0.5
+
+
+class TestGraphContext:
+    """
+    Graph material is rendered with its kinds kept apart, and the separation is
+    load-bearing rather than cosmetic. Related sections and judgements are
+    pointers -- the graph holds their titles and one-line subjects, not their
+    text -- so the prompt must let the model cite them without licensing it to
+    say what they provide. Flattening the two is how a pointer becomes a
+    fabricated holding.
+    """
+
+    @pytest.fixture
+    def service(self):
+        return RAGService.__new__(RAGService)
+
+    @pytest.fixture
+    def graph(self):
+        from services.legal_graph import get_legal_graph
+
+        return get_legal_graph()
+
+    def test_seeds_come_from_the_top_hits_only(self, service):
+        results = {
+            "metadatas": [
+                {"short_name": "BNSS", "section_number": str(n)} for n in range(1, 8)
+            ]
+        }
+        context = service._expand_over_graph(results)
+        assert len(context.seeds) <= 3
+
+    def test_a_judgement_collection_hit_yields_no_seeds(self, service):
+        """Judgement chunks carry no section number; expansion is a no-op."""
+        results = {"metadatas": [{"case_name": "Bachan Singh v. State of Punjab"}]}
+        assert service._expand_over_graph(results).is_empty
+
+    def test_empty_results_do_not_reach_the_graph(self, service):
+        assert service._expand_over_graph({}).is_empty
+
+    def test_pointers_carry_their_restriction_into_the_prompt(self, service, graph):
+        rendered = service._format_graph_context(graph.expand(["BNSS 482"]))
+        cases = rendered.split("JUDGEMENTS RECORDED")[1]
+        assert "must NOT state what it held" in cases
+        sections = rendered.split("CROSS-REFERENCED PROVISIONS")[1]
+        assert "must NOT state what they provide" in sections
+
+    def test_facts_are_marked_as_statable(self, service, graph):
+        rendered = service._format_graph_context(graph.expand(["BNS 103"]))
+        assert "may be stated" in rendered.split("OFFENCE CLASSIFICATION")[1]
+        assert "Non-bailable" in rendered
+
+    def test_a_contested_provision_instructs_both_sides(self, service, graph):
+        rendered = service._format_graph_context(graph.expand(["BNSS 480"]))
+        assert "CONTESTED" in rendered
+        assert "do not present one of them as the answer" in rendered
+
+    def test_nothing_connected_renders_nothing(self, service, graph):
+        assert service._format_graph_context(graph.expand([])) == ""
+
+    def test_the_prompt_omits_the_section_entirely_when_empty(self, service):
+        prompt = service._create_prompt("what is murder", "context here", "")
+        assert "CONNECTED MATERIAL" not in prompt
+
+    def test_the_prompt_carries_connected_material_when_present(self, service):
+        prompt = service._create_prompt("q", "context", "DOCTRINE: something")
+        assert "CONNECTED MATERIAL" in prompt
+        assert "DOCTRINE: something" in prompt

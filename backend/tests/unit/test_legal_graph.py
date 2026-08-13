@@ -219,3 +219,63 @@ class TestSingleton:
         first = get_legal_graph()
         reset_legal_graph()
         assert get_legal_graph() is not first
+
+
+class TestExpand:
+    """One step out from what retrieval already found."""
+
+    def test_expansion_reaches_cases_similarity_cannot(self, graph):
+        """
+        The gap this exists to close. Someone asking about anticipatory bail
+        gets BNSS 482 back from the embedder; the five judgements construing it
+        never use those words and are unreachable by distance at any k.
+        """
+        context = graph.expand(["BNSS 482"])
+        names = {j.case_name for j in context.judgements}
+        assert "Gurbaksh Singh Sibbia v. State of Punjab" in names
+        assert "Sushila Aggarwal v. State (NCT of Delhi)" in names
+
+    def test_a_seed_is_not_related_to_itself(self, graph):
+        context = graph.expand(["BNSS 480", "BNSS 482"])
+        keys = {s.key for s in context.related_sections}
+        assert "BNSS 480" not in keys
+        assert "BNSS 482" not in keys
+
+    def test_related_sections_are_capped(self, graph):
+        """A heavily cross-referenced provision would otherwise crowd out the
+        sections that were actually retrieved."""
+        context = graph.expand(["BNSS 480", "BNSS 482", "BNSS 483"], max_related=4)
+        assert len(context.related_sections) <= 4
+
+    def test_judgements_are_capped_and_not_repeated(self, graph):
+        context = graph.expand(["BNSS 480", "BNSS 482"], max_judgements=3)
+        assert len(context.judgements) <= 3
+        assert len({j.id for j in context.judgements}) == len(context.judgements)
+
+    def test_a_contested_provision_is_flagged(self, graph):
+        context = graph.expand(["BNSS 480"])
+        assert [d.id for d in context.contested] == ["statutory_bail_bar"]
+
+    def test_an_uncontested_provision_is_not_flagged(self, graph):
+        assert graph.expand(["BNS 103"]).contested == ()
+
+    def test_offence_attributes_come_along(self, graph):
+        context = graph.expand(["BNS 103"])
+        assert any(row["offence"] == "Murder." for row in context.classification)
+
+    def test_an_unknown_seed_is_dropped_rather_than_erroring(self, graph):
+        context = graph.expand(["BNS 9999", "not a key"])
+        assert context.seeds == ()
+        assert context.is_empty
+
+    def test_no_seeds_is_empty(self, graph):
+        assert graph.expand([]).is_empty
+
+    def test_judgement_citations_are_trimmed_to_the_leading_report(self, graph):
+        """
+        Indian Kanoon lists every reporter that carried a judgement. Siddharam
+        Mhetre arrives with 24 parallel citations past 900 characters, which
+        would dominate the prompt block it appears in.
+        """
+        mhetre = graph.judgements["sc_siddharam_satlingappa_mhetre_v_state_of_maharashtra_2010"]
+        assert mhetre.citation == "AIR 2011 SUPREME COURT 312"
