@@ -60,6 +60,18 @@ def _grounded_payload(grounded: GroundedAnswer) -> dict[str, Any]:
                 for claim in grounded.structured.claims
             ],
             "metrics": grounded.metrics.to_dict(),
+            # Every check, not only the failures: an answer that quietly drops
+            # what it could not support looks identical to one that never
+            # overreached, and the difference is the record worth keeping.
+            "verdicts": [
+                {
+                    "index": v.index,
+                    "verified": v.verified,
+                    "original_class": v.original_class.value,
+                    "reason": v.reason,
+                }
+                for v in grounded.verdicts
+            ],
             "removed": grounded.metrics.unsupported,
         },
         "trace": grounded.trace,

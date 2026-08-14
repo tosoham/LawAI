@@ -65,7 +65,7 @@ Four things here are load-bearing and easy to break:
 
 The image installs **CPU-only torch** (`--index-url .../whl/cpu`) before the requirements, or the default CUDA wheel adds ~2.5 GB for nothing, and bakes `all-MiniLM-L6-v2` in with `HF_HUB_OFFLINE=1` — without that flag sentence-transformers still makes ~20 revalidation calls to huggingface.co on every start.
 
-Tests requiring a live LLM are marked `live` and skip automatically unless `AIML_API_KEY` is set, so a plain `pytest` run is green without credentials (currently 660 passed, 8 skipped (plus 41 live)).
+Tests requiring a live LLM are marked `live` and skip automatically unless `AIML_API_KEY` is set, so a plain `pytest` run is green without credentials (currently 690 passed, 8 skipped (plus 46 live)).
 
 ## Architecture
 
@@ -124,6 +124,10 @@ Four findings from running it that are easy to reintroduce:
 **Metrics** (`services/answer_metrics.py`) replace a confidence score. `verbatim_fidelity` is measured over *every* statute claim rather than the quoted ones, so a model that stops quoting to avoid being checked shows up as a drop. `unsupported` is totalled across the golden set, never averaged. `metrics.clean` is a per-answer signal, not a shipping gate — the delivered answer never contains an unsupported claim by construction.
 
 `tests/integration/test_grounded_answer_live.py` is the Phase 2 gate: all six adversarial queries must abstain, four answerable ones must not, and murder must never come back bailable. Marked `live`, so it needs `AIML_API_KEY`.
+
+**Audience register** (`services/audience.py`) — `citizen` (default) | `lawyer` | `judge`, on the request. It is a layer on the *synthesis system prompt and nothing else*, and that separation is structural rather than a rule to remember: neither `VectorService.search` nor `claim_verifier.verify` takes an audience argument, so there is no path by which "written for a citizen" could become "checked less carefully for a citizen". Same law retrieved, same claims checked the same way, epistemic classes present in the data whatever the register — a citizen's answer is shorter, not vaguer, and keeps every citation. **Judge mode carries a prohibition the others do not**: set out the provisions, the competing arguments, the authority on each side and the statutory range, and never suggest an outcome — not by implication, ordering or emphasis either. Tested against the real model with prompts that invite one directly.
+
+**The trace panel** (`components/legal/TracePanel.tsx`) is collapsed by default and always one click away: metrics, and every claim the verifier rejected with its reason. "Nothing was removed" is stated rather than left as an absence — otherwise the section's presence reads as a bad sign and its absence as a clean bill of health.
 
 ## Structured lookups
 

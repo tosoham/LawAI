@@ -31,6 +31,7 @@ import ErrorMessage from '@/components/shared/ErrorMessage';
 import LegalDisclaimer from '@/components/shared/LegalDisclaimer';
 import ClaimList from '@/components/legal/ClaimList';
 import OffencePanel from '@/components/legal/OffencePanel';
+import TracePanel from '@/components/legal/TracePanel';
 
 interface Message {
   id: string;
@@ -225,6 +226,10 @@ export const ChatInterface: React.FC = () => {
 
                 {message.liveSources && message.liveSources.length > 0 && (
                   <LiveCitationList sources={message.liveSources} />
+                )}
+
+                {message.verification && (
+                  <TracePanel verification={message.verification} className="mt-3.5" />
                 )}
 
                 <LegalDisclaimer className="mt-3.5" />

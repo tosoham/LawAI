@@ -71,6 +71,17 @@ class RAGSearchRequest(BaseModel):
         pattern="^(bns|bnss|bsa|judgements|bns_sections|bnss_sections|bsa_sections|sc_judgements)$"
     )
 
+    audience: str | None = Field(
+        None,
+        description=(
+            "Who the answer is written for: citizen (default), lawyer or judge. "
+            "Changes the register only — the same law is retrieved, the same "
+            "claims are checked the same way, and judge mode additionally "
+            "refuses to suggest an outcome."
+        ),
+        pattern="^(citizen|lawyer|judge)$",
+    )
+
     top_k: int = Field(
         default=5,
         description="Number of results to return",

@@ -40,6 +40,7 @@ from pydantic import ValidationError
 from models.claims import ClaimVerdict, StructuredAnswer
 
 from .answer_metrics import AnswerMetrics, compute
+from .audience import Audience, register_layer
 from .claim_verifier import VerificationContext, regeneration_feedback, verify
 from .legal_graph import GraphContext, get_legal_graph, section_key
 from .llm_service import llm_service
@@ -270,9 +271,18 @@ class GroundedAnswerService:
             f"{SYNTHESIS_INSTRUCTIONS}"
         )
 
-    def _synthesise(self, prompt: str) -> StructuredAnswer:
+    def _synthesise(self, prompt: str, audience: Audience) -> StructuredAnswer:
+        """
+        Generate the claims.
+
+        The register is appended to the *system* prompt and reaches nothing
+        else: retrieval already happened, and verification happens after, so
+        neither can be influenced by who is asking.
+        """
         raw = self.llm_service.generate(
-            prompt=prompt, system=SYNTHESIS_SYSTEM, max_tokens=SYNTHESIS_MAX_TOKENS
+            prompt=prompt,
+            system=SYNTHESIS_SYSTEM + register_layer(audience),
+            max_tokens=SYNTHESIS_MAX_TOKENS,
         )
         return parse_synthesis(raw)
 
@@ -303,10 +313,21 @@ class GroundedAnswerService:
         query: str,
         collection: str | list[str] = "bns_sections",
         top_k: int = 5,
+        audience: Audience = Audience.CITIZEN,
     ) -> GroundedAnswer:
-        """Answer one question, or say honestly that it cannot be answered."""
+        """
+        Answer one question, or say honestly that it cannot be answered.
+
+        ``audience`` selects the register the answer is written in. It changes
+        the explanation and nothing else -- see ``services.audience``.
+        """
         collections = [collection] if isinstance(collection, str) else list(collection)
-        trace: dict[str, Any] = {"query": query, "collections": collections, "steps": []}
+        trace: dict[str, Any] = {
+            "query": query,
+            "collections": collections,
+            "audience": audience.value,
+            "steps": [],
+        }
 
         refusal = self.check_citation(query)
         if refusal:
@@ -337,7 +358,7 @@ class GroundedAnswerService:
         verdicts: list[ClaimVerdict] = []
         for attempt in range(MAX_REGENERATIONS + 1):
             answer = self._synthesise(
-                self._synthesis_prompt(query, context, graph_context, feedback)
+                self._synthesis_prompt(query, context, graph_context, feedback), audience
             )
             answer, verdicts = verify(answer, verification_context)
             trace["steps"].append({

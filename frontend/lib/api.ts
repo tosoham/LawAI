@@ -112,6 +112,9 @@ export interface AgentQueryResponse {
 export interface AnswerVerification {
   claims: Claim[];
   metrics: AnswerMetrics;
+  /** Every check, including the ones that failed. The record of the system
+   *  catching itself, which is worth showing. */
+  verdicts: ClaimVerdict[];
   /** How many claims the verifier removed. Reported, never hidden. */
   removed: number;
 }

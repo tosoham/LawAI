@@ -9,6 +9,7 @@ from fastapi import APIRouter, HTTPException, status
 
 from models.requests import RAGSearchRequest
 from models.responses import ErrorResponse, GroundedAnswerResponse
+from services.audience import parse_audience
 from services.grounded_answer import get_grounded_answer_service
 from services.rag_service import get_rag_service
 from services.vector_service import VectorService
@@ -208,6 +209,7 @@ def grounded_search(request: RAGSearchRequest) -> GroundedAnswerResponse:
             query=request.query,
             collection=resolve_collection(collection),
             top_k=request.top_k,
+            audience=parse_audience(request.audience),
         )
     except Exception as e:
         logger.error(f"Grounded search failed: {e!s}", exc_info=True)
