@@ -42,11 +42,17 @@ from models.claims import ClaimVerdict, StructuredAnswer
 from .answer_metrics import AnswerMetrics, compute
 from .audience import Audience, register_layer
 from .claim_verifier import VerificationContext, regeneration_feedback, verify
-from .legal_graph import GraphContext, get_legal_graph, section_key
+from .legal_graph import (
+    GraphContext,
+    get_legal_graph,
+    parse_section_key,
+    section_key,
+)
 from .llm_service import llm_service
 from .rag_service import RAGService, with_disclaimer
+from .retrieval.offence_lookup import find_offences
 from .retrieval.structured_filter import parse_citation
-from .vector_service import get_vector_service
+from .vector_service import EXACT_MATCH_DISTANCE, get_vector_service
 
 logger = logging.getLogger(__name__)
 
@@ -58,6 +64,14 @@ SYNTHESIS_MAX_TOKENS = 2048
 # One. A second attempt that still fails is a model that cannot ground the
 # claim, and a third would only produce a more confident version of it.
 MAX_REGENERATIONS = 1
+
+# Which act a collection holds, for turning a parsed citation back into a key.
+_ACT_OF_COLLECTION = {
+    "bns_sections": "BNS",
+    "bnss_sections": "BNSS",
+    "bsa_sections": "BSA",
+}
+_COLLECTION_OF_ACT = {act: collection for collection, act in _ACT_OF_COLLECTION.items()}
 
 ABSTENTION_NOTHING_RETRIEVED = (
     "I could not find anything in the corpus bearing on this question. The corpus "
@@ -254,6 +268,63 @@ class GroundedAnswerService:
             "the provision it asks about does not exist."
         )
 
+    def citation_note(self, query: str, claims: list[Any]) -> str:
+        """
+        Correct the question itself where the citation in it needs correcting.
+
+        Verification establishes that a claim is *true*. It says nothing about
+        whether the answer addresses what was asked, and testing found two ways
+        that gap shows:
+
+        - "What does BNSS 103 say about murder?" was answered with BNS 103,
+          which is murder; BNSS 103 is about searching closed premises. Every
+          claim verified, because every claim was true — of a different
+          provision than the one named.
+        - "Since IPC 302 still applies..." was answered correctly from BNS 103
+          without ever saying the IPC is repealed, leaving the false premise
+          standing.
+
+        Both are corrected from the parsed citation and the corpus, not by the
+        model, so the correction cannot itself be wrong or argued away.
+        """
+        citation = parse_citation(query)
+        if citation is None or citation.collection is None:
+            return ""
+
+        act = _ACT_OF_COLLECTION[citation.collection]
+        graph = get_legal_graph()
+
+        if citation.repealed:
+            cited = f"{citation.act_name} {citation.section}{citation.suffix}"
+            if citation.resolvable:
+                replacements = ", ".join(
+                    f"{act} {number}" for number in citation.sections
+                )
+                return (
+                    f"{cited} was repealed by the 2023 codes. The corresponding "
+                    f"provision is {replacements}, and the answer below is about that."
+                )
+            return (
+                f"{cited} was repealed by the 2023 codes, and this corpus has no "
+                "mapping for that section number."
+            )
+
+        if not citation.resolvable:
+            return ""
+
+        key = section_key(act, citation.section)
+        node = graph.sections.get(key)
+        if node is None:
+            return ""
+
+        referenced = {source.ref for claim in claims for source in claim.sources}
+        if key in referenced:
+            return ""
+        return (
+            f"You asked about {key}, which is titled \u201c{node.title}\u201d. "
+            "The answer below does not rest on that provision."
+        )
+
     # -- the pipeline ------------------------------------------------------
 
     def _synthesis_prompt(
@@ -305,8 +376,39 @@ class GroundedAnswerService:
             for key in merged:
                 merged[key].extend(results.get(key, []))
 
+        # A named offence is as exact a reference as a citation is, and dense
+        # retrieval is bad at it: "what is the punishment for theft" ranks BNS
+        # 305 (theft in a dwelling house) and BNS 304 (snatching) above BNS 303,
+        # so the model quoted and cited the wrong sections. The verifier caught
+        # it every time, which turned a basic question into an abstention. The
+        # First Schedule names the section, so fetch it.
+        for key in find_offences(query):
+            self._add_named_section(merged, key)
+
         order = sorted(range(len(merged["ids"])), key=lambda i: merged["distances"][i])[:top_k]
         return {key: [values[i] for i in order] for key, values in merged.items()}
+
+    def _add_named_section(self, merged: dict[str, list[Any]], key: str) -> None:
+        """Put a section the query named at the head of the ranking."""
+        parsed = parse_section_key(key)
+        if parsed is None:
+            return
+        act, number = parsed
+        collection = _COLLECTION_OF_ACT.get(act)
+        if collection is None:
+            return
+
+        found = self.vector_service._get_or_create_collection(collection).get(
+            where={"section_number": number}, include=["documents", "metadatas"]
+        )
+        for index, doc_id in enumerate(found.get("ids", [])):
+            if doc_id in merged["ids"]:
+                continue
+            merged["ids"].append(doc_id)
+            merged["documents"].append(found["documents"][index])
+            merged["metadatas"].append(found["metadatas"][index])
+            # Ranks with the exact citation hits, which is what it is.
+            merged["distances"].append(EXACT_MATCH_DISTANCE)
 
     def answer(
         self,
@@ -399,6 +501,10 @@ class GroundedAnswerService:
 
         removed = sum(1 for v in verdicts if not v.verified)
         prose = surviving.render()
+
+        note = self.citation_note(query, surviving.claims)
+        if note:
+            prose = f"_{note}_\n\n{prose}"
         if removed:
             prose += (
                 f"\n\n_{removed} statement(s) were removed from this answer because "

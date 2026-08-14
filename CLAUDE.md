@@ -54,18 +54,19 @@ docker compose down -v          # -v also drops the vector store volume
 
 ### Docker specifics
 
-Four things here are load-bearing and easy to break:
+Five things here are load-bearing and easy to break:
 
 - **The backend build context is the repo root, not `backend/`.** `data_loader.py` resolves the corpus as `backend/../data/processed`, so the image must preserve that relative layout (`/app/backend` + `/app/data/processed`). Paths in `backend/Dockerfile` are therefore repo-relative.
 - **The ignore file is `backend/Dockerfile.dockerignore`**, not `backend/.dockerignore`. BuildKit looks for `<dockerfile>.dockerignore` within the context; since the context is the repo root, a `backend/.dockerignore` would be silently ignored.
 - **`NEXT_PUBLIC_*` is inlined at build time**, so `NEXT_PUBLIC_API_URL` is a build arg and must be the address the *browser* uses (`http://localhost:8000`) — never the compose service name. Changing it requires `--build`.
+- **The image must copy `data/curated` as well as `data/processed`.** Both are committed data and both are load-bearing: `legal_graph` refuses to build without `doctrines.json`, which takes the grounded answer path and every `/offences` response down with it. Copying only `data/processed` produced a container that passed its health check and 500-ed on the first real question — found by running it, not by any test.
 - **The vector store is seeded by `docker-entrypoint.sh` into a volume**, not baked into the image (it is derived data, and baking it would re-run the whole embedding pass on any layer change). The script gates on a `.lawai-seeded` marker rather than on `chroma.sqlite3`, which chromadb creates on first connect — testing for the sqlite file made a half-finished seed look complete on restart and served an empty corpus. `SKIP_DB_INIT=true` bypasses seeding.
 
 `CHROMADB_PATH` is now actually read by `VectorService` (it was documented in `.env.example` for a long time while nothing consumed it); the container points it at the mounted volume.
 
 The image installs **CPU-only torch** (`--index-url .../whl/cpu`) before the requirements, or the default CUDA wheel adds ~2.5 GB for nothing, and bakes `all-MiniLM-L6-v2` in with `HF_HUB_OFFLINE=1` — without that flag sentence-transformers still makes ~20 revalidation calls to huggingface.co on every start.
 
-Tests requiring a live LLM are marked `live` and skip automatically unless `AIML_API_KEY` is set, so a plain `pytest` run is green without credentials (currently 690 passed, 8 skipped (plus 46 live)).
+Tests requiring a live LLM are marked `live` and skip automatically unless `AIML_API_KEY` is set, so a plain `pytest` run is green without credentials (currently 703 passed (plus 58 live)).
 
 ## Architecture
 

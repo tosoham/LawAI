@@ -47,6 +47,18 @@ _CLASSIFICATION_QUESTION = re.compile(
     r"(a\s+)?warrant|court of session|magistrate)\b",
     re.IGNORECASE,
 )
+# A question about a named offence, whether or not it asks for the
+# classification. "What is the punishment for theft?" ranks BNS 305 (theft in a
+# dwelling house) and BNS 304 (snatching) above BNS 303, so the model was
+# handed the wrong sections and cited them -- correctly rejected by the
+# verifier, which turned a basic question into an abstention. The offence
+# column names the section as exactly as a citation does, so it is looked up
+# the same way.
+_OFFENCE_QUESTION = re.compile(
+    r"\b(punishment|punishable|sentence|penalty|imprisonment|fine|"
+    r"what\s+(is|are|does)|which\s+section|defined?)\b",
+    re.IGNORECASE,
+)
 
 # An offence name short enough to be a phrase someone would use. The long
 # entries are conditional clauses -- "Abetment of any offence, if the act
@@ -62,6 +74,12 @@ _PUNCTUATION = re.compile(r"[.,;:]+$")
 def is_classification_question(query: str) -> bool:
     """Whether the query asks something the First Schedule answers."""
     return bool(_CLASSIFICATION_QUESTION.search(query or ""))
+
+
+def is_offence_question(query: str) -> bool:
+    """Whether the query asks about a named offence at all."""
+    text = query or ""
+    return bool(_CLASSIFICATION_QUESTION.search(text) or _OFFENCE_QUESTION.search(text))
 
 
 def _phrase(offence: str) -> str | None:
@@ -123,12 +141,12 @@ def find_offences(query: str) -> list[str]:
     """
     The offence a classification question is asking about.
 
-    Returns nothing unless the query is asking a classification question:
+    Returns nothing unless the query is actually asking about an offence:
     injecting the offence table into every query would crowd the prompt with
     material nobody asked for. Returns nothing for a generic phrase that hits
     the whole table, since that is a search rather than a lookup.
     """
-    if not is_classification_question(query):
+    if not is_offence_question(query):
         return []
 
     matched = match_offences(query)

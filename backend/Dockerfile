@@ -68,6 +68,11 @@ ENV PATH="/opt/venv/bin:$PATH" \
 # positions inside the image.
 WORKDIR /app
 COPY data/processed /app/data/processed
+# data/curated is committed data too, and just as load-bearing: the legal graph
+# refuses to build without doctrines.json, which takes the grounded answer path
+# and every /offences response down with it. Copying only data/processed left a
+# container that passed its health check and 500-ed on the first real question.
+COPY data/curated /app/data/curated
 COPY backend /app/backend
 
 WORKDIR /app/backend
