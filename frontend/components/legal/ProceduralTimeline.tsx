@@ -33,7 +33,11 @@ const STEP_WIDTH = 150;
 const HEIGHT = 130;
 const AXIS_Y = 52;
 const MARKER_R = 7;
-const PADDING = 28;
+// Half a label's width, so the first and last labels do not overflow the
+// viewBox. They are centred on their node, and at PADDING=28 the first read
+// "rrest without warrant" and the last was clipped to "Investigatio" — visible
+// only in a browser, since the SVG has no layout to assert against.
+const PADDING = 62;
 
 function stepLabel(step: TimelineStep): string[] {
   // Wrap on spaces at roughly 16 characters; SVG has no text wrapping.

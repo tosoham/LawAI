@@ -164,3 +164,38 @@ class TestRequestValidation:
 
     def test_an_empty_query_is_rejected(self, client, stubbed):
         assert post(client, query="").status_code == 422
+
+
+class TestPayloadShapesAgree:
+    """
+    The agent and /search/grounded describe the same claim. They must describe
+    it the same way.
+
+    They did not: the agent emitted `sources` as plain strings while the
+    endpoint emitted typed `{ref, kind}` objects. The UI reads `source.ref`,
+    every component test used the typed shape, and nothing compared the two
+    payloads — so the main user path threw "Cannot read properties of undefined
+    (reading 'match')" on every answer and only a browser showed it.
+    """
+
+    def test_claim_sources_are_typed_objects_in_both(self, client, stubbed):
+        from agents.legal_agent import _grounded_payload
+
+        endpoint_claim = post(client).json()["claims"][0]
+        agent_claim = _grounded_payload(
+            stubbed.answer("what is the punishment for murder")
+        )["verification"]["claims"][0]
+
+        assert endpoint_claim["sources"] == agent_claim["sources"]
+        for source in agent_claim["sources"]:
+            assert set(source) == {"ref", "kind"}
+
+    def test_a_claim_has_the_same_keys_in_both(self, client, stubbed):
+        from agents.legal_agent import _grounded_payload
+
+        endpoint_claim = post(client).json()["claims"][0]
+        agent_claim = _grounded_payload(
+            stubbed.answer("what is the punishment for murder")
+        )["verification"]["claims"][0]
+
+        assert set(agent_claim) == set(endpoint_claim)

@@ -50,7 +50,15 @@ def _grounded_payload(grounded: GroundedAnswer) -> dict[str, Any]:
                 {
                     "text": claim.text,
                     "epistemic_class": claim.epistemic_class.value,
-                    "sources": [s.ref for s in claim.sources],
+                    # Typed {ref, kind}, matching ClaimResponse on
+                    # /search/grounded exactly. These were plain strings, and
+                    # the two endpoints disagreeing about the shape of the same
+                    # field crashed the UI on every answer -- the component
+                    # reads source.ref, the tests used the typed shape, and
+                    # nothing compared the two payloads.
+                    "sources": [
+                        {"ref": s.ref, "kind": s.kind.value} for s in claim.sources
+                    ],
                     "verbatim_span": claim.verbatim_span,
                     "positions": [
                         {"summary": p.summary, "authority": p.authority}
@@ -542,7 +550,11 @@ class LegalAgent:
         claims = (result.get("verification") or {}).get("claims") or []
         refs: list[str] = []
         for claim in claims:
-            for ref in claim.get("sources", []):
+            for source in claim.get("sources", []):
+                # Typed {ref, kind}, matching the API. Read as bare strings this
+                # raised "unhashable type: dict" into the response formatter,
+                # which swallowed it and returned an empty answer.
+                ref = source["ref"] if isinstance(source, dict) else source
                 if ref not in refs:
                     refs.append(ref)
 
