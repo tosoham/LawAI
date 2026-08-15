@@ -1,389 +1,246 @@
 # Contributing to LawAI
 
-Thank you for your interest in contributing to LawAI! This document provides guidelines for contributing to the project.
+Thanks for your interest. This document covers the workflow; [RULES.md](RULES.md) is the
+rulebook and [CLAUDE.md](CLAUDE.md) is the authoritative architecture guide.
 
 ---
 
-## 📋 Table of Contents
+## Before you start
 
-- [Code of Conduct](#code-of-conduct)
-- [Getting Started](#getting-started)
-- [Development Workflow](#development-workflow)
-- [Git Workflow](#git-workflow)
-- [Coding Standards](#coding-standards)
-- [Testing Requirements](#testing-requirements)
-- [Pull Request Process](#pull-request-process)
+Read, in this order:
 
----
+1. **[CLAUDE.md](CLAUDE.md)** — architecture and the non-obvious behaviours. Most of the
+   surprising things in this codebase are documented there, with the reason.
+2. **[docs/CHALLENGES_AND_SOLUTIONS.md](docs/CHALLENGES_AND_SOLUTIONS.md)** — 60+ fixed bugs
+   with their causes. Skim it so you do not reintroduce one.
+3. **[RULES.md](RULES.md) §3** — the honesty rules. These are the point of the project.
 
-## 🤝 Code of Conduct
-
-- Be respectful and inclusive
-- Focus on constructive feedback
-- Prioritize legal accuracy and security
-- Follow the project's rules and guidelines
+If you are touching retrieval or grounding, also read
+[docs/RAG_PIPELINE.md](docs/RAG_PIPELINE.md) and
+[docs/EVALUATION_AND_TESTING.md](docs/EVALUATION_AND_TESTING.md).
 
 ---
 
-## 🚀 Getting Started
+## Setup
 
-### Prerequisites
-
-- Python 3.10+
-- Node.js 18+
-- Git
-- An AIML API key (https://aimlapi.com) — required only for features that call the LLM;
-  the app starts and its tests pass without one
-
-### Initial Setup
-
-1. **Fork the repository**
-   ```bash
-   git clone https://github.com/tosoham/LawAI.git
-   cd LawAI
-   ```
-
-2. **Set up backend**
-   ```bash
-   cd backend
-   python -m venv venv
-   source venv/bin/activate  # Windows: venv\Scripts\activate
-   pip install -r requirements.txt
-   cp .env.example .env
-   # Configure .env with your credentials
-   ```
-
-3. **Set up frontend**
-   ```bash
-   cd frontend
-   npm install
-   cp .env.local.example .env.local
-   ```
-
-4. **Verify setup**
-   ```bash
-   python scripts/verify_setup.py
-   ```
-
----
-
-## 🔄 Development Workflow
-
-### Core Principles
-
-1. **Plan First, Build Later** - Always discuss and plan before coding
-2. **Iterative Development** - Complete one feature at a time
-3. **Test-Driven** - Write tests alongside features
-4. **Documentation-Driven** - Document before implementing
-
-### Workflow Steps
-
-1. **Create an issue** - Describe the feature/bug
-2. **Get approval** - Wait for maintainer approval
-3. **Create branch** - Follow naming conventions
-4. **Implement** - Write code with tests
-5. **Test** - Ensure all tests pass
-6. **Commit** - Use conventional commits
-7. **Push** - Push to your fork
-8. **Pull Request** - Submit for review
-
----
-
-## 🌿 Git Workflow
-
-### Branch Naming
-
-Use the following prefixes:
-
-- `feature/` - New features (e.g., `feature/rag-search`)
-- `bugfix/` - Bug fixes (e.g., `bugfix/streaming-error`)
-- `docs/` - Documentation (e.g., `docs/api-guide`)
-- `test/` - Test additions (e.g., `test/integration-tests`)
-- `refactor/` - Code refactoring (e.g., `refactor/agent-state`)
-
-### Commit Messages
-
-Follow [Conventional Commits](https://www.conventionalcommits.org/):
-
-```
-<type>(<scope>): <subject>
-
-<body>
-
-<footer>
-```
-
-**Types:**
-- `feat` - New feature
-- `fix` - Bug fix
-- `docs` - Documentation
-- `style` - Code style (formatting)
-- `refactor` - Code refactoring
-- `test` - Adding tests
-- `chore` - Maintenance tasks
-
-**Examples:**
+**Prerequisites:** Python 3.10+, Node.js 18+, Git. An [AIML API](https://aimlapi.com) key is
+needed only for features that call the LLM — **the app starts and its tests pass without
+one.**
 
 ```bash
-feat(rag): add BNS section search functionality
+git clone https://github.com/tosoham/LawAI.git
+cd LawAI
 
-Implemented vector search for BNS sections with metadata filtering.
-Includes unit tests and integration tests.
+# Backend
+cd backend
+python -m venv venv
+source venv/bin/activate            # Windows: venv\Scripts\activate
+pip install -r requirements.txt
+cp .env.example .env                # optionally set AIML_API_KEY
+python scripts/init_vector_db.py    # seeds ChromaDB from the committed corpus
 
-Closes #123
+# Frontend
+cd ../frontend
+npm install
+cp .env.local.example .env.local
+
+# Verify
+cd .. && python scripts/verify_setup.py
 ```
 
-```bash
-fix(streaming): handle connection drops gracefully
+**Expect a slow first install** — sentence-transformers pulls CPU torch (~1.4 GB).
 
-Added error handling for streaming responses when client disconnects.
+**Backend commands run from `backend/`.** Imports are rooted there and `pytest.ini` sets
+`pythonpath = .` to match. Running from the repo root breaks imports.
 
-Fixes #456
-```
-
-### Branching Strategy
-
-```bash
-# Create feature branch from main
-git checkout main
-git pull origin main
-git checkout -b feature/your-feature
-
-# Make changes and commit
-git add .
-git commit -m "feat(scope): description"
-
-# Push to your fork
-git push origin feature/your-feature
-
-# Create pull request on GitHub
-```
+Or use Docker: `docker compose up --build`.
 
 ---
 
-## 💻 Coding Standards
+## Workflow
 
-### Python (Backend)
+1. Open an issue describing the change.
+2. Branch: `feature/` · `bugfix/` · `docs/` · `test/` · `refactor/`
+3. Implement with tests alongside.
+4. Run the full check (below).
+5. Open a PR.
 
-- **PEP 8 Compliance** - Follow Python style guide
-- **Type Hints** - Use type annotations
-- **Docstrings** - Document all functions/classes
-- **Error Handling** - Use specific exception types
-- **Async/Await** - Use for I/O operations
+### The full check
 
-**Example:**
+```bash
+cd backend
+pytest                              # 755 pass, 8 skip — no credentials needed
+ruff check .                        # must be clean
+mypy .
+
+cd ../frontend
+npm test                            # 106 tests
+npm run lint
+npm run type-check
+```
+
+**If you changed retrieval**, additionally:
+
+```bash
+cd backend
+python scripts/eval_retrieval.py --compare concordance
+```
+
+**No class may regress.** The comparison prints a per-class delta and names every query whose
+first correct hit moved to a worse rank — that per-query list is the part to read.
+
+**If you changed grounding or verification:**
+
+```bash
+pytest tests/integration/test_grounded_answer_live.py -v   # needs AIML_API_KEY
+pytest tests/integration/test_adversarial.py -v
+```
+
+All six adversarial queries must abstain, four answerable ones must not, and murder must
+never come back bailable.
+
+---
+
+## Coding standards
+
+### Python
+
+PEP 8 · type hints · docstrings · specific exception types · async for I/O · module-level
+`logger = logging.getLogger(__name__)`.
+
+**Docstrings explain *why*.** This is the strongest convention in the codebase. Where a design
+is non-obvious, record the measurement or the bug that forced it:
 
 ```python
-async def search_legal_corpus(
-    query: str,
-    collection: str,
-    limit: int = 10
-) -> List[Dict[str, Any]]:
-    """
-    Search the legal corpus using vector similarity.
-    
-    Args:
-        query: User's search query
-        collection: ChromaDB collection name
-        limit: Maximum results to return
-        
-    Returns:
-        List of matching documents with metadata
-        
-    Raises:
-        ValueError: If collection name is invalid
-        ChromaDBError: If database query fails
-    """
-    # Implementation
+# Checked against the whole section, not only the chunk retrieval returned.
+# Whether a quotation is accurate does not depend on which piece of the
+# section happened to rank: asked for the punishment for theft, the model
+# quoted BNS 303 correctly while retrieval had returned that section's
+# fifth chunk, and checking only the chunk rejected a true statement of the law.
 ```
 
-### TypeScript (Frontend)
+A future contributor who does not know why a line exists will "simplify" it back into a bug.
 
-- **Strict Mode** - Enable in tsconfig.json
-- **Proper Typing** - Define interfaces
-- **ESLint Compliance** - Follow Next.js conventions
-- **Component Documentation** - Document props
+### TypeScript
 
-**Example:**
+Strict mode · interfaces for all data structures · documented props · **Pages Router**, not
+App Router.
 
-```typescript
-interface SearchResult {
-  id: string;
-  content: string;
-  metadata: {
-    section: string;
-    act: 'BNS' | 'BNSS' | 'BSA';
-    relevance: number;
-  };
-}
+**Colour comes only from semantic tokens** (`canvas`, `surface`, `ink`, `muted`, `line`,
+`brand`, `brass`, `verified`, `live`). A raw hex or a stock Tailwind grey breaks dark mode.
 
-async function searchLegalDatabase(
-  query: string,
-  filters?: SearchFilters
-): Promise<SearchResult[]> {
-  // Implementation
-}
-```
+### Contracts
 
-### Code Quality Tools
+`backend/models/` is the single source of truth. `frontend/lib/api.ts` mirrors it.
 
-**Backend:**
-```bash
-# Linting
-ruff check backend/
-
-# Type checking
-mypy backend/
-
-# Formatting
-black backend/
-```
-
-**Frontend:**
-```bash
-# Linting
-npm run lint
-
-# Type checking
-npm run type-check
-
-# Formatting
-npm run format
-```
+**Change both together.** They have silently diverged before — the agent emitted claim
+`sources` as bare strings while `/search/grounded` emitted typed objects, which crashed every
+answer in the UI **while every test passed**, because nothing compared the two payloads.
+There is now a test that does; keep it passing.
 
 ---
 
-## 🧪 Testing Requirements
+## Domain rules
 
-### Test Coverage
+These are not style preferences. Violating one is a correctness bug.
 
-- **Minimum 80% coverage** for all code
-- **100% coverage** for security and legal accuracy code
-- Write tests alongside features
+- **The 2023 codes only.** Never cite IPC/CrPC/Evidence Act as current law.
+- **Citations must be exact.** Omit rather than guess.
+- **Every generated output carries a disclaimer**, appended by the service.
+- **Never let a model verify a model.**
+- **Never resolve a conditional value to a boolean** — a guessed "bailable" is the most
+  dangerous value this system can emit.
+- **Never add an LLM-inferred graph edge.**
+- **Never claim precedential status.**
+- **Never merge `sources` with `graph_context` or `live_sources`.**
+- **Never work around an access control** a source has deliberately put in place. Surface the
+  blockage instead.
 
-### Backend Testing
-
-```bash
-# Run all tests
-pytest
-
-# Run with coverage
-pytest --cov=backend --cov-report=html
-
-# Run specific test
-pytest tests/test_main.py -v
-```
-
-### Frontend Testing
-
-```bash
-# Run all tests
-npm test
-
-# Run with coverage
-npm test -- --coverage
-
-# Run in watch mode
-npm run test:watch
-```
-
-### Test Structure
-
-- **Unit Tests** - Test individual functions/components
-- **Integration Tests** - Test complete workflows
-- **Mock External Services** - Mock LLM and database calls
+Full list with reasoning: [RULES.md §3](RULES.md#3-the-honesty-rules).
 
 ---
 
-## 🔍 Pull Request Process
+## Adding things
 
-### Before Submitting
+### A tool
 
-1. ✅ All tests pass
-2. ✅ Code follows style guidelines
-3. ✅ Documentation updated
-4. ✅ No merge conflicts
-5. ✅ Commit messages follow conventions
+Subclass `BaseTool`, return a `ToolResult` (never a bare dict — formatters detect payloads
+via `hasattr(result, "success")`), and register it in `initialize_tools()`. **The registry key
+is the tool's `name` property.**
 
-### PR Template
+### A judgement
+
+Pin the **document id** and give `expect` tokens. Never resolve by name — searching
+"Selvi vs State of Karnataka" returns the unrelated Jayalalitha appeal, and one landmark id
+matched every expected title token while being a contempt petition between the same parties.
+Give `expect_text` phrases from the actual holding.
+
+### A query-expansion alias
+
+Only where the **statutory wording genuinely differs** from the term of art. This is not a
+thesaurus — a wrong entry silently misdirects retrieval, which is worse than the gap it
+closes. Re-run the eval and confirm no class regressed.
+
+### A doctrine
+
+`data/curated/doctrines.json`, hand-curated. Every lineage edge must trace to a judgement in
+the corpus. **No precedential status.** Where authority splits, mark it `contested`, name both
+sides, and declare no winner.
+
+---
+
+## Commit messages
+
+Write what changed and **why it matters**, in the imperative. The history reads as a
+narrative and that is worth keeping:
+
+```
+Look up cited sections instead of searching for them
+Answer as verified claims, or abstain
+Translate repealed citations through a sourced concordance
+Fix what the browser found: a crash on every answer
+```
+
+Conventional-commit prefixes (`feat:`, `fix:`) are acceptable but not required. The body
+should carry the reasoning — what was measured, what broke, what it now prevents.
+
+---
+
+## Pull requests
+
+**Checklist:**
+
+- [ ] Tests pass (backend and frontend)
+- [ ] `ruff check .` clean, `npm run lint` and `type-check` clean
+- [ ] Retrieval eval run and no class regressed (if retrieval changed)
+- [ ] Adversarial suite passes (if grounding changed)
+- [ ] Docs updated — including a
+      [CHALLENGES_AND_SOLUTIONS](docs/CHALLENGES_AND_SOLUTIONS.md) entry if you fixed a
+      non-obvious bug
+- [ ] `backend/models/` and `frontend/lib/api.ts` still in sync
+- [ ] No secrets, no PII, no committed binaries
+
+**Template:**
 
 ```markdown
-## Description
-Brief description of changes
-
-## Type of Change
-- [ ] Bug fix
-- [ ] New feature
-- [ ] Documentation update
-- [ ] Refactoring
-
-## Testing
-- [ ] Unit tests added/updated
-- [ ] Integration tests added/updated
-- [ ] All tests passing
-
-## Checklist
-- [ ] Code follows style guidelines
-- [ ] Documentation updated
-- [ ] No breaking changes
-- [ ] Legal accuracy verified (if applicable)
-
-## Related Issues
-Closes #123
+## What changed
+## Why
+## How it was verified
+<!-- Test output, eval comparison, or what you exercised in the browser/container. -->
+## Risk
+<!-- What could this break? Which existing behaviour did you check? -->
 ```
 
-### Review Process
-
-1. **Automated Checks** - CI/CD runs tests
-2. **Code Review** - At least one approval required
-3. **Legal Review** - For legal accuracy changes
-4. **Merge** - Squash and merge to main
-
----
-
-## 🚫 Prohibited Actions
-
-### Development
-- ❌ Starting implementation without approved plan
-- ❌ Skipping tests
-- ❌ Ignoring code review feedback
-- ❌ Deploying without passing tests
-
-### Security
-- ❌ Storing PII in vector database
-- ❌ Committing secrets or API keys
-- ❌ Skipping input validation
-- ❌ Disabling security features
-
-### Legal
-- ❌ Skipping legal disclaimers
-- ❌ Using unofficial legal sources
-- ❌ Providing legal advice (system assists only)
-- ❌ Ignoring legal accuracy
+**On verification:** four real bugs in this project's history got past a fully green test
+suite — a payload mismatch that crashed every answer, a container that passed its health check
+and 500-ed on every question, a seed marker that made a half-finished index look complete, and
+SVG labels clipped outside their viewBox. If your change touches the UI or the container,
+**run it** and say so in the PR.
 
 ---
 
-## 📚 Additional Resources
+## Questions
 
-- [RULES.md](RULES.md) - Master rulebook
-- [AGENTS.md](AGENTS.md) - Agent-specific guidance
-- [Complete Implementation Plan](docs/COMPLETE_IMPLEMENTATION_PLAN.md)
-- [API Documentation](http://localhost:8000/docs) (when running)
+Open an issue. Check existing ones first.
 
----
-
-## 💬 Questions?
-
-- Create an issue for questions
-- Tag maintainers for urgent matters
-- Check existing issues first
-
----
-
-## 📄 License
-
-By contributing, you agree that your contributions will be licensed under the MIT License.
-
----
-
-**Thank you for contributing to LawAI! 🙏**
+By contributing you agree your contributions are licensed under the MIT License.

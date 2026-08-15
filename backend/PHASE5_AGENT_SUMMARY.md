@@ -1,5 +1,23 @@
 # Phase 5: LangGraph Agent Orchestration - Implementation Summary
 
+> ## ⚠️ Historical document
+>
+> This records the agent orchestration work as it stood when first built, and is kept for
+> provenance. It is **out of date** in at least these respects:
+>
+> - There are now **five** intents, not four — `live_research` was added, gated on a recency
+>   trigger.
+> - Intent classification gained `REQUIRED_TRIGGERS` (draft/analyse/live-research score
+>   nothing without an action or recency verb), `TRIGGER_WEIGHT`, and an explicit
+>   `_TIE_BREAK_ORDER` that puts `rag_search` **last**.
+> - The `rag_search` node no longer calls the plain RAG tool. It routes through the
+>   **grounded answer pipeline** — typed claims, per-claim verification, abstention.
+> - Test counts quoted below are long superseded (currently 755 passing).
+>
+> **Current, authoritative sources:** [`../CLAUDE.md`](../CLAUDE.md) ·
+> [`../docs/ARCHITECTURE.md`](../docs/ARCHITECTURE.md) ·
+> [`../docs/ENGINEERING_DEEP_DIVE.md`](../docs/ENGINEERING_DEEP_DIVE.md) §10.
+
 ## Overview
 Successfully implemented a complete LangGraph-based agent orchestration system for LawAI that intelligently routes user queries to appropriate tools based on intent classification.
 

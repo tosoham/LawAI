@@ -1,511 +1,403 @@
 # RULES.md
 
-This document defines the master rulebook for all development work on the LawAI project. All contributors, AI agents, and developers must follow these rules strictly.
+The development rulebook for LawAI. All contributors — human and AI — follow these.
+
+**Precedence:** [CLAUDE.md](CLAUDE.md) is authoritative where this file disagrees with it.
+[AGENTS.md](AGENTS.md) carries the domain rules in condensed form. For the *reasoning* behind
+a rule, and the bug that produced it, see
+[`docs/CHALLENGES_AND_SOLUTIONS.md`](docs/CHALLENGES_AND_SOLUTIONS.md).
+
+Sections marked **[ASPIRATIONAL]** describe standards not yet met. They are kept because they
+are the target, and marked because a rulebook that lies about the current state is worse than
+no rulebook.
 
 ---
 
-## 1. Development Philosophy
+## 1. Development philosophy
 
-### Core Principles
-- **Plan First, Build Later** - NEVER start coding without an approved plan. Always discuss, design, and get user confirmation before implementation.
-- **Iterative Development** - Break complex tasks into small, manageable, testable steps. Complete one step before moving to the next.
-- **Documentation-Driven** - Document architecture, design decisions, and APIs before writing implementation code.
-- **Test-Driven** - Write tests alongside features. Every feature must have corresponding unit and integration tests.
-
----
-
-## 2. Workflow Rules (CRITICAL)
-
-### Planning Phase
-1. **Always start in Plan mode** - Discuss requirements, gather context, and create a detailed plan
-2. **Create detailed todo lists** - Use `update_todo_list` for multi-step tasks to track progress
-3. **Wait for approval** - Present plan → get user confirmation → switch to Code mode
-4. **Ask clarifying questions** - Use `ask_followup_question` when requirements are unclear
-
-### Implementation Phase
-1. **One feature at a time** - Complete, test, and commit before moving to the next feature
-2. **Frequent commits** - Make small, atomic commits with clear, descriptive messages
-3. **Test before commit** - Ensure all tests pass before committing code
-4. **Code review** - All code must be reviewed before merging to main branch
-
-### Communication
-- Be clear and technical in responses
-- Avoid conversational phrases like "Great!", "Certainly!", "Okay!"
-- Focus on actionable information and next steps
+- **Plan first, build later.** Discuss and design before implementing.
+- **Iterative.** Break work into small testable steps; finish one before starting the next.
+- **Test-driven.** Write tests alongside features.
+- **Measure, don't assume.** Where a design decision has an obvious answer, build the
+  measurement before committing to it. The relevance-threshold abstention design was
+  intuitive, standard, and **provably wrong for this corpus** — and only a measurement showed
+  that.
 
 ---
 
-## 3. Tech Stack
+## 2. The domain constraints (non-negotiable)
 
-### Core Technologies
-- **LLM**: AIML API (OpenAI-compatible endpoint), default model `gpt-4o-mini`, via the `openai` SDK
+### 2.1 The legal framework is the 2023 codes
 
-  > Historical note: this was IBM watsonx.ai Granite-13b-chat-v2 while the project was a
-  > hackathon entry, where that provider was a competition requirement. That constraint no
-  > longer applies and the provider was swapped; the LLM layer is isolated behind
-  > `services/llm_service.py`, so changing it again means rewriting only that module.
-- **Agent Framework**: LangGraph for complex workflows and state management
-- **Vector DB**: ChromaDB (local deployment, no cloud setup)
-- **Backend**: FastAPI with async/await and StreamingResponse
-- **Frontend**: Next.js with React Server-Side Rendering (SSR)
+- **BNS** (Bharatiya Nyaya Sanhita, 2023) replaces the Indian Penal Code
+- **BNSS** (Bharatiya Nagarik Suraksha Sanhita, 2023) replaces the CrPC
+- **BSA** (Bharatiya Sakshya Adhiniyam, 2023) replaces the Indian Evidence Act
 
-### Language & Tools
-- **Backend Language**: Python 3.10+
-- **Frontend Language**: TypeScript
-- **Package Management**: pip (backend), npm (frontend)
-- **Version Control**: Git with conventional commits
+Never cite a repealed provision as current law. Collections are `bns_sections`,
+`bnss_sections`, `bsa_sections`, `sc_judgements`.
 
----
+### 2.2 Citations must be exact
 
-## 4. Legal Framework (UPDATED 2023)
+Format: `"Section 103, Bharatiya Nyaya Sanhita, 2023"`; case law as
+`"Case Name v. Case Name, (Year) Citation"`.
 
-### Indian Legal Codes
-- **BNS** (Bharatiya Nyaya Sanhita, 2023) - Replaces Indian Penal Code (IPC)
-- **BNSS** (Bharatiya Nagarik Suraksha Sanhita, 2023) - Replaces Code of Criminal Procedure (CrPC)
-- **BSA** (Bharatiya Sakshya Adhiniyam, 2023) - Replaces Indian Evidence Act
-- **Supreme Court Judgements** - Focus on post-2023 rulings under new legal framework
+**A wrong section number is a correctness bug, not a cosmetic one. Omit a citation rather
+than guess it.**
 
-### Legal Data Requirements
-- Use only official government sources for legal texts
-- Maintain accurate section numbers and citations
-- Include amendment dates and version tracking
-- Verify legal terminology and definitions
+### 2.3 Every AI-generated output carries a disclaimer
+
+Appended by the service — **never written by the model**, so no instruction can suppress it.
+The frontend must surface `LegalDisclaimer`.
+
+### 2.4 Only official sources
+
+Statutory text from MHA gazette PDFs. Judgements id-pinned and verified on fetch. The
+concordance is from a government body (BPR&D) and is labelled as a **weaker guarantee** than
+enacted text, because it is asserted rather than enacted.
 
 ---
 
-## 5. Architecture Rules
+## 3. The honesty rules
 
-### MCP Tools (4 Core Tools)
-1. **rag_search** - Query Indian legal corpus (BNS, BNSS, BSA, SC judgements)
-2. **draft_document** - Generate legal drafts (bail applications, petitions, notices)
-3. **analyze_doc** - Extract and analyze uploaded legal documents (PDF, DOCX)
-4. **chat** - General legal Q&A with context-aware responses
+These are what the project exists to demonstrate. Violating one is a correctness regression.
 
-### Vector Database Collections
-- **Separate ChromaDB collections** for:
-  - BNS sections and explanations
-  - BNSS procedural provisions
-  - BSA evidence rules
-  - Supreme Court judgements (categorized by year and topic)
-
-### Agent Orchestration
-- **LangGraph State Machine** - Routes user intent to appropriate tool(s)
-- **Sequential Tool Execution** - Tools can be chained based on user query
-- **Context Preservation** - Maintain conversation context across tool calls
-
-### Streaming Requirements
-- **All LLM responses MUST stream tokens** - Use FastAPI StreamingResponse
-- **Real-time feedback** - Show progress indicators during long operations
-- **Graceful error handling** - Stream error messages when operations fail
+| Rule | Why |
+|---|---|
+| **Never let a model verify a model** | The prior that invented BNS 999 will confirm BNS 999 |
+| **Never resolve a conditional value to a boolean** | ~40 First Schedule rows defer to another offence; a guessed "bailable" is the most dangerous value this system can emit |
+| **Never add an LLM-inferred graph edge** | A false relation propagates into every answer touching either endpoint, invisibly |
+| **Never claim precedential status** | No `overruled_by`, no `still_good_law` — highest value, highest harm, and it ages |
+| **Never merge `sources` with `graph_context` or `live_sources`** | Retrieved-by-relevance, reached-by-edge and unverified are different provenance |
+| **Never resolve a repealed section number by assumption** | "CrPC 438" means BNSS 482, but BNSS 438 exists and is about something else |
+| **Never hedge a failed claim** | Hedging an invented section number still puts the number in front of the reader. Remove it and report the removal |
+| **Never let audience reach retrieval or verification** | A citizen's answer is shorter, not vaguer, and keeps every citation |
+| **Never present a contested question one-sidedly** | Even when that side is impeccably cited |
+| **Never suggest an outcome in judge mode** | Not by implication, ordering or emphasis either |
 
 ---
 
-## 6. Code Quality Standards
+## 4. Tech stack
 
-### Python (Backend)
-- **PEP 8 Compliance** - Follow Python style guide strictly
-- **Type Hints** - Use type annotations for all function parameters and return values
-- **Docstrings** - Write comprehensive docstrings for all modules, classes, and functions
-- **Error Handling** - Use try-except blocks with specific exception types
-- **Async/Await** - Use async functions for I/O operations
+| Layer | Choice |
+|---|---|
+| LLM | AIML API (OpenAI-compatible), default `gpt-4o-mini`, via the `openai` SDK |
+| Agent | LangGraph `StateGraph` |
+| Vector DB | ChromaDB, local |
+| Embeddings | sentence-transformers `all-MiniLM-L6-v2`, 384-dim, local |
+| Backend | FastAPI, async, Python 3.10+ |
+| Frontend | Next.js 14 **Pages Router**, TypeScript, Tailwind |
 
-Example:
+> **Historical note:** the LLM was IBM watsonx.ai Granite while this was a hackathon entry,
+> where that provider was a competition requirement. That constraint no longer applies. The
+> LLM layer is isolated behind `services/llm_service.py`, so changing it again means
+> rewriting only that module.
+
+---
+
+## 5. Architecture rules
+
+### 5.1 Tools
+
+Five tool nodes, registered into a global `ToolRegistry` at startup: `rag_search`, `chat`,
+`draft_document`, `analyze_document`, `live_research`.
+
+Add one by subclassing `BaseTool` and registering it in `initialize_tools()`. **The registry
+key is the tool's `name` property** — `AnalyzeDocumentTool` registers as `analyze_document`,
+not `analyze_doc`.
+
+Tool nodes must return a `ToolResult`, never a bare dict — the response formatters detect a
+payload via `hasattr(result, "success")`.
+
+> These are **not** MCP tools, despite log lines that have said so. An MCP server is
+> [ASPIRATIONAL].
+
+### 5.2 Singletons
+
+`llm_service`, `get_agent_service()`, `get_rag_service()`, `get_vector_service()`,
+`get_tool_registry()`, `get_legal_graph()`, `get_grounded_answer_service()`,
+`get_embedding_service()`.
+
+**Always use the accessors.** `reset_agent_service()` and `reset_legal_graph()` exist for
+tests. Everything stays on the `services.*` import convention — importing the same module as
+`backend.services.*` would duplicate every singleton.
+
+### 5.3 Streaming
+
+Two endpoints stream, and they share **one SSE dialect**: `data: {"token": …}` lines
+terminated by `data: [DONE]`. `frontend/lib/api.ts::readStream` understands only that shape.
+
+**Agent streaming is faux-streaming** — the graph runs to completion, then the finished string
+is sliced into 50-char chunks. This is deliberate: real streaming would discard the structured
+`sources`. Real token streaming exists via `LLMService.generate_stream` and is used by
+`POST /chat`.
+
+### 5.4 Failure behaviour
+
+- **Startup swallows init errors** so `/health` stays up without credentials.
+- **LLM clients are built lazily** — a missing `AIML_API_KEY` does not raise until a
+  generation is attempted. Do not "fix" this by validating in `__init__`.
+- **Live judiciary access fails soft** — errors are *returned*, never raised, so an outage
+  degrades to the local corpus instead of 500-ing.
+- **`is_allowed()` fails closed** — if robots.txt cannot be read, not knowing is not
+  permission.
+- **A malformed model response yields an empty answer, not an exception** — the caller then
+  abstains, which is correct.
+
+---
+
+## 6. Code quality
+
+### Python
+
+PEP 8 · type hints on all signatures · docstrings on every module, class and public function
+· module-level `logger = logging.getLogger(__name__)` · specific exception types · async for
+I/O.
+
 ```python
 async def search_legal_corpus(
-    query: str,
-    collection: str,
-    limit: int = 10
-) -> List[Dict[str, Any]]:
+    query: str, collection: str, limit: int = 10
+) -> list[dict[str, Any]]:
     """
     Search the legal corpus using vector similarity.
-    
+
     Args:
         query: User's search query
-        collection: ChromaDB collection name (bns, bnss, bsa, judgements)
-        limit: Maximum number of results to return
-        
+        collection: ChromaDB collection name
+        limit: Maximum number of results
+
     Returns:
-        List of matching documents with metadata
-        
+        Matching documents with metadata
+
     Raises:
         ValueError: If collection name is invalid
-        ChromaDBError: If database query fails
     """
-    # Implementation
 ```
 
-### TypeScript (Frontend)
-- **Strict Mode** - Enable TypeScript strict mode in tsconfig.json
-- **Proper Typing** - Define interfaces for all data structures
-- **ESLint Compliance** - Follow Next.js and React best practices
-- **Component Documentation** - Document props and component behavior
+**Comment the non-obvious.** This codebase's docstrings explain *why a thing is the way it
+is* — which measurement forced it, which bug it prevents. That convention is load-bearing;
+match it.
 
-Example:
-```typescript
-interface SearchResult {
-  id: string;
-  content: string;
-  metadata: {
-    section: string;
-    act: 'BNS' | 'BNSS' | 'BSA';
-    relevance: number;
-  };
-}
+### TypeScript
 
-async function searchLegalDatabase(
-  query: string,
-  filters?: SearchFilters
-): Promise<SearchResult[]> {
-  // Implementation
-}
-```
+Strict mode · interfaces for all data structures · ESLint clean · documented props.
 
-### API Design
-- **RESTful Endpoints** - Follow REST conventions for API design
-- **Proper HTTP Methods** - GET for reads, POST for creates, PUT/PATCH for updates
-- **Error Handling** - Return appropriate HTTP status codes with error messages
-- **API Versioning** - Use `/api/v1/` prefix for all endpoints
-- **Request Validation** - Validate all input using Pydantic models
+**Colour comes only from semantic tokens** — `canvas`, `surface`, `ink`, `muted`, `line`,
+`brand`, `brass`, `verified`, `live`. A raw hex or a stock Tailwind grey breaks dark mode.
 
-### Legal Domain
-- **Accurate Citations** - Use proper legal citation format (e.g., "Section 302, BNS")
-- **Legal Terminology** - Use correct Indian legal terms and definitions
-- **Case Law Format** - Follow standard format for case citations
-- **Disclaimer** - Include AI-generated content disclaimer in all outputs
+### Contracts
+
+`backend/models/` is the single source of truth; routers import from there rather than
+defining their own. `frontend/lib/api.ts` mirrors it in TypeScript.
+
+**Keep them in sync.** They have silently diverged before — the agent emitted claim sources as
+bare strings while the endpoint emitted typed objects, and it crashed every answer in the UI
+while every test passed.
+
+### Linting
+
+`ruff check .` must be clean. **The rule set is pinned in `backend/pyproject.toml`** because
+ruff widens its defaults every release — 0.1.14 flagged a handful of findings and 0.16 flagged
+~1,300 on identical code. Do not rely on ruff defaults here.
 
 ---
 
-## 7. Security & Compliance
+## 7. Testing
 
-### Data Privacy
-- **No PII in Vector DB** - Never store personally identifiable information in ChromaDB
-- **Data Sanitization** - Remove sensitive information before processing
-- **Anonymization** - Anonymize case details in examples and training data
+### Current state
 
-### Input Validation
-- **Sanitize User Uploads** - Validate and sanitize all file uploads before processing
-- **File Type Restrictions** - Only accept PDF and DOCX files for document analysis
-- **Size Limits** - Enforce maximum file size (50MB for documents)
-- **Content Scanning** - Scan uploads for malicious content
+**763 backend tests (755 pass, 8 skip), 106 frontend tests.**
 
-### API Security
-- **Rate Limiting** - Implement rate limiting on all API endpoints
-- **Authentication** - Use JWT tokens for user authentication
-- **CORS Configuration** - Properly configure CORS for frontend-backend communication
-- **API Keys** - Never commit API keys or secrets to version control
+- Tests calling the live API are marked `@pytest.mark.live` and **skip without
+  `AIML_API_KEY`**. A plain `pytest` run must stay green with no credentials.
+- The 8 skipped e2e tests need a running server.
+- Backend tests run **from `backend/`**.
 
-### Legal Compliance
-- **Legal Disclaimer** - Display prominent disclaimer in UI for AI-generated content
-- **Audit Logging** - Track all document generations and searches with timestamps
-- **Data Retention** - Define and implement data retention policies
-- **Terms of Service** - Require users to accept terms before using the system
+### Requirements
 
----
+- **Unit tests** for every service, tool and parser.
+- **Data-integrity tests** — the corpus *is* the guarantee. 21 offences are transcribed by eye
+  from the PDF and pinned exactly, with invariants over the other 444.
+- **Verifier tests** with deliberately fabricated claims: a non-existent section, misquoted
+  statutory text, a real judgement cited for a section it never mentions, a false bailability
+  claim, a one-sided contested claim. All must be caught.
+- **Contract tests between surfaces**, not just within one. Two components can each satisfy
+  their own tests and still disagree.
+- **Retrieval eval** — `eval_retrieval.py --compare concordance` after any retrieval change.
+  **No class may regress.**
+- **Adversarial** — the six adversarial queries must abstain; murder must never come back
+  bailable.
 
-## 8. Testing Requirements
+### [ASPIRATIONAL]
 
-### Unit Tests
-- **Each MCP Tool** - Write unit tests for all four MCP tools
-- **Helper Functions** - Test all utility and helper functions
-- **Edge Cases** - Test boundary conditions and error scenarios
-- **Mock External Services** - Mock LLM and database calls in unit tests
-
-### Integration Tests
-- **Agent Flows** - Test complete user journeys through the agent system
-- **Tool Chaining** - Test sequential execution of multiple tools
-- **Error Recovery** - Test system behavior when tools fail
-- **Performance** - Test response times under load
-
-### Data Testing
-- **Real Legal Data** - Test with actual BNS, BNSS, and BSA sections
-- **SC Judgements** - Test with real Supreme Court judgement samples
-- **Document Formats** - Test PDF and DOCX parsing with various formats
-- **Edge Cases** - Test with malformed documents and unusual queries
-
-### Document Validation
-- **DOCX Generation** - Verify generated documents are valid and properly formatted
-- **PDF Parsing** - Ensure accurate text extraction from PDFs
-- **Citation Accuracy** - Validate legal citations in generated documents
-- **Template Compliance** - Verify documents follow legal templates
-
-### Test Coverage
-- **Minimum 80% Coverage** - Maintain at least 80% code coverage
-- **Critical Paths** - 100% coverage for security and legal accuracy code
-- **Continuous Testing** - Run tests on every commit via CI/CD
+80% coverage minimum, 100% on legal-accuracy paths, CI on every commit. None of these are
+enforced today.
 
 ---
 
-## 9. Performance Benchmarks
+## 8. Security and compliance
 
-### Response Time Targets
-- **RAG Search Response Time**: < 2 seconds from query to first result
-- **Streaming Latency**: 
-  - First token: < 500ms
-  - Between tokens: < 50ms
-- **Document Generation**: < 5 seconds for standard bail application
-- **PDF Analysis**: < 3 seconds for documents up to 50 pages
-- **Vector Search**: < 1 second for similarity search across 10,000+ documents
-- **API Response Time**: < 200ms for non-LLM endpoints
-- **Database Query**: < 100ms for metadata queries
+### Implemented
 
-### Scalability Targets
-- **Concurrent Users**: Support 50+ simultaneous users
-- **Memory Usage**: 
-  - Backend: < 2GB RAM
-  - ChromaDB: < 4GB RAM
-- **Storage**: Efficient vector storage with compression
-- **Throughput**: Handle 100+ requests per minute
+- No PII in the vector database
+- Input validation via Pydantic on every endpoint
+- File type and size restrictions on uploads
+- Secrets in environment variables, never committed (`.env` is gitignored)
+- CORS configured for the frontend
+- `ANONYMIZED_TELEMETRY=False` — chromadb phones home by default, and a legal tool should not
+  report query volume
+- Disclaimers on all generated output
+- robots.txt honoured, rate limiting, and fail-closed policy checks on **outbound** requests
 
-### Monitoring
-- **Performance Metrics** - Track all benchmark metrics in production
-- **Alerting** - Set up alerts when metrics exceed thresholds
-- **Logging** - Log slow queries and operations for optimization
-- **Regular Audits** - Review performance metrics weekly
+### [ASPIRATIONAL] — not implemented
+
+- JWT authentication
+- Inbound API rate limiting
+- Audit logging for document generation
+- Data retention policy
+- Terms-of-service acceptance
+
+**Do not describe these as present.** The previous version of this file listed them as
+implemented, and they were not.
 
 ---
 
-## 10. Prohibited Actions
+## 9. Performance
 
-### Development
-- ❌ **Starting implementation without approved plan** - Always plan first
-- ❌ **Skipping tests** - Never commit code without tests
-- ❌ **Ignoring code review feedback** - Address all review comments
-- ❌ **Deploying without passing tests** - All tests must pass before deployment
+Measured: retrieval is sub-second over 3,184 chunks; deterministic endpoints
+(`/offences/{act}/{section}`) involve no model call at all.
 
-### Security
-- ❌ **Storing PII in vector database** - Never store personal information
-- ❌ **Committing secrets or API keys** - Use environment variables
-- ❌ **Skipping input validation** - Always validate and sanitize inputs
-- ❌ **Disabling security features** - Never disable CORS, rate limiting, etc.
+### [ASPIRATIONAL] targets
 
-### Legal
-- ❌ **Skipping legal disclaimers** - Always include AI-generated content warnings
-- ❌ **Using unofficial legal sources** - Only use government-verified legal texts
-- ❌ **Providing legal advice** - System assists, does not replace lawyers
-- ❌ **Ignoring legal accuracy** - Verify all citations and legal references
+RAG search < 2s to first result · first token < 500ms · document generation < 5s · non-LLM
+endpoints < 200ms · 50+ concurrent users · backend < 2GB RAM.
 
-### Data
-- ❌ **Using outdated legal codes** - Always use BNS/BNSS/BSA (2023+)
-- ❌ **Mixing old and new legal frameworks** - Don't reference IPC/CrPC in new code
-- ❌ **Storing unencrypted sensitive data** - Encrypt all sensitive information
-- ❌ **Sharing user data** - Never share user queries or documents
+No load testing or production monitoring exists. `scripts/performance_test.py` is a starting
+point, not a benchmark suite.
 
 ---
 
-## 11. File Organization
+## 10. Prohibited
+
+**Development** — implementing without a plan · committing without tests · deploying with
+failing tests.
+
+**Security** — PII in the vector DB · committed secrets · skipped input validation ·
+disabled CORS.
+
+**Legal** — omitting disclaimers · unofficial sources · giving legal advice (the system
+assists) · guessing a citation.
+
+**Data** — citing IPC/CrPC/Evidence Act as current law · mixing old and new frameworks ·
+resolving a conditional classification to a boolean · inferring a graph edge · claiming
+precedential status.
+
+**Ethics** — working around an access control a source has deliberately put in place. When
+Indian Kanoon went behind a Cloudflare challenge, the correct response was to **surface the
+blockage** through `/research/health`, not to route around it.
+
+---
+
+## 11. Repository layout
 
 ```
 LawAI/
-├── backend/                 # FastAPI application
-│   ├── agents/             # LangGraph agent logic
-│   │   ├── __init__.py
-│   │   ├── orchestrator.py # Main agent orchestrator
-│   │   └── state.py        # Agent state definitions
-│   ├── tools/              # MCP tool implementations
-│   │   ├── __init__.py
-│   │   ├── rag_search.py   # RAG search tool
-│   │   ├── draft_document.py # Document generation
-│   │   ├── analyze_doc.py  # Document analysis
-│   │   └── chat.py         # Chat tool
-│   ├── models/             # Pydantic data models
-│   │   ├── __init__.py
-│   │   ├── requests.py     # API request models
-│   │   └── responses.py    # API response models
-│   ├── services/           # Business logic services
-│   │   ├── __init__.py
-│   │   ├── llm_service.py  # AIML API (OpenAI-compatible) integration
-│   │   └── vector_db.py    # ChromaDB operations
-│   ├── api/                # API routes
-│   │   ├── __init__.py
-│   │   └── v1/             # API version 1
-│   ├── tests/              # Backend tests
-│   │   ├── unit/
-│   │   └── integration/
-│   ├── main.py             # FastAPI app entry point
-│   └── requirements.txt    # Python dependencies
-├── frontend/               # Next.js application
-│   ├── components/         # React components
-│   │   ├── chat/
-│   │   ├── search/
-│   │   └── documents/
-│   ├── pages/              # Next.js pages
-│   │   ├── api/            # API routes (if needed)
-│   │   ├── index.tsx       # Home page
-│   │   └── _app.tsx        # App wrapper
-│   ├── lib/                # Utility functions
-│   ├── styles/             # CSS/styling
-│   ├── tests/              # Frontend tests
-│   ├── package.json
-│   └── tsconfig.json
-├── data/                   # Legal corpus data
-│   ├── bns/                # BNS sections
-│   ├── bnss/               # BNSS sections
-│   ├── bsa/                # BSA sections
-│   └── judgements/         # SC judgements
-├── docs/                   # Documentation
-│   ├── api/                # API documentation
-│   ├── architecture/       # Architecture diagrams
-│   └── guides/             # User guides
-├── scripts/                # Utility scripts
-│   ├── setup_db.py         # Initialize ChromaDB
-│   └── import_data.py      # Import legal corpus
-├── .gitignore
-├── AGENTS.md               # Agent-specific guidance
-├── RULES.md                # This file
-├── README.md               # Project overview
-└── LICENSE
+├── backend/
+│   ├── agents/          legal_agent · agent_service · intent_classifier · state · citations
+│   ├── api/v1/          agent · search · offences · research · documents · chat
+│   ├── models/          claims · requests · responses  (single source of truth)
+│   ├── services/        grounded_answer · claim_verifier · answer_metrics · legal_graph
+│   │                    procedural_timeline · query_expansion · rag_service · vector_service
+│   │                    embedding_service · llm_service · judiciary_service · audience
+│   │   └── retrieval/   structured_filter · offence_lookup
+│   ├── tools/           BaseTool subclasses + registry
+│   ├── scripts/         ingest_* · init_vector_db · eval_retrieval · discover_judgments
+│   ├── tests/           unit/ (23) · integration/ (4) · e2e/ (1)
+│   ├── eval/            committed retrieval reports
+│   └── main.py
+├── frontend/
+│   ├── pages/           index (landing) · app (product) · _app · _document
+│   ├── components/      legal/ · chat/ · search/ · research/ · documents/ · shared/ · layout/
+│   ├── hooks/           useOffence · useSearch · useResearch · useDocuments · useTheme
+│   ├── lib/             api.ts (all HTTP) · workspaces · theme
+│   └── __tests__/
+├── data/
+│   ├── processed/       committed corpus JSON
+│   ├── curated/         doctrines.json — hand-curated
+│   └── raw/             gitignored, re-downloadable
+├── docs/                see docs/README.md
+├── scripts/verify_setup.py
+├── CLAUDE.md · AGENTS.md · RULES.md · README.md · CONTRIBUTING.md
+└── docker-compose.yml
 ```
 
 ---
 
-## 12. Git Workflow
+## 12. Git workflow
 
-### Branch Naming
-- `feature/` - New features (e.g., `feature/rag-search`)
-- `bugfix/` - Bug fixes (e.g., `bugfix/streaming-error`)
-- `docs/` - Documentation updates (e.g., `docs/api-guide`)
-- `test/` - Test additions (e.g., `test/integration-tests`)
-- `refactor/` - Code refactoring (e.g., `refactor/agent-state`)
+**Branches:** `feature/` · `bugfix/` · `docs/` · `test/` · `refactor/`
 
-### Commit Messages
-Follow conventional commits format:
-```
-<type>(<scope>): <subject>
+**Commits.** Write what changed and *why it matters*, in the imperative. The history here
+reads as a narrative — "Look up cited sections instead of searching for them", "Answer as
+verified claims, or abstain", "Fix what the browser found: a crash on every answer" — and
+that convention is worth keeping. Conventional-commit prefixes are acceptable but not
+required.
 
-<body>
+**Before committing:**
 
-<footer>
-```
-
-Types: `feat`, `fix`, `docs`, `style`, `refactor`, `test`, `chore`
-
-Examples:
-```
-feat(rag): add BNS section search functionality
-
-Implemented vector search for BNS sections with metadata filtering.
-Includes unit tests and integration tests.
-
-Closes #123
-```
-
-### Pull Request Requirements
-- ✅ All tests pass
-- ✅ Code reviewed by at least one team member
-- ✅ Documentation updated
-- ✅ No merge conflicts
-- ✅ Follows code quality standards
-
-### Main Branch Protection
-- **Protected branch** - Cannot push directly to main
-- **Requires PR approval** - At least one approval required
-- **Status checks** - All CI/CD checks must pass
-- **Linear history** - Use squash or rebase merge
-
----
-
-## 13. Development Commands
-
-### Backend (FastAPI)
 ```bash
-# Install dependencies
-pip install -r requirements.txt
-
-# Run development server
-uvicorn main:app --reload --host 0.0.0.0 --port 8000
-
-# Run tests
-pytest tests/ -v
-
-# Run tests with coverage
-pytest tests/ --cov=backend --cov-report=html
-
-# Type checking
-mypy backend/
-
-# Linting
-ruff check backend/
+cd backend  && pytest && ruff check .
+cd frontend && npm test && npm run lint && npm run type-check
 ```
 
-### Frontend (Next.js)
+Retrieval changes additionally require
+`python scripts/eval_retrieval.py --compare concordance` with no class regressed.
+
+---
+
+## 13. Development commands
+
 ```bash
-# Install dependencies
-cd frontend
-npm install
+# Backend — all from backend/
+python -m venv venv && ./venv/bin/pip install -r requirements.txt
+cp .env.example .env                 # set AIML_API_KEY
+uvicorn main:app --reload            # :8000, docs at /docs
+pytest · pytest -m live · pytest --cov=. --cov-report=html
+ruff check . · black . · mypy .
 
-# Run development server
-npm run dev
+# Corpus (rarely needed — outputs are committed)
+python scripts/ingest_legal_acts.py
+python scripts/ingest_judgments.py
+python scripts/ingest_offence_schedule.py
+python scripts/ingest_concordance.py
+python scripts/init_vector_db.py
 
-# Build for production
-npm run build
+# Eval
+python scripts/eval_retrieval.py --compare concordance
 
-# Run tests
-npm test
+# Frontend — from frontend/
+npm install && cp .env.local.example .env.local
+npm run dev · npm test · npm run lint · npm run type-check
 
-# Run tests with coverage
-npm test -- --coverage
-
-# Type checking
-npm run type-check
-
-# Linting
-npm run lint
-```
-
-### Vector Database (ChromaDB)
-```bash
-# ChromaDB runs locally - no separate setup needed
-# Initialize database with legal corpus
-python scripts/setup_db.py
-
-# Import legal data
-python scripts/import_data.py --source data/bns --collection bns
-python scripts/import_data.py --source data/bnss --collection bnss
-python scripts/import_data.py --source data/bsa --collection bsa
+# Docker — from the repo root
+docker compose up --build
+docker compose down -v               # also drops the vector store volume
 ```
 
 ---
 
-## 14. Documentation Requirements
+## 14. Documentation requirements
 
-### Code Documentation
-- **Module Docstrings** - Every Python module must have a docstring
-- **Function Docstrings** - Document parameters, return values, and exceptions
-- **Class Docstrings** - Document class purpose and attributes
-- **Inline Comments** - Explain complex logic and business rules
-
-### API Documentation
-- **OpenAPI/Swagger** - Auto-generate API docs from FastAPI
-- **Endpoint Documentation** - Document all endpoints with examples
-- **Request/Response Examples** - Provide sample JSON payloads
-- **Error Codes** - Document all possible error responses
-
-### User Documentation
-- **README.md** - Project overview and quick start guide
-- **User Guides** - Step-by-step guides for common tasks
-- **FAQ** - Frequently asked questions and troubleshooting
-- **Legal Disclaimer** - Clear explanation of system limitations
-
-### Architecture Documentation
-- **System Architecture** - High-level system design diagrams
-- **Data Flow** - Document how data flows through the system
-- **Agent Logic** - Explain LangGraph state machine and tool routing
-- **Database Schema** - Document ChromaDB collections and metadata
+- Every module, class and public function has a docstring.
+- **Docstrings explain *why*, not just what.** Where a design is non-obvious, record the
+  measurement or the bug that forced it — that is what makes this codebase maintainable, and
+  it is the strongest convention here.
+- API docs auto-generate from FastAPI at `/docs`.
+- Architecture and decisions live in [`docs/`](docs/README.md); update them when behaviour
+  changes.
+- When a fix lands, add its entry to
+  [`docs/CHALLENGES_AND_SOLUTIONS.md`](docs/CHALLENGES_AND_SOLUTIONS.md) so it cannot be
+  quietly reintroduced.
 
 ---
 
-## Conclusion
-
-These rules are designed to ensure high-quality, secure, and legally accurate development of the LawAI system. All contributors must follow these guidelines strictly. When in doubt, always prioritize:
-
-1. **Planning over implementation**
-2. **Security over convenience**
-3. **Legal accuracy over speed**
-4. **Code quality over quick fixes**
-
-For questions or clarifications, refer to [`AGENTS.md`](AGENTS.md) for agent-specific guidance or create an issue in the project repository.
-
----
-
-**Last Updated**: 2026-05-03  
-**Version**: 1.0.0
+**Last updated:** 2026-08-15 · **Version:** 2.0.0

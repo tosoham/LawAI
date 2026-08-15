@@ -1,156 +1,166 @@
-# LawAI rebuild — progress log
+# LawAI — progress log
 
-Rebuild to drop the hackathon's IBM watsonx.ai requirement and finish the project.
-Plan: [plan.md](plan.md) · Key facts: [context.md](context.md)
+What shipped, in order. Plan: [plan.md](plan.md) · Key facts: [context.md](context.md) ·
+`../CLAUDE.md` is the authoritative architecture guide.
 
-**Six phases complete.** Suite: **211 passed, 0 skipped** (with `AIML_API_KEY` set and a
-server running for the e2e tests).
+**Current state: 755 backend tests passing (8 skipped, needing a server), 106 frontend.**
+`ruff check .` clean; frontend lint, `tsc --noEmit` and `next build` all clean.
+
+Full engineering narrative: [`../docs/ENGINEERING_DEEP_DIVE.md`](../docs/ENGINEERING_DEEP_DIVE.md).
+Every bug and fix: [`../docs/CHALLENGES_AND_SOLUTIONS.md`](../docs/CHALLENGES_AND_SOLUTIONS.md).
 
 ---
 
-## Phase 1 — LLM provider swap ✅ (commit `fbcab87`)
+## Part I — Rebuild (dropping the watsonx requirement)
 
-IBM watsonx.ai → AIML API (OpenAI-compatible, default `gpt-4o-mini`).
+### Phase 1 — LLM provider swap ✅ `fbcab87`
 
-- Rewrote `LLMService` on the `openai` SDK, keeping the same public interface
-  (`generate` / `generate_stream` / `get_model_info`) so no tool or service call site changed.
-- Clients are built **lazily**: a missing key previously crashed the app at import because the
-  module-level singleton raised in `__init__`. Health endpoints now stay up.
-- `generate_stream` streams for real (`stream=True`) instead of blocking inside an `async def`.
-- Standardised generation kwargs on OpenAI names, with `max_new_tokens` kept as an alias.
-- Modernised `requirements.txt` — the old pins could not install on Python 3.13.
-- Rewrote `test_llm_service.py`; deleted `test_phase2a.py` and `health_check_report.txt`.
+IBM watsonx.ai → AIML API (OpenAI-compatible, `gpt-4o-mini`). Rewrote `LLMService` on the
+`openai` SDK keeping the same public interface, so no call site changed. Clients now build
+**lazily** — a missing key previously crashed the app at import. `generate_stream` streams for
+real. Modernised `requirements.txt` (old pins could not install on Python 3.13).
 
-## Phase 2 — Real bugs found while tracing call sites ✅ (commit `fbcab87`)
+### Phase 2 — Bugs found by tracing call sites ✅ `fbcab87`
 
-The test suite could not even *collect* before this, which is why these had gone unnoticed.
+The suite could not even *collect* before this, which is why these had gone unnoticed:
 
 | Bug | Impact |
 |---|---|
-| `rag_service` scored distance `0.0` as relevance `0.0` (falsy check) | Perfect matches ranked **worst**; ranking inverted |
-| `legal_agent` read draft text from `content`, tool returns `document` | Agent-routed drafts rendered **empty** |
-| `legal_agent` looked up `analyze_doc`, tool registers as `analyze_document` | Lookup always returned `None` |
-| `legal_agent` hardcoded `document_type="bail_application"` | Every draft was a bail application |
-| `intent_classifier` broke ties in enum order | "what can you help me with?" went to vector search |
-| `/documents/templates` declared `Dict[str, str]` but sends a list | Endpoint always **500**'d |
-| Draft/analyze tools called the LLM synchronously | Blocked the event loop |
-| `agreement` accepted by the request model but had no template | Valid request failed |
+| `rag_service` scored distance `0.0` as relevance `0.0` (falsy check) | Perfect matches ranked **worst** |
+| `legal_agent` read draft text from `content`, tool returns `document` | Agent drafts rendered **empty** |
+| Looked up `analyze_doc`, tool registers as `analyze_document` | Lookup always `None` |
+| Hardcoded `document_type="bail_application"` | Every draft was a bail application |
+| Classifier broke ties in enum order | "what can you help me with?" → vector search |
+| `/documents/templates` declared `Dict[str,str]`, sends a list | Endpoint always **500**'d |
+| Draft/analyze called the LLM synchronously | Blocked the event loop |
 
-Also consolidated duplicate request/response models into `backend/models/`, and added
-`pytest.ini` (tests imported `backend.*` while the app imports `services.*` — the same modules
-under two names would have duplicated every singleton).
+### Phase 3 — Real legal corpus ✅ `cbd7433`
 
-## Phase 3 — Real legal corpus ✅ (commit `cbd7433`)
+27 hand-written demo records → the actual law. **358 BNS, 531 BNSS, 170 BSA** from MHA gazette
+PDFs; 27 landmark judgements id-pinned. `init_vector_db.py` now **chunks before embedding**.
+Stopped tracking 51 MB of ChromaDB binaries.
 
-Replaced 27 hand-written demo records with the actual law.
+### Phase 4 — Cleanup ✅
 
-- `scripts/ingest_legal_acts.py` — official MHA gazette PDFs → **358 BNS, 531 BNSS, 170 BSA**
-  sections. Complete and correct counts, contiguous, all titled.
-- `scripts/ingest_judgments.py` — **27** landmark Supreme Court judgements, each pinned by
-  document id and re-verified on fetch.
-- `init_vector_db.py` now **chunks before embedding** (the embedding model truncates at ~256
-  tokens, so long judgements were indexed by their first paragraph only) and supports reset.
-- `data_loader.py` reads `data/processed/` and raises if absent instead of serving placeholders.
-- Stopped tracking `backend/chroma_db` (51 MB of binaries were in git).
+Removed IBM/Bob branding from 54 files. Rewrote `CLAUDE.md`/`AGENTS.md`.
 
-Retrieval verified end to end — see [context.md](context.md#retrieval).
+### Phase 5 — Live end-to-end verification ✅ `a2ef483` `e5fa4b4` `051d5a1`
 
-## Phase 4 — Cleanup and rebranding ✅
+With a real key, 28 previously-skipped tests ran and exposed defects mocking could never
+catch:
 
-- Removed IBM/Granite branding from `frontend/pages/index.tsx` and `demo.tsx`.
-- Stripped "Made with Bob" trailers from 54 files and deleted `.bob/` (its rules asserted IBM
-  was non-negotiable and referenced legacy `ipc_sections`/`crpc_sections` collection names —
-  actively misleading now). Recoverable from git history.
-- Rewrote `CLAUDE.md` and `AGENTS.md`; updated `README.md` and `RULES.md`.
-- Added a correction banner to `docs/COMPLETE_IMPLEMENTATION_PLAN.md` rather than rewriting
-  the historical plan.
+- **`frontend/lib/api.ts` had never been committed** — an unanchored `lib/` rule in
+  `.gitignore` excluded it. A fresh clone could not build.
+- **Search was broken end to end in three independent ways** — wrong path (404), wrong
+  collection alias (422), wrong response shape.
+- **`POST /documents/export/docx` did not exist** despite the frontend calling it.
+- **The two streaming endpoints spoke different SSE dialects.**
+- **"Tell me about bail" was answered by drafting a bail application.**
+- The first Bhajan Lal id was a **1992 contempt petition between the same parties** — caught
+  only by checking body text. `expect_text` added.
+- Lint was version-dependent (ruff 0.1.14 → a handful; 0.16 → ~1,300 on identical code). Rule
+  set pinned.
 
-## Phase 5 — Live end-to-end verification ✅ (commits `a2ef483`, `e5fa4b4`, `051d5a1`)
+### Phase 6 — Live judiciary integration ✅ `8cd76c3`
 
-With a real `AIML_API_KEY` the 28 previously-skipped tests could finally run, and they
-exposed a cluster of defects that mocking could never have caught.
+`judiciary_service.py` — robots-aware, rate-limited, TTL-cached, **fails soft**.
+`generate_with_tools` implements real OpenAI function calling. New `live_research` intent.
+Verified returning 2026 judgements the corpus snapshot can never contain.
 
-**`frontend/lib/api.ts` had never been committed.** An unanchored `lib/` rule in
-`.gitignore` (meant for Python distutils output) also matched `frontend/lib/`, so the API
-client every frontend module imports was silently excluded — a fresh clone could not build.
+### Containerisation ✅ `de417df` · UI rebuild ✅ `9d9dca1` `7c0fb54`
 
-**Search was broken end to end**, in three independent ways: the frontend called
-`/search/rag` while the backend served `/search/` (404); it sent `collection="bns_sections"`
-while the model accepted only short aliases (422); and it read `results.results[].content`
-while the API returns `answer` + `sources[].text` (would have thrown on every success, and
-never displayed the generated answer). All three fixed.
-
-**`POST /documents/export/docx` did not exist** despite the frontend calling it, CLAUDE.md
-documenting it and the README promising a downloadable .docx. Implemented.
-
-**The two streaming endpoints spoke different SSE dialects** — `/chat` emitted
-`{"type":"token","content":…}`, the agent emitted `{"token":…}`, and the frontend parser only
-understood the latter, so streaming chat rendered nothing. Unified on `{"token":…}` + `[DONE]`.
-
-Agent and classifier: the analyze node returned a bare dict where the formatter detects
-payloads with `hasattr(result, "success")`, so analysis came back empty; and "Tell me about
-bail" was answered by *drafting a bail application*, because draft/analyse matched on
-ordinary legal vocabulary. Those intents now require an action verb (verified over 21 queries).
-
-The four missing judgements were resolved with Indian Kanoon's `title:` + date operators.
-One of them nearly went in wrong: the first Bhajan Lal id matched the expected title tokens
-but was a **1992 contempt petition between the same parties**, caught only by checking the
-body text. `JudgementSpec` now takes `expect_text` phrases that must appear in the body.
-
-Lint was version-dependent (ruff 0.1.14 → a handful of findings; 0.16 → ~1,300 on identical
-code), which is why it was never addressed. `backend/pyproject.toml` now pins the rule set.
-Three fixes there were substantive: `zip(..., strict=True)` in the citation path (silent
-truncation would have dropped sources backing an answer), `datetime.utcnow()` → `now(UTC)`,
-and Pydantic `class Config` → `ConfigDict`.
+Token-based design system, dark mode, frontend test suite.
 
 ---
 
-## Phase 6 — Live judiciary integration ✅
+## Part II — Grounding architecture
 
-The corpus is a snapshot, so anything decided after ingestion was invisible. Added live
-access to authentic judiciary records, with the model deciding when to use it.
+### Retrieval foundations ✅ `e5327cf` `41d1dc2` `fd40ef5`
 
-- `services/judiciary_service.py` — robots-aware, rate-limited, TTL-cached client returning
-  citable hits (court, date, source URL). Fails soft so an outage degrades to the corpus.
-- `LLMService.generate_with_tools` — real OpenAI-style function calling against AIML API.
-- `tools/live_case_law_tool.py` — `live_case_law_search`, `fetch_judgment`, plus the schema
-  for `search_local_corpus` so the model can choose between verified and live sources.
-- New `live_research` intent + agent node, gated on recency signals; 29/29 classification
-  cases correct including the previously fixed ones.
-- `/api/v1/research/*` endpoints for direct access.
+- **Query expansion** — terms of art absent from the statute they govern. `term_of_art`
+  recall@3 **0.500 → 0.875**.
+- **BNSS 531 swallowed the First Schedule** — 129,022 chars → 1,873. Chunks 3,320 → 3,184.
+  Invisible in aggregate counts; only the length *distribution* showed it.
+- **Eval harness + baseline committed.** 69 golden queries in five failure classes.
 
-Verified live: "most recent Supreme Court judgments on anticipatory bail in 2026" returns
-February–May 2026 decisions with source URLs, and a hybrid question calls **both**
-`search_local_corpus` (BNS 111 text) and `live_case_law_search`.
+### Structured lookups ✅ `9e190d6` `786ff6f` `5888953`
+
+- **First Schedule parsed** into 465 offence rows — per-page column edges, runs not words,
+  rows by cell-refill, conditional cells kept `null`.
+- **Citations looked up, not searched for** — `citation` recall@3 **0.250 → 1.000**.
+- **Concordance** — 1,195 BPR&D mappings, cross-checked against a second table, 117/117 agree.
+  `repealed_code` **0.375 → 1.000**.
+
+### The graph ✅ `35a4406` `7fc2469`
+
+1,059 sections · 931 cross-references · 34 interprets edges · 16 doctrines · 288 classified.
+No LLM-inferred edges. Expansion into generation, with the four kinds rendered separately.
+
+### Typed claims and verification ✅ `c93f675` `257b21f` `d1a4685`
+
+Claims **emitted, not annotated**. Deterministic per-class verification. **Abstention falls
+out of verification** — the relevance-threshold design was measured (answerable worst 0.577,
+adversarial best 0.423, overlapping) and rejected. Agent's main path routed through it.
+
+### Deterministic layer and UI ✅ `3140112` `cac2c60` `5da9669` `24f86ca`
+
+Procedural timeline (no model). Claims rendered by class. Offence cards, doctrine trail, trace
+panel, audience register.
+
+### Landing page ✅ `a278658`
+
+Leads with the refusal. Every figure cross-checked against committed data in tests; a test
+asserts it quotes **no** accuracy percentage.
+
+### Adversarial and container testing ✅ `79339d9` `7d18c89`
+
+- **6/6 prompt injections held**; drift 100% consistent.
+- **Two question-substitution bugs found** — BNSS 103 answered from BNS 103; IPC 302 answered
+  without noting repeal. `citation_note()` added.
+- **A retrieval bug the verifier exposed** — "punishment for theft" abstained 1-in-3 because
+  BNS 305/304 outranked BNS 303.
+- **A container that passed its health check and 500-ed on every question** — missing
+  `data/curated`.
+- **A payload-shape mismatch that crashed every answer in the UI** — agent emitted bare-string
+  sources, endpoint emitted typed objects. Every test passed because nothing compared the two.
+- **SVG labels clipped outside the viewBox.**
+
+### Documentation ✅
+
+`docs/` rewritten: engineering deep dive, architecture, RAG pipeline, evaluation and testing,
+challenge catalogue, interview brief. README, RULES, AGENTS and CONTRIBUTING brought current —
+RULES previously listed JWT auth and rate limiting as implemented; neither exists.
 
 ---
 
-## Current state
+## Not built
 
-- **211 passed, 0 skipped, 0 failed** — including live LLM calls and 8 e2e tests against a
-  running server.
-- `ruff check .` clean; frontend lint, `tsc --noEmit` and `next build` all clean.
-- Corpus: 358 BNS + 531 BNSS + 170 BSA sections + **30** Supreme Court judgements
-  = 1,089 documents → 3,184 chunks.
-- All three demo flows verified live: bail drafting cites BNSS 479/482; case-law search
-  answers the anticipatory-bail duration question citing Sushila Aggarwal and Sibbia;
-  analysis flags indemnity and non-refundable-deposit risks.
+- **Phase 3 corpus depth (~300 judgements)** — `discover_judgments.py` is written and tested
+  but **unrunnable**: indiankanoon.org is behind a Cloudflare challenge returning 403 to every
+  path including `/robots.txt`. Deliberately not worked around; surfaced via
+  `/research/health`. Unblock is the official API (~₹78).
+- **Phase 5 retrieval quality** — cross-encoder reranking, small-to-big, hybrid BM25,
+  embedding upgrade, **reindex-safety manifest**. All designed, none built. The manifest is
+  the highest-risk gap: swapping the embedder against an existing volume silently serves an
+  index built by a different model.
+- **Phase 6 multi-agent orchestration** — planner, parallel specialists, and the dialectical
+  contested path. **This is why the project should not be described as multi-agent
+  collaboration.** What exists is a verification architecture with intent routing.
+- **Phase 7 MCP server.**
+- Auth, inbound rate limiting, CI, load testing.
+
+---
 
 ## Known limitations
 
-- **Bhajan Lal is stored abridged.** Indian Kanoon serves ~27k chars for that judgement
-  (ending near paragraph 12), so the famous seven-category list at paragraph 102 is not in
-  the corpus. The entry's `subject` describes what is actually stored.
-- Judgements are truncated at 60,000 characters before embedding.
-- ~~Retrieval misses terms of art absent from the statute text~~ **fixed** by
-  `services/query_expansion.py`. Correction to the earlier note here: a hybrid keyword +
-  vector search would *not* have closed this gap. The word "anticipatory" appears nowhere
-  in BNSS 482's 1,948 characters, so there is nothing for BM25 to match either — it is a
-  vocabulary problem, not a lexical-vs-semantic one. A curated alias layer appends the
-  statutory phrasing before embedding: BNSS 482 went from absent-from-top-6 to rank 1.
-- BNS 104 ("Punishment for murder by life-convict") outranks BNS 103 ("Punishment for
-  murder") for the query "punishment for murder" — near-identical titles, and unaffected by
-  expansion. The generated answer still cites 103 correctly, since the model reads the whole
-  retrieved context.
-- Agent streaming is still faux-streaming (the graph runs to completion, then the string is
-  chunked). Real token streaming exists on `/chat`.
+- **Bhajan Lal is stored abridged** (~27k chars); its seven-category list at paragraph 102 is
+  not in the corpus. The entry's `subject` describes what is actually stored.
+- Judgements truncated at 60,000 characters before embedding.
+- **`judgement`-class recall@3 has never moved** (0.833) — no layer targeted it, and 12 queries
+  over 30 judgements is thin.
+- BNS 104 ("murder by life-convict") outranks BNS 103 for "punishment for murder" — near
+  identical titles. The generated answer still cites 103 correctly, and offence lookup now
+  fetches 103 exactly.
+- **Agent streaming is faux-streaming** — deliberate, since real streaming would discard the
+  structured `sources`.
+- **The golden set was written by the same person who wrote the system.**

@@ -4,6 +4,11 @@ Durable facts a future session would otherwise have to rediscover.
 See also: [plan.md](plan.md) (the rebuild plan) and [PROGRESS.md](PROGRESS.md) (what shipped).
 `../CLAUDE.md` is the authoritative architecture guide.
 
+**Full documentation** is now in [`../docs/`](../docs/README.md) — engineering deep dive,
+architecture, RAG pipeline, evaluation and testing, and a catalogue of every fixed bug
+([`CHALLENGES_AND_SOLUTIONS.md`](../docs/CHALLENGES_AND_SOLUTIONS.md)). Check that catalogue
+before "simplifying" anything that looks odd; most of it is load-bearing.
+
 ## Environment
 
 - **Python is Anaconda 3.13.5.** The original `requirements.txt` pins (`numpy==1.24.3`,
@@ -76,17 +81,57 @@ Judgements come from `indiankanoon.org/doc/<id>/`, parsed with the `.doc_title`,
 ## Retrieval
 
 - Embeddings: `all-MiniLM-L6-v2`, 384-dim, **~256-token window**. This is why documents are
-  chunked (~1200 chars, 150 overlap) before embedding — otherwise a 60k-char judgement is
-  represented by its first paragraph and can never match a query about its holding.
+  chunked (~1200 chars, 150 overlap, batch 256) before embedding — otherwise a 60k-char
+  judgement is represented by its first paragraph and can never match a query about its
+  holding.
 - 1,089 source documents → 3,184 chunks. Chunks keep `parent_id`, `chunk_index`,
-  `chunk_count` so a hit is citable back to its section or case.
+  `chunk_count` so a hit is citable back to its section or case — and so the verifier can
+  check a quotation against the **whole** section rather than the retrieved piece.
 - Verified working: "punishment for murder" → BNS 103; "how long can an undertrial be
   detained" → BNSS 479; "admissibility of electronic records" → BSA 63; "can anticipatory
   bail be limited to a fixed period" → Sushila Aggarwal; "is registration of an FIR
   mandatory" → Lalita Kumari.
-- Known soft spot: "anticipatory bail" as a phrase does not appear in BNSS 482's text (titled
-  "Direction for grant of bail to person apprehending arrest"), so that query surfaces
-  BNSS 480/483 first. Inherent to embedding-only retrieval.
+- ~~Known soft spot: "anticipatory bail" does not appear in BNSS 482's text~~ **fixed** by
+  `services/query_expansion.py`. Correction to the original note: a hybrid BM25 retriever
+  would **not** have closed this gap — the word "anticipatory" appears nowhere in BNSS 482's
+  1,948 characters, so there is nothing to match lexically either. It is a vocabulary
+  problem, and the fix is a curated alias layer applied before embedding.
+
+### Four retrieval layers, and what each moved (recall@3, 69-query golden set)
+
+| Layer | Class it targeted | Before | After |
+|---|---|---|---|
+| Dense vector only | — | overall 0.652 | — |
+| Query expansion | `term_of_art` | 0.500 | **0.875** |
+| Structured citation lookup | `citation` | 0.250 | **1.000** |
+| Concordance translation | `repealed_code` | 0.375 | **1.000** |
+
+Overall **0.652 → 0.928**. `plain` stays at 0.960 throughout — every layer is additive, so a
+working query cannot be made worse. Reports committed in `backend/eval/`
+(`baseline_no_expand` → `baseline` → `structured` → `concordance`).
+
+A section number carries almost no semantic signal ("482" and "483" embed to nearly the same
+point), so reranking could not have fixed the citation class — a reranker works from the same
+signal. A citation names one document; it is fetched by exact metadata key at distance 0.0.
+
+## Grounding (the numbers behind the design)
+
+- **The relevance-threshold abstention design was measured and rejected.** Over the 69
+  answerable golden queries the worst best-distance is **0.577**; over the 6 adversarial ones
+  distances go as low as **0.423**. The distributions **overlap**, so no cutoff separates
+  them. Abstention is therefore whether one claim survives verification — the threshold is
+  one, and it cannot be mis-tuned because there is no parameter.
+- **Never let a model verify a model.** The prior that invented BNS 999 will confirm BNS 999.
+  Every check in `claim_verifier.py` is a lookup against committed data.
+- **Metrics are computed over what synthesis *emitted*,** before failures are rewritten to
+  `unsupported`. Scoring the survivors would delete every failure from the record and report
+  1.0 for having caught them. `verbatim_fidelity` covers **all** statute claims, not just
+  quoted ones, so a model that stops quoting to avoid being checked shows a drop.
+- **Corpus/graph counts:** 1,059 sections · 931 cross-references · 34 interprets edges · 16
+  doctrines · 288 classified sections · 465 offence rows · 1,195 concordance mappings.
+- The concordance is cross-checked against a second, independently typeset table:
+  **117/117 agree**. `title_agreement` was built as a filter and **demoted to a recorded
+  signal on evidence** — all 58 rows scoring below a third were correct.
 
 ## Repository hygiene
 
@@ -106,8 +151,12 @@ Judgements come from `indiankanoon.org/doc/<id>/`, parsed with the `.doc_title`,
   while the app imported `services.*` — the same module under two names, which would have
   duplicated every singleton. Keep both on the `services.*` convention.
 - Live tests are marked `live` and skip without `AIML_API_KEY`. Plain `pytest` must stay green
-  with no credentials; with a key and a server running it is 154 passed, 0 skipped.
+  with no credentials. Current: **763 collected, 755 passed, 8 skipped** (the 8 are e2e and
+  need a running server). Frontend: 106 passed.
 - The 8 e2e tests need a server: `./venv/bin/python -m uvicorn main:app --port 8000`.
+- **Test the relationship between surfaces, not just each one.** The agent and
+  `/search/grounded` both had passing tests while emitting incompatible claim-source shapes,
+  which crashed every answer in the UI. `TestPayloadShapesAgree` now compares them directly.
 
 
 ## Contract pitfalls found by live testing (do not regress these)
