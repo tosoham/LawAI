@@ -312,12 +312,34 @@ abstain:
 > way that is harder to notice.**
 
 Repeated runs (`RUNS = 3`) of the consequential questions — is murder bailable, which court
-tries it, is theft bailable — must give identical answers on the values that matter.
-Observed: **100% consistent.**
+tries it, is theft bailable — must agree on the values that matter.
 
-Note *how* the assertion is written: it checks the consequential value (`"non-bailable"`
-present, `"court of session"` present), not string equality of the whole answer. Prose
-varies; the law does not.
+Note *how* the assertion is written: it checks the consequential value, not string equality
+of the whole answer. Prose varies; the law does not.
+
+**And the assertion has to be as precise as the law, which is harder than it sounds.** The
+theft case is the one that caught this out. BNS 303(2) carries **two** First Schedule rows:
+
+| Offence | Cognizable | Bailable |
+|---|---|---|
+| Theft. | ✓ | **Non-bailable** |
+| Where value of property is less than 5,000 rupees. | ✗ | **Bailable** |
+
+So *"theft is bailable"* is a **true, verifiable** claim about the second row — and the
+verifier deliberately allows it (`_rows_the_claim_is_about` selects a row by its own offence
+wording appearing in the claim).
+
+The test originally required the string `"non-bailable"` in every answer, which **fails a
+correct answer** that addresses only the petty-theft limb. It duly failed once in a full run,
+on a correct answer. The invariant it should have been asserting is narrower: an
+**unqualified** claim that theft is bailable must never appear, because that is the reading a
+person acts on and for ordinary theft it is false. A qualified one must carry the value
+threshold.
+
+> Same mistake as the phone-call case in §6.5, and worth stating as a rule:
+> **when a test over a non-deterministic system fails, establish whether the assertion or the
+> system is wrong before touching either.** Here the data settled it — the Schedule has two
+> rows, so the keyword test was never right, it had just been lucky.
 
 ### 6.4 Question-substitution — two bugs this found
 

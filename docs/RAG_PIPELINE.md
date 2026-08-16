@@ -166,15 +166,136 @@ nothing was ever mis-paired. What the broken guard cost was the *diagnosis* — 
 passing 3 documents and 2 ids got an error naming `embeddings`, a list it never supplied,
 from two calls down inside the library.
 
-### 3.3 What batching still does not give you
+### 3.3 The rebuild is atomic
 
-Honest limits of the current design:
+**ChromaDB has no transactions**, so a multi-batch write cannot be rolled back. A seed that
+died on batch 7 of 13 left a collection holding a prefix of the corpus and **reporting itself
+healthy** — nothing downstream can tell a partial index from a small one, and retrieval simply
+stops finding things.
+
+What ChromaDB *does* offer is `collection.modify(name=...)`, a metadata-only rename. So a
+rebuild is written into a **staging collection** and becomes visible only by renaming it into
+place:
+
+```
+build   bns_sections__staging          ← readers still see the old index throughout
+verify  count == expected chunks       ← a short build is refused, not promoted
+swap    bns_sections → bns_sections__retired     (metadata write)
+        bns_sections__staging → bns_sections     (metadata write)
+drop    bns_sections__retired
+```
+
+Two renames rather than one, because ChromaDB refuses to rename onto an existing name
+(`UNIQUE constraint failed: collections.name`). The uncovered window is those two metadata
+writes instead of a whole collection delete.
+
+**Crash recovery.** `repair_interrupted_rebuild()` runs before planning and handles both
+reachable states, inventing nothing:
+
+| State found | Meaning | Action |
+|---|---|---|
+| `__retired` exists, live name does not | died between the renames | rename retired back; the previous index is restored and the rebuild discarded |
+| live name exists, plus `__retired`/`__staging` | swap completed | drop the debris |
+
+**Verification before promotion matters.** The staging count is checked against the expected
+chunk count *before* anything swaps, so a staging collection that silently lost writes cannot
+be promoted over a good index — the same silent-truncation failure as §3.2, one level up.
+
+**A rebuild also handles deletion.** Upsert alone never removes. Because staging starts empty,
+a document dropped from the source disappears from the index rather than lingering.
+
+### 3.4 Change detection: the manifest and content hashes
+
+`services/index_manifest.py` writes `index_manifest.json` **inside** the Chroma directory, so
+provenance travels with the volume it describes:
+
+```json
+{
+  "embedding_model": "all-MiniLM-L6-v2",
+  "embedding_dimension": 384,
+  "chunk_max_chars": 1200,
+  "chunk_overlap_chars": 150,
+  "collections": {
+    "bns_sections": { "documents": 358, "chunks": 525, "content_hash": "dd6cfa7f…" }
+  },
+  "build_fingerprint": "5f494645f5627a05"
+}
+```
+
+**This closes the highest-risk gap in the system.** Swapping the embedding model against an
+existing store is **silent and total**: the vectors are well-formed, the distances are
+numbers, and every answer is subtly wrong. No assertion downstream could catch it, because by
+then the only evidence is that answers got slightly worse. The seed now refuses to append
+across a model, dimension or chunk-parameter change and rebuilds instead — with a readable
+reason, not "manifest mismatch":
+
+> `index was built with embedding model 'bge-small-en', this run uses 'all-MiniLM-L6-v2' —
+> their vectors are not comparable`
+
+**Two hashes, two different remedies.** The *build fingerprint* (model + dimension + chunk
+params) deliberately excludes the corpus: a match means the index is one this code could have
+written, and a mismatch means rebuild everything. The *content hash* per collection answers
+whether the contents are current, and a mismatch means re-seed just that collection.
+
+**Measured effect** on the real corpus:
+
+| Scenario | Embedded | Reused | Time |
+|---|---|---|---|
+| First build | 3,184 | 0 | ~85s |
+| Re-run, nothing changed | 0 | 0 | ~16s (model load only, all four collections skipped) |
+| One section edited | **1** | **524** | **1.9s** |
+| `--force` on an unchanged corpus | 0 | 525 | 1.5s |
+
+Chunk-level reuse works because each chunk's hash is stored **in its own metadata**, so the
+next run can tell what changed without re-reading the corpus, and unchanged chunks have their
+vectors copied from the live index rather than recomputed.
+
+> **A bug worth recording, because it was silent.** The stored hash must *exclude* the
+> `content_hash` key it is stored under. It did not at first, so the value depended on whether
+> it had been written yet — the first pass hashes metadata without it, the second hashes
+> metadata with it, and the two never agree. Nothing broke: the index stayed correct and the
+> seed still succeeded. The optimisation just never fired, and the only evidence was a
+> surprising log line — `525 embedded, 0 reused` on a corpus where one chunk had moved.
+> Pinned by `test_stamping_a_chunk_with_its_own_hash_does_not_change_its_hash`.
+
+### 3.5 The container entrypoint asks a better question
+
+`docker-entrypoint.sh` used to gate on a `.lawai-seeded` marker: seed if absent, skip if
+present. That answers *"has a seed ever finished here?"* when the question worth asking is
+*"does this store match this image?"* — and the two come apart every time the corpus is
+updated, because a new image with new data finds the old marker and serves **the old corpus,
+silently and indefinitely**.
+
+The entrypoint now just runs the seed on every start, because the seed answers the real
+question itself and costs nothing when the answer is "nothing changed":
+
+| Situation | Result |
+|---|---|
+| fresh volume | full build |
+| unchanged image | no-op |
+| corpus updated | rebuild only the collections that moved |
+| embedding model swapped | full rebuild — the vectors are not comparable |
+| previous seed crashed | partial build discarded, rebuilt |
+
+`SKIP_DB_INIT=true` still bypasses it entirely.
+
+### 3.6 Other production concerns handled
+
+| Concern | How |
+|---|---|
+| **Transient write failures** | Up to 3 attempts per batch with widening backoff, so a five-minute pass is not lost to a 100 ms problem |
+| **Progress visibility** | Per-batch throughput and ETA (`525/805 chunks (312/s, ~1s left)`), so a stall looks like one |
+| **Plan before write** | `--dry-run` reports what would rebuild and why, touching nothing |
+| **Partial runs** | `--collection <name>`, repeatable |
+| **Atomic manifest write** | Written to a temp file and `os.replace`d — a manifest truncated by a crash would claim provenance the index does not have |
+
+### 3.7 What is still missing
 
 | | |
 |---|---|
-| **Not atomic** | If batch 7 of 13 fails, the collection is left partially filled. The container path is protected — `docker-entrypoint.sh` writes its `.lawai-seeded` marker only after the script exits 0, so a crashed seed re-runs — but a local run leaves a partial index with nothing recording that. Recovery is a full re-seed. |
-| **No manifest** | Nothing records which embedding model or chunk parameters produced the index. Swapping the embedder against an existing volume **silently serves an index built by a different model** — everything works and every answer is subtly wrong. Designed, not built; the highest-risk remaining gap. |
-| **No deletion of removed documents** | Upsert replaces and inserts; it never removes. A section deleted from the corpus stays indexed until the collection is reset. Not currently an issue — the acts are complete and sections are not removed — but it would matter if the judgement set were curated down. |
+| **No resume within a collection** | A failed rebuild restarts that collection from scratch rather than continuing from batch 7. Acceptable at 3,184 chunks with vector reuse making the retry cheap; it would not be at 300 judgements. |
+| **Single-writer assumption** | Two concurrent seeds against one store would race on the staging name. There is no lock file. Not a real scenario today (one entrypoint, one operator) but it is an assumption, not a guarantee. |
+| **Reuse trusts the stored hash** | If a row's `content_hash` were corrupted to match while its vector did not, reuse would copy a wrong vector. The hash is written by the same pass that writes the vector, so this needs external tampering. |
 
 ---
 

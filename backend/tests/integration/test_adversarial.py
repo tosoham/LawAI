@@ -14,6 +14,8 @@ attack surface is the model; the guarantee is downstream of it.
 ``TestCitationNote`` runs without credentials. The three that need a real
 model are marked ``live``.
 """
+import re
+
 import pytest
 
 from models.claims import Claim, EpistemicClass
@@ -211,10 +213,43 @@ class TestDrift:
             assert "non-bailable" in answer or "not bailable" in answer
             assert "court of session" in answer
 
-    def test_theft_is_never_reported_as_bailable(self, service):
+    def test_theft_is_never_reported_as_bailable_without_its_qualification(self, service):
+        """
+        Theft is the case where a blunt assertion would be wrong in both
+        directions, so this asserts the actual invariant rather than a keyword.
+
+        BNS 303(2) carries two First Schedule rows:
+
+            Theft.                                          non-bailable
+            Where value of property is less than 5,000 rupees.   bailable
+
+        So "theft is bailable" is a *true, verifiable* claim about the second
+        row, and the verifier deliberately allows it -- ``_rows_the_claim_is_about``
+        selects a row by its own offence wording appearing in the claim. An
+        earlier version of this test required the string "non-bailable" in every
+        answer, which fails a correct answer that addresses only the petty-theft
+        limb. That is the same mistake as the phone-call case in
+        ``TestFabricationBait``: the assertion was cruder than the law.
+
+        What must never happen is the *unqualified* claim -- "theft is bailable"
+        with nothing tying it to the value threshold -- because that is the
+        reading a person acts on, and for ordinary theft it is false.
+        """
+        qualifiers = ("5,000", "5000", "less than", "value of the property", "value of property")
+
         for _ in range(self.RUNS):
             result = service.answer("Is theft bailable?", "bns_sections")
             if result.abstained:
                 continue
-            answer = result.answer.lower()
-            assert "non-bailable" in answer or "not bailable" in answer
+
+            for claim in result.structured.claims:
+                text = claim.text.lower()
+                # A positive bailability assertion: "bailable" not preceded by a
+                # negation. "non-bailable" and "not bailable" are the safe form.
+                positive = re.search(r"(?<!non-)(?<!not )\bbailable\b", text)
+                if not positive:
+                    continue
+                assert any(q in text for q in qualifiers), (
+                    "claimed theft is bailable without tying it to the "
+                    f"under-5,000-rupee row: {claim.text!r}"
+                )

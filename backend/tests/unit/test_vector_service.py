@@ -178,3 +178,178 @@ class TestAddDocuments:
     def test_empty_input_is_refused(self, service):
         with pytest.raises(ValueError, match="cannot be empty"):
             service.add_documents("bns_sections", [], [], [])
+
+
+class TestAtomicRebuild:
+    """
+    Rebuilding a collection without ever exposing a partial one.
+
+    ChromaDB has no transactions, so a seed that dies part-way used to leave a
+    collection holding some prefix of the corpus and reporting itself healthy.
+    Nothing downstream can tell a partial index from a small one -- retrieval
+    just quietly stops finding things -- so the guarantee has to come from
+    never making a partial build visible in the first place.
+    """
+
+    @pytest.fixture
+    def service(self, tmp_path):
+        service = VectorService(persist_directory=str(tmp_path / "store"))
+        embeddings = Mock()
+        embeddings.embed_texts.side_effect = lambda texts: [
+            [float(len(t)), 0.0, 1.0] for t in texts
+        ]
+        service.embedding_service = embeddings
+        return service
+
+    def _fill(self, service, name, ids, prefix="v1"):
+        service.add_documents(
+            name,
+            documents=[f"{prefix}-{i}" for i in ids],
+            metadatas=[{"section_number": i} for i in ids],
+            ids=ids,
+        )
+
+    def test_a_rebuild_is_invisible_until_it_is_promoted(self, service):
+        self._fill(service, "bns_sections", ["a", "b"], prefix="old")
+
+        staging = service.begin_rebuild("bns_sections")
+        self._fill(service, staging, ["a", "b", "c"], prefix="new")
+
+        # Readers still see the previous index, complete and unchanged.
+        live = service._get_or_create_collection("bns_sections")
+        assert live.count() == 2
+        assert live.get(ids=["a"])["documents"] == ["old-a"]
+
+        service.promote_rebuild("bns_sections", expected_chunks=3)
+
+        live = service._get_or_create_collection("bns_sections")
+        assert live.count() == 3
+        assert live.get(ids=["a"])["documents"] == ["new-a"]
+
+    def test_an_abandoned_rebuild_leaves_the_live_index_untouched(self, service):
+        """The failure path: whatever went wrong, the previous index still serves."""
+        self._fill(service, "bns_sections", ["a", "b"], prefix="old")
+
+        staging = service.begin_rebuild("bns_sections")
+        self._fill(service, staging, ["a"], prefix="partial")
+        service.abandon_rebuild("bns_sections")
+
+        live = service._get_or_create_collection("bns_sections")
+        assert live.count() == 2
+        assert live.get(ids=["a"])["documents"] == ["old-a"]
+        assert service.staging_name("bns_sections") not in service.list_collection_names()
+
+    def test_a_short_build_is_refused_rather_than_promoted(self, service):
+        """
+        The count is checked before anything is swapped. A staging collection
+        that silently lost writes must not be allowed over a good index --
+        that is the same silent-truncation failure, one level up.
+        """
+        self._fill(service, "bns_sections", ["a", "b", "c"], prefix="old")
+
+        staging = service.begin_rebuild("bns_sections")
+        self._fill(service, staging, ["a"], prefix="new")
+
+        with pytest.raises(ValueError, match="holds 1 chunks, expected 3"):
+            service.promote_rebuild("bns_sections", expected_chunks=3)
+
+        assert service._get_or_create_collection("bns_sections").count() == 3
+
+    def test_promoting_without_a_staging_collection_is_refused(self, service):
+        with pytest.raises(ValueError, match="no staging collection"):
+            service.promote_rebuild("bns_sections", expected_chunks=1)
+
+    def test_a_rebuild_removes_documents_no_longer_in_the_corpus(self, service):
+        """
+        Upsert alone never deletes. Because a rebuild starts from an empty
+        staging collection, a document dropped from the source disappears from
+        the index instead of lingering forever.
+        """
+        self._fill(service, "bns_sections", ["a", "b", "c"])
+
+        staging = service.begin_rebuild("bns_sections")
+        self._fill(service, staging, ["a", "b"])
+        service.promote_rebuild("bns_sections", expected_chunks=2)
+
+        live = service._get_or_create_collection("bns_sections")
+        assert live.count() == 2
+        assert live.get(ids=["c"])["ids"] == []
+
+    def test_a_stale_staging_collection_is_discarded_not_appended_to(self, service):
+        """
+        Debris from a previous failed run holds an unknown prefix of an unknown
+        corpus. Appending to it would mix two builds, and no count or hash
+        computed afterwards would reveal the blend.
+        """
+        first = service.begin_rebuild("bns_sections")
+        self._fill(service, first, ["stale-1", "stale-2"])
+
+        second = service.begin_rebuild("bns_sections")
+
+        assert service._get_or_create_collection(second).count() == 0
+
+    def test_rebuilding_a_collection_that_does_not_exist_yet(self, service):
+        """The first-run path: there is nothing to retire."""
+        staging = service.begin_rebuild("bns_sections")
+        self._fill(service, staging, ["a"])
+        service.promote_rebuild("bns_sections", expected_chunks=1)
+
+        assert service._get_or_create_collection("bns_sections").count() == 1
+
+
+class TestRepairInterruptedRebuild:
+    """
+    Recovery from a crash inside the swap.
+
+    The swap is two renames -- live to retired, staging to live -- and dying
+    between them leaves nothing under the real name. Both reachable states are
+    recoverable, and neither invents data.
+    """
+
+    @pytest.fixture
+    def service(self, tmp_path):
+        service = VectorService(persist_directory=str(tmp_path / "store"))
+        embeddings = Mock()
+        embeddings.embed_texts.side_effect = lambda texts: [[1.0, 0.0, 1.0] for _ in texts]
+        service.embedding_service = embeddings
+        return service
+
+    def _add(self, service, name, doc_id, text):
+        # chromadb rejects an empty metadata dict, so give every row a marker.
+        service.add_documents(
+            name, documents=[text], metadatas=[{"origin": text}], ids=[doc_id]
+        )
+
+    def test_a_crash_between_the_renames_restores_the_previous_index(self, service):
+        self._add(service, "bns_sections", "a", "previous")
+        self._add(service, "bns_sections__staging", "a", "rebuilt")
+        # Simulate dying after the first rename and before the second.
+        service.client.get_collection("bns_sections").modify(name="bns_sections__retired")
+
+        assert "bns_sections" not in service.list_collection_names()
+
+        repaired = service.repair_interrupted_rebuild("bns_sections")
+
+        assert repaired is not None and "restored" in repaired
+        live = service._get_or_create_collection("bns_sections")
+        assert live.get(ids=["a"])["documents"] == ["previous"]
+        assert "bns_sections__staging" not in service.list_collection_names()
+
+    def test_debris_is_cleared_when_the_swap_completed(self, service):
+        self._add(service, "bns_sections", "a", "live")
+        self._add(service, "bns_sections__retired", "a", "leftover")
+
+        repaired = service.repair_interrupted_rebuild("bns_sections")
+
+        assert repaired is not None and "debris" in repaired
+        assert "bns_sections__retired" not in service.list_collection_names()
+        assert service._get_or_create_collection("bns_sections").get(
+            ids=["a"]
+        )["documents"] == ["live"]
+
+    def test_a_healthy_store_needs_no_repair(self, service):
+        self._add(service, "bns_sections", "a", "live")
+        assert service.repair_interrupted_rebuild("bns_sections") is None
+
+    def test_an_empty_store_needs_no_repair(self, service):
+        assert service.repair_interrupted_rebuild("bns_sections") is None

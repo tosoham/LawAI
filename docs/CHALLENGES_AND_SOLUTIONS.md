@@ -14,7 +14,7 @@ Each entry follows the same shape: **Symptom → Cause → Fix → Guard.** Entr
 | § | Area | Entries |
 |---|---|---|
 | [1](#1-data-ingestion) | Data ingestion & parsing | 12 |
-| [2](#2-chunking-embedding-and-indexing) | Chunking, embedding, indexing | 6 |
+| [2](#2-chunking-embedding-and-indexing) | Chunking, embedding, indexing | 10 |
 | [3](#3-retrieval) | Retrieval | 7 |
 | [4](#4-grounding-and-verification) | Grounding & verification | 12 |
 | [5](#5-the-legal-graph) | Legal graph | 4 |
@@ -237,6 +237,81 @@ list it never supplied, from two calls down inside the library.
 the message.
 
 ---
+
+### 2.7 A crashed seed left a partial index reporting itself healthy ⚑
+
+**Symptom.** Retrieval quietly stops finding things. No error anywhere.
+**Cause.** ChromaDB has no transactions, so a multi-batch write cannot be rolled back. A seed
+that died on batch 7 of 13 left a collection holding a prefix of the corpus — and **nothing
+downstream can distinguish a partial index from a small one.**
+**Fix.** Rebuild into a **staging** collection and rename it into place only after every batch
+lands and the row count is verified. `collection.modify(name=…)` is a metadata-only operation,
+so the swap is two renames rather than a copy:
+
+```
+build   bns_sections__staging       ← readers see the old index throughout
+verify  count == expected
+swap    bns_sections → __retired ;  __staging → bns_sections
+drop    __retired
+```
+
+Two renames because chromadb refuses to rename onto an existing name (`UNIQUE constraint
+failed: collections.name`).
+**Crash recovery.** `repair_interrupted_rebuild()` handles both reachable states and invents
+nothing: retired-exists-but-live-does-not means the swap was interrupted, so restore the
+previous index and discard the rebuild; live-exists-plus-debris means it completed, so drop
+the debris.
+**Bonus.** Because staging starts empty, a document removed from the source now disappears
+from the index. Upsert alone never deletes.
+**Guard.** `TestAtomicRebuild`, `TestRepairInterruptedRebuild` — against a real ChromaDB.
+
+### 2.8 Nothing recorded which model built the index ⚑
+
+**Symptom.** None available. That is the entire problem.
+**Cause.** A vector index is derived data and the derivation is invisible once written: 3,184
+rows of 384 floats look identical whichever model produced them. **Swapping the embedding
+model against an existing store is silent and total** — the query is embedded by one model and
+compared against vectors written by another, so distances are meaningless while remaining
+well-formed numbers. No assertion downstream could catch it; by then the only evidence is that
+answers got slightly worse.
+**Fix.** `services/index_manifest.py` writes `index_manifest.json` **inside** the Chroma
+directory so provenance travels with the volume. The seed refuses to append across a model,
+dimension or chunk-parameter change and rebuilds instead, with a readable reason:
+*"index was built with embedding model 'bge-small-en', this run uses 'all-MiniLM-L6-v2' —
+their vectors are not comparable"*.
+**Two hashes, two remedies.** The *build fingerprint* (model + dimension + chunk params)
+excludes the corpus — a mismatch means rebuild everything. The *content hash* per collection
+answers whether contents are current — a mismatch means re-seed that collection only.
+**Guard.** `tests/unit/test_index_manifest.py`.
+
+### 2.9 The content hash was self-referential ⚑
+
+**Symptom.** `525 embedded, 0 reused` on a corpus where exactly **one** chunk had changed.
+**Cause.** Each chunk's hash is stored in its own metadata so the next run can tell what
+changed. The hash covered that key, so its value depended on whether it had been written yet —
+the first pass hashes metadata *without* it, the second hashes metadata *with* it, and the two
+never agree. Every chunk looks changed, forever.
+**Why it is worth recording.** **Nothing broke.** The index stayed correct, the seed still
+succeeded, every test passed. The optimisation simply never fired, and the only evidence was a
+surprising number in a log line.
+**Fix.** Exclude `content_hash` from the hash it is stored under. After: `1 embedded, 524
+reused, 1.9s` — down from ~85s.
+**Guard.** `test_stamping_a_chunk_with_its_own_hash_does_not_change_its_hash`, plus
+`test_a_stamped_chunk_still_detects_a_real_change` so the exclusion cannot blind the hash to
+something that matters.
+
+### 2.10 The seed marker answered the wrong question ⚑
+
+**Cause.** `docker-entrypoint.sh` gated on a `.lawai-seeded` marker — *"has a seed ever
+finished here?"* — when the question worth asking is *"does this store match this image?"*
+Those come apart every time the corpus is updated: a new image with new data finds the old
+marker and serves **the old corpus, silently and indefinitely.**
+**Fix.** Run the seed on every start. It now answers the real question itself (manifest
+comparison + content hashing) and is a no-op when nothing changed, so it is cheap enough to
+run unconditionally and correct in the cases the marker got wrong — corpus updated, model
+swapped, previous seed crashed.
+**Note.** This supersedes 8.2, which fixed the marker's *other* failure. The marker was doing
+two jobs badly; deleting it does both properly.
 
 ## 3. Retrieval
 

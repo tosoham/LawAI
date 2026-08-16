@@ -9,6 +9,12 @@ from sentence_transformers import SentenceTransformer
 
 logger = logging.getLogger(__name__)
 
+# Named here rather than inline in __init__ so the seeding path can record it in
+# the index manifest. Which model produced a set of vectors is not recoverable
+# from the vectors themselves, and querying an index with a different model than
+# built it fails silently -- see services/index_manifest.py.
+MODEL_NAME = "all-MiniLM-L6-v2"
+
 
 class EmbeddingService:
     """Singleton service for generating embeddings"""
@@ -26,13 +32,17 @@ class EmbeddingService:
         if self._model is None:
             try:
                 # Use lightweight model for speed
-                model_name = "all-MiniLM-L6-v2"
-                logger.info(f"Loading embedding model: {model_name}")
-                self._model = SentenceTransformer(model_name)
+                logger.info(f"Loading embedding model: {MODEL_NAME}")
+                self._model = SentenceTransformer(MODEL_NAME)
                 logger.info("Embedding model loaded successfully")
             except Exception as e:
                 logger.error(f"Failed to load embedding model: {e}")
                 raise
+
+    @property
+    def model_name(self) -> str:
+        """The model that produced this service's vectors."""
+        return MODEL_NAME
 
     def embed_text(self, text: str) -> list[float]:
         """
@@ -80,8 +90,19 @@ class EmbeddingService:
             raise
 
     def get_embedding_dimension(self) -> int:
-        """Get the dimension of embeddings produced by this model"""
-        return self._model.get_sentence_embedding_dimension()
+        """
+        Get the dimension of embeddings produced by this model.
+
+        sentence-transformers renamed ``get_sentence_embedding_dimension`` to
+        ``get_embedding_dimension``; both spellings are in the wild depending on
+        the installed version, so prefer the new one and fall back rather than
+        pinning a version for a single accessor.
+        """
+        model = self._model
+        getter = getattr(model, "get_embedding_dimension", None) or (
+            model.get_sentence_embedding_dimension
+        )
+        return getter()
 
 
 # Global instance

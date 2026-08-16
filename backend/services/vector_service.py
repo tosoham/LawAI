@@ -345,6 +345,131 @@ class VectorService:
             logger.error(f"Error resetting database: {e}")
             raise
 
+    # -- atomic rebuild ----------------------------------------------------
+    #
+    # ChromaDB has no transactions, so a multi-batch write cannot be rolled
+    # back: a seed that dies on batch 7 of 13 leaves a collection that is
+    # half the corpus and reports itself perfectly healthy. Nothing downstream
+    # can tell a partial index from a small one, and the failure is silent in
+    # the direction that matters -- retrieval simply stops finding things.
+    #
+    # What chromadb does give is a rename, which is a metadata operation. So a
+    # rebuild is written into a staging collection under a different name and
+    # only becomes visible by renaming it into place. Readers see the previous
+    # index until the moment the new one is complete and verified, and a crash
+    # at any point before the swap leaves the live collection untouched.
+    #
+    # The swap itself is two renames, because chromadb refuses to rename onto a
+    # name that exists (UNIQUE constraint on collections.name):
+    #
+    #     live -> retired      (metadata write)
+    #     staging -> live      (metadata write)
+    #     drop retired         (slow, but live is already correct)
+    #
+    # The uncovered window is between the two renames rather than spanning a
+    # whole collection delete, and `repair_interrupted_rebuild` recovers from
+    # a crash inside it.
+
+    STAGING_SUFFIX = "__staging"
+    RETIRED_SUFFIX = "__retired"
+
+    def staging_name(self, collection_name: str) -> str:
+        return f"{collection_name}{self.STAGING_SUFFIX}"
+
+    def list_collection_names(self) -> list[str]:
+        return [c.name for c in self.client.list_collections()]
+
+    def begin_rebuild(self, collection_name: str) -> str:
+        """
+        Open an empty staging collection for ``collection_name``.
+
+        Any staging collection left by a previous failed run is dropped first:
+        it holds an unknown prefix of an unknown corpus, and appending to it
+        would produce a mix of two builds that no hash would detect.
+        """
+        staging = self.staging_name(collection_name)
+        self.delete_collection(staging)
+        self._get_or_create_collection(staging)
+        logger.info(f"staging {staging} opened for rebuild of {collection_name}")
+        return staging
+
+    def promote_rebuild(self, collection_name: str, expected_chunks: int) -> None:
+        """
+        Swap a completed staging collection into place.
+
+        ``expected_chunks`` is checked before anything is swapped, so a staging
+        collection that silently lost writes -- the exact failure ``upsert``
+        was introduced to prevent -- cannot be promoted over a good index.
+
+        Raises:
+            ValueError: If staging is absent or holds the wrong number of rows.
+        """
+        staging = self.staging_name(collection_name)
+        if staging not in self.list_collection_names():
+            raise ValueError(f"no staging collection {staging} to promote")
+
+        actual = self._get_or_create_collection(staging).count()
+        if actual != expected_chunks:
+            raise ValueError(
+                f"refusing to promote {staging}: holds {actual} chunks, expected "
+                f"{expected_chunks}. The live index has not been touched."
+            )
+
+        retired = f"{collection_name}{self.RETIRED_SUFFIX}"
+        self.delete_collection(retired)
+
+        names = self.list_collection_names()
+        if collection_name in names:
+            self.client.get_collection(collection_name).modify(name=retired)
+        self.client.get_collection(staging).modify(name=collection_name)
+        self.delete_collection(retired)
+
+        logger.info(f"promoted {staging} -> {collection_name} ({actual} chunks)")
+
+    def abandon_rebuild(self, collection_name: str) -> None:
+        """Drop a staging collection without promoting it."""
+        self.delete_collection(self.staging_name(collection_name))
+
+    def repair_interrupted_rebuild(self, collection_name: str) -> str | None:
+        """
+        Recover from a crash inside the two-rename swap.
+
+        The only losable state is a process death between renaming the live
+        collection to ``__retired`` and renaming staging into its place, which
+        leaves no collection under the real name. Both possible worlds are
+        recoverable, and neither invents data:
+
+        - a retired collection exists and the live name does not -> the swap
+          had not completed, so rename the retired one back. The index is the
+          previous good one and the rebuild is simply lost.
+        - the live name exists -> the swap completed; any leftover retired or
+          staging collection is debris and is dropped.
+
+        Returns a description of what was repaired, or None if nothing was.
+        """
+        names = self.list_collection_names()
+        retired = f"{collection_name}{self.RETIRED_SUFFIX}"
+        staging = self.staging_name(collection_name)
+
+        if collection_name not in names and retired in names:
+            self.client.get_collection(retired).modify(name=collection_name)
+            self.delete_collection(staging)
+            message = (
+                f"recovered {collection_name} from an interrupted rebuild; the "
+                "previous index was restored and the rebuild discarded"
+            )
+            logger.warning(message)
+            return message
+
+        debris = [n for n in (retired, staging) if n in names]
+        if collection_name in names and debris:
+            for name in debris:
+                self.delete_collection(name)
+            message = f"cleared debris from a previous rebuild: {', '.join(debris)}"
+            logger.info(message)
+            return message
+        return None
+
 
 # Global instance
 _vector_service: VectorService | None = None

@@ -1,33 +1,43 @@
 #!/bin/sh
-# Seed the vector store on first start, then hand off to the real command.
+# Bring the vector store up to date, then hand off to the real command.
 #
 # The ChromaDB directory lives on a named volume rather than in the image: it is
 # derived data (~70 MB of binary index), and baking it in would mean re-running
-# the whole embedding pass on every unrelated layer change. Seeding here keeps
-# `docker compose up` a single step for a new checkout while leaving restarts
-# fast.
+# the whole embedding pass on every unrelated layer change.
 #
-# Set SKIP_DB_INIT=true to bypass this (e.g. when pointing at a pre-seeded
-# volume, or running the test suite, which does not need the corpus).
+# This used to gate on a marker file: seed if absent, skip if present. That
+# answered "has a seed ever finished here?" when the question worth asking is
+# "does this store match this image?" -- and the two come apart every time the
+# corpus is updated, because a new image with new data would find the old
+# marker and serve the old corpus, silently and indefinitely.
+#
+# init_vector_db.py now answers the real question itself. It reads the manifest
+# written beside the store, compares the embedding model, dimension and chunk
+# parameters against its own, hashes each collection's contents, and rebuilds
+# only what actually moved. On an unchanged store that is a few seconds of
+# hashing and no embedding at all, so it is cheap enough to run on every start
+# and correct in the cases a marker got wrong:
+#
+#   fresh volume           -> full build
+#   unchanged image        -> no-op
+#   corpus updated         -> rebuild the collections that changed
+#   embedding model swapped-> full rebuild (the vectors are not comparable)
+#   previous seed crashed  -> partial build discarded, rebuilt from scratch
+#
+# The rebuild is atomic per collection, so a container killed mid-seed leaves
+# the previous index in place and serving rather than a half-filled one.
+#
+# Set SKIP_DB_INIT=true to bypass entirely (a pre-seeded volume, or the test
+# suite, which does not need the corpus).
 set -e
 
-CHROMADB_PATH="${CHROMADB_PATH:-/data/chroma_db}"
-# Written only after init_vector_db.py exits 0. Do NOT test for chroma.sqlite3
-# instead: chromadb creates that file the moment a client connects, so a seed
-# that crashed part-way would look complete on the next start and the API would
-# happily serve an empty corpus.
-SEEDED_MARKER="${CHROMADB_PATH}/.lawai-seeded"
-
 if [ "${SKIP_DB_INIT}" = "true" ]; then
-    echo "[entrypoint] SKIP_DB_INIT=true - leaving ${CHROMADB_PATH} alone"
-elif [ -f "${SEEDED_MARKER}" ]; then
-    echo "[entrypoint] Vector store already seeded at ${CHROMADB_PATH} - skipping init"
+    echo "[entrypoint] SKIP_DB_INIT=true - leaving ${CHROMADB_PATH:-/data/chroma_db} alone"
 else
-    echo "[entrypoint] No seeded vector store at ${CHROMADB_PATH} - building it now."
-    echo "[entrypoint] This embeds ~3,300 chunks and takes a few minutes; it"
-    echo "[entrypoint] only happens once, because the volume persists."
+    echo "[entrypoint] Reconciling the vector store with this image's corpus."
+    echo "[entrypoint] A first build embeds ~3,200 chunks and takes a few minutes;"
+    echo "[entrypoint] an unchanged store is a no-op and starts immediately."
     python scripts/init_vector_db.py
-    touch "${SEEDED_MARKER}"
     echo "[entrypoint] Vector store ready."
 fi
 
