@@ -80,8 +80,9 @@ metadata["chunk_index"] = index
 metadata["chunk_count"] = len(parts)
 ```
 
-IDs are stable and meaningful: a single-chunk document keeps its own id; a split one becomes
-`{id}__c{index}`. Re-seeding is idempotent.
+IDs are stable and deterministic: a single-chunk document keeps its own id; a split one
+becomes `{id}__c{index}`. Combined with `upsert`, re-seeding is idempotent **in content, not
+merely in count** — see §3.2.
 
 `parent_id` is what makes a retrieved fragment **citable back to its source**, and it pays
 off twice more downstream:
@@ -101,6 +102,8 @@ off twice more downstream:
 ---
 
 ## 3. Batching
+
+### 3.1 Why batch, and how it is sized
 
 ```python
 for start in range(0, len(chunks), BATCH_SIZE):
@@ -122,6 +125,56 @@ Three reasons, in order of importance:
 
 `EmbeddingService` is a **singleton** — the model is ~90 MB and takes seconds to load.
 Constructing it per request would dominate query latency.
+
+### 3.2 Upsert, not insert — and why it matters here
+
+`add_documents` calls `collection.upsert`, not `collection.add`.
+
+**This was a real bug, found by asking the question rather than by any test.** ChromaDB's
+`add()` with an id that already exists **silently discards the write** — no exception, no
+warning — and **keeps the previous text**:
+
+```python
+c.add(documents=["alpha"],         ids=["x1"], ...)
+c.add(documents=["BETA-CHANGED"],  ids=["x1"], ...)   # no error raised
+c.get(ids=["x1"])["documents"]                        # -> ['alpha']   ← stale
+```
+
+Because the seed script deletes each collection before filling it (`reset=True` by default),
+the **default path was safe by destruction**. But `init_vector_db.py --keep` — the documented
+way to add to an existing index — silently kept stale text for any id it had seen before.
+
+**The concrete failure this would have caused:** BNSS 531 held **129,022 characters** until
+the parser stopped it swallowing the First Schedule. Re-seeding with `--keep` after that fix
+would have reported success and **continued serving the 129k version.** Exactly the silent
+staleness this project exists to prevent — in the corpus that is supposed to be the
+guarantee.
+
+With deterministic ids plus `upsert`, re-seeding the same corpus is a genuine no-op, and
+re-seeding a *corrected* corpus replaces precisely the chunks that changed.
+
+> **Why no test caught it:** `add_documents` had **zero coverage**. And a mocked collection
+> could not have caught it anyway — it would assert only that we called what we meant to
+> call, which was the thing that was wrong. The regression tests run against a real ChromaDB
+> for that reason.
+
+**A related smaller bug in the same function:** the length guard was written
+`len(a) != len(b) != len(c)`, which Python reads as `(a != b) and (b != c)` — False whenever
+two of the three match, i.e. the likeliest mismatch of all. To be precise about the
+consequence, since the obvious guess is wrong: **chromadb validates lengths itself**, so
+nothing was ever mis-paired. What the broken guard cost was the *diagnosis* — a caller
+passing 3 documents and 2 ids got an error naming `embeddings`, a list it never supplied,
+from two calls down inside the library.
+
+### 3.3 What batching still does not give you
+
+Honest limits of the current design:
+
+| | |
+|---|---|
+| **Not atomic** | If batch 7 of 13 fails, the collection is left partially filled. The container path is protected — `docker-entrypoint.sh` writes its `.lawai-seeded` marker only after the script exits 0, so a crashed seed re-runs — but a local run leaves a partial index with nothing recording that. Recovery is a full re-seed. |
+| **No manifest** | Nothing records which embedding model or chunk parameters produced the index. Swapping the embedder against an existing volume **silently serves an index built by a different model** — everything works and every answer is subtly wrong. Designed, not built; the highest-risk remaining gap. |
+| **No deletion of removed documents** | Upsert replaces and inserts; it never removes. A section deleted from the corpus stays indexed until the collection is reset. Not currently an issue — the acts are complete and sections are not removed — but it would matter if the judgement set were curated down. |
 
 ---
 

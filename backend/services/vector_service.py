@@ -96,35 +96,60 @@ class VectorService:
         ids: list[str]
     ) -> None:
         """
-        Add documents to a collection
+        Add or replace documents in a collection, keyed by id.
+
+        Uses ``upsert`` rather than ``add``, which makes re-seeding idempotent
+        in content and not merely in count. ``collection.add`` **silently
+        discards** a write whose id already exists -- no exception, no warning,
+        and the *previous* text is what stays indexed. That is the wrong
+        failure for this corpus: re-running the seed after fixing a parse would
+        report success while continuing to serve the old text. The concrete
+        case is BNSS 531, which was 129,022 characters until the parser stopped
+        it swallowing the First Schedule; under ``add`` the 1,873-character
+        correction would never have landed.
+
+        Ids are deterministic (``bns_103``, or ``bns_103__c2`` for a chunked
+        section), so an upsert of the same corpus is a no-op and an upsert of a
+        corrected one replaces exactly the chunks that changed.
 
         Args:
             collection_name: Name of the collection
             documents: List of document texts
             metadatas: List of metadata dicts
             ids: List of unique IDs
+
+        Raises:
+            ValueError: If any list is empty, or the three lengths differ
         """
         try:
             if not documents or not metadatas or not ids:
                 raise ValueError("Documents, metadatas, and ids cannot be empty")
 
-            if len(documents) != len(metadatas) != len(ids):
-                raise ValueError("Documents, metadatas, and ids must have same length")
+            # Compared against one length. Written as a chained comparison this
+            # reads as `(a != b) and (b != c)`, which is False whenever two of
+            # the three match -- so one list out of step, the likeliest
+            # mismatch, passed straight through. chromadb catches it, so nothing
+            # was mis-paired; what was lost was the diagnosis, since its error
+            # names `embeddings`, a list the caller never passed.
+            if not (len(documents) == len(metadatas) == len(ids)):
+                raise ValueError(
+                    "Documents, metadatas, and ids must have the same length "
+                    f"(got {len(documents)}, {len(metadatas)}, {len(ids)})"
+                )
 
             collection = self._get_or_create_collection(collection_name)
 
             # Generate embeddings
             embeddings = self.embedding_service.embed_texts(documents)
 
-            # Add to collection
-            collection.add(
+            collection.upsert(
                 documents=documents,
                 metadatas=metadatas,
                 ids=ids,
                 embeddings=embeddings
             )
 
-            logger.info(f"Added {len(documents)} documents to {collection_name}")
+            logger.info(f"Upserted {len(documents)} documents to {collection_name}")
         except Exception as e:
             logger.error(f"Error adding documents to {collection_name}: {e}")
             raise

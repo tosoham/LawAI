@@ -14,7 +14,7 @@ Each entry follows the same shape: **Symptom → Cause → Fix → Guard.** Entr
 | § | Area | Entries |
 |---|---|---|
 | [1](#1-data-ingestion) | Data ingestion & parsing | 12 |
-| [2](#2-chunking-embedding-and-indexing) | Chunking, embedding, indexing | 4 |
+| [2](#2-chunking-embedding-and-indexing) | Chunking, embedding, indexing | 6 |
 | [3](#3-retrieval) | Retrieval | 7 |
 | [4](#4-grounding-and-verification) | Grounding & verification | 12 |
 | [5](#5-the-legal-graph) | Legal graph | 4 |
@@ -193,6 +193,48 @@ semicolon-separated clauses far more than full stops.
 
 **Fix.** `BATCH_SIZE = 256`, with per-batch progress logging.
 **Also.** `EmbeddingService` is a singleton — the model is ~90 MB and takes seconds to load.
+
+### 2.5 Re-seeding silently kept the stale text ⚑
+
+**Symptom.** None visible — the seed logs success and the counts are right.
+**Cause.** `add_documents` used `collection.add`. ChromaDB **silently discards** a write whose
+id already exists: no exception, no warning, and the **previous** document is what stays
+indexed.
+
+```python
+c.add(documents=["alpha"],        ids=["x1"], ...)
+c.add(documents=["BETA-CHANGED"], ids=["x1"], ...)   # does not raise
+c.get(ids=["x1"])["documents"]                       # -> ['alpha']   ← stale
+```
+
+**Blast radius.** The default seed path deletes each collection first (`reset=True`), so it
+was safe **by destruction**. But `init_vector_db.py --keep` — the documented way to add to an
+existing index — kept stale text for every id already present.
+**The failure it would have caused.** BNSS 531 held **129,022 characters** until the parser
+stopped it swallowing the First Schedule (1.6). Re-seeding with `--keep` after that fix would
+have reported success and **kept serving the 129k version** — silent staleness in the corpus
+that is supposed to be the guarantee.
+**Fix.** `collection.upsert`. Ids are deterministic (`bns_103`, `bns_103__c2`), so re-seeding
+the same corpus is a true no-op and re-seeding a corrected one replaces exactly the chunks
+that changed. Idempotent **in content**, not merely in count.
+**Guard.** `TestAddDocuments` — against a **real** ChromaDB, because a mocked collection
+asserts only that we called what we meant to call, which was the thing that was wrong.
+`add_documents` previously had **zero coverage**.
+**The lesson.** Found by *asking whether the batching was idempotent*, not by any test. "It
+inserts fine" and "re-running it converges" are different claims, and only the second is
+worth anything when the corpus is the guarantee.
+
+### 2.6 A length guard that only fired when all three lengths differed
+
+**Cause.** Written `len(a) != len(b) != len(c)`, which Python reads as
+`(a != b) and (b != c)` — **False whenever two of the three match**, i.e. the likeliest
+mismatch of all.
+**Precise consequence** (the obvious guess is wrong): **chromadb validates lengths itself**,
+so nothing was ever mis-paired. What was lost was the **diagnosis** — a caller passing 3
+documents and 2 ids got `Unequal lengths for fields: ids: 2, ..., embeddings: 3`, naming a
+list it never supplied, from two calls down inside the library.
+**Fix.** `if not (len(documents) == len(metadatas) == len(ids))`, with the actual lengths in
+the message.
 
 ---
 

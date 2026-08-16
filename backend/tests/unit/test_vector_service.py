@@ -79,3 +79,102 @@ class TestDeleteCollection:
 
         with pytest.raises(RuntimeError, match="disk is on fire"):
             service.delete_collection("bns_sections")
+
+
+class TestAddDocuments:
+    """
+    Writing to a collection.
+
+    These run against a real ChromaDB rather than a mock, because the bug they
+    pin lives in chromadb's own semantics: ``collection.add`` with an id that
+    already exists neither raises nor updates -- it silently keeps the previous
+    text. A mocked collection asserts only that *we* called what we meant to
+    call, which was exactly the thing that was wrong.
+    """
+
+    @pytest.fixture
+    def service(self, tmp_path):
+        service = VectorService(persist_directory=str(tmp_path / "store"))
+        # Deterministic 3-dim vectors: this is about write semantics, not
+        # similarity, and loading the real model here costs seconds per test.
+        embeddings = Mock()
+        embeddings.embed_texts.side_effect = lambda texts: [
+            [float(len(t)), 0.0, 1.0] for t in texts
+        ]
+        service.embedding_service = embeddings
+        return service
+
+    def _stored(self, service, doc_id):
+        found = service._get_or_create_collection("bns_sections").get(
+            ids=[doc_id], include=["documents", "metadatas"]
+        )
+        return found["documents"][0], found["metadatas"][0]
+
+    def test_a_rewritten_document_replaces_the_old_one(self, service):
+        """
+        Regression: re-seeding after a corpus fix must actually land.
+
+        ``collection.add`` discards a write whose id already exists, silently
+        and without error, so the stale text stays indexed and the seed reports
+        success. BNSS 531 held 129,022 characters until the parser stopped it
+        swallowing the First Schedule; under ``add`` that correction would have
+        been dropped on every re-seed and the API would have kept serving the
+        bad section.
+        """
+        service.add_documents(
+            "bns_sections",
+            documents=["the old, wrong text"],
+            metadatas=[{"section_number": "103", "short_name": "BNS"}],
+            ids=["bns_103"],
+        )
+        service.add_documents(
+            "bns_sections",
+            documents=["the corrected text"],
+            metadatas=[{"section_number": "103", "short_name": "BNS", "fixed": True}],
+            ids=["bns_103"],
+        )
+
+        document, metadata = self._stored(service, "bns_103")
+        assert document == "the corrected text"
+        assert metadata["fixed"] is True
+
+    def test_reseeding_the_same_corpus_does_not_duplicate(self, service):
+        """Idempotent in count as well as in content."""
+        for _ in range(3):
+            service.add_documents(
+                "bns_sections",
+                documents=["a", "b"],
+                metadatas=[{"section_number": "1"}, {"section_number": "2"}],
+                ids=["bns_1", "bns_2"],
+            )
+
+        assert service._get_or_create_collection("bns_sections").count() == 2
+
+    @pytest.mark.parametrize(
+        "documents,metadatas,ids",
+        [
+            (["a", "b", "c"], [{}, {}, {}], ["1", "2"]),          # ids short
+            (["a", "b"], [{}, {}, {}], ["1", "2", "3"]),          # documents short
+            (["a", "b", "c"], [{}, {}], ["1", "2", "3"]),         # metadatas short
+        ],
+    )
+    def test_a_length_mismatch_is_refused(self, service, documents, metadatas, ids):
+        """
+        The guard was written as ``len(a) != len(b) != len(c)``, which Python
+        reads as ``(a != b) and (b != c)`` -- False whenever two of the three
+        happen to match, which is the likeliest mismatch of all. The first two
+        cases here went straight through it.
+
+        Worth being precise about the consequence, because the obvious guess is
+        wrong: chromadb validates lengths itself and raises ``Unequal lengths
+        for fields: ids: 2, metadatas: 3, ...``, so nothing was ever silently
+        mis-paired. What the broken guard cost was the diagnosis -- a caller
+        that passed 3 documents and 2 ids got an error naming *embeddings*, a
+        list it never supplied, from inside a library two calls down.
+        """
+        with pytest.raises(ValueError, match="same length"):
+            service.add_documents("bns_sections", documents, metadatas, ids)
+
+    def test_empty_input_is_refused(self, service):
+        with pytest.raises(ValueError, match="cannot be empty"):
+            service.add_documents("bns_sections", [], [], [])
