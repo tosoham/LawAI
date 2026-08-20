@@ -5,6 +5,8 @@ Combines vector search with LLM for contextual legal responses
 import logging
 from typing import Any
 
+from agents.citations import primary_citation
+
 from .legal_graph import GraphContext, get_legal_graph, section_key
 from .llm_service import llm_service
 from .retrieval.offence_lookup import find_offences
@@ -68,10 +70,30 @@ class RAGService:
                 if 'title' in meta:
                     header += f" - {meta['title']}"
             elif 'case_name' in meta:
-                # Court judgement
+                # Court judgement.
+                #
+                # The id is part of the header because a holding or
+                # interpretation claim is verified by looking its judgement up
+                # by id -- `SourceKind.JUDGEMENT` only recognises a ref shaped
+                # `sc_...`, and the synthesis prompt tells the model to cite
+                # "the judgement id exactly as given". It was never given. The
+                # model saw a case name, cited a case name, and the verifier
+                # classified that as `UNKNOWN` and rejected every such claim
+                # for naming no judgement. Measured over the golden set before
+                # this line existed: 40 rejected claims from this one cause,
+                # and all 12 judgement queries driven to abstention -- the
+                # `holding` and `interpretation` classes were unreachable.
+                #
+                # The citation is trimmed to the leading report for the reason
+                # `primary_citation` exists: Indian Kanoon lists every parallel
+                # reporter, and Siddharam Mhetre's run past 900 characters of
+                # header before a word of the judgement is reached.
                 header = f"[{i}] {meta.get('case_name', 'Unknown Case')}"
-                if 'citation' in meta:
-                    header += f" {meta['citation']}"
+                reported = primary_citation(meta.get('citation'))
+                if reported:
+                    header += f" {reported}"
+                if meta.get('parent_id'):
+                    header += f" [id: {meta['parent_id']}]"
             else:
                 header = f"[{i}] Legal Document"
 
@@ -177,10 +199,15 @@ class RAGService:
             )
 
         if graph.judgements:
+            # The id is given for the same reason as in `_format_context`: a
+            # claim citing this case is checked by looking the id up, so a
+            # pointer the model can name but not cite verifiably is a pointer
+            # it can only use unverifiably.
             rows = [
                 f"- {j.case_name}"
                 + (f", {j.citation}" if j.citation else "")
                 + (f" — {j.subject}" if j.subject else "")
+                + f" [id: {j.id}]"
                 for j in graph.judgements
             ]
             blocks.append(

@@ -70,6 +70,12 @@ MAX_MATCHES = 4
 
 _PUNCTUATION = re.compile(r"[.,;:]+$")
 
+# The Schedule writes many offences as "<name>, if <condition>" or
+# "<name>, where <condition>". The head is the offence's actual name and the
+# tail is the case it applies to, so a row too long to index whole may still
+# have a usable name in front of the comma.
+_QUALIFIER = re.compile(r"^(.{3,}?),\s*(?:if|where|when|in case|and\s+(?:if|where))\b", re.IGNORECASE)
+
 
 def is_classification_question(query: str) -> bool:
     """Whether the query asks something the First Schedule answers."""
@@ -83,14 +89,37 @@ def is_offence_question(query: str) -> bool:
 
 
 def _phrase(offence: str) -> str | None:
-    """The offence name as a searchable phrase, or ``None`` if unusable."""
+    """
+    The offence name as a searchable phrase, or ``None`` if unusable.
+
+    A row too long to index whole is retried against its head, because the
+    Schedule states many offences as "<name>, if <condition>". Dropping those
+    rows outright left a hole a shorter offence name fell into: BNS 105 is
+    "Culpable homicide not amounting to murder, if act by which the death is
+    caused is done with the intention of causing death..." -- eighteen words, so
+    it was never indexed, and the only phrase left matching a claim about it was
+    the bare "murder" of BNS 103. The verifier then rejected a correctly cited
+    claim on the grounds that the Schedule keys the offence to 103.
+
+    Note the direction of that failure: a *true* statement removed from an
+    answer. Cheaper than the reverse, but it is the same defect, and a system
+    that refuses correct answers gets switched off.
+    """
     text = _PUNCTUATION.sub("", offence.strip()).lower()
-    if not text or len(text.split()) > MAX_OFFENCE_PHRASE_WORDS:
+    if not text:
         return None
     # A conditional variant ("If offence be not committed") describes a case,
     # not an offence, and matches on stopwords.
     if text.startswith(("if ", "in any other case", "same offence", "any other")):
         return None
+    if len(text.split()) > MAX_OFFENCE_PHRASE_WORDS:
+        qualified = _QUALIFIER.match(text)
+        if not qualified:
+            return None
+        head = qualified.group(1).strip()
+        if len(head.split()) > MAX_OFFENCE_PHRASE_WORDS:
+            return None
+        return head
     return text
 
 
@@ -128,11 +157,33 @@ def match_offences(text: str) -> list[str]:
     in testing: an answer stated correctly that theft is non-bailable and cited
     BNS 304, which is snatching, and the classification check passed because
     snatching happens to carry the same attributes.
+
+    A match nested inside a longer one is dropped. Offence names in the Schedule
+    contain each other -- "murder" sits inside "culpable homicide not amounting
+    to murder", "abetment of mutiny" inside itself -- so a passage naming the
+    longer offence also matches the shorter, and the shorter one is not
+    something the passage says. Sorting the index longest-first is not enough on
+    its own: it fixes the *order* of the results while still returning both, and
+    a caller that reads the list as "the offences this text is about" gets one
+    the text never mentioned. Nesting is judged on the matched spans rather than
+    on phrase length, because only overlapping spans are evidence that the two
+    matches are the same words.
     """
     lowered = text.lower()
-    matched: list[str] = []
+    spans: list[tuple[int, int, str]] = []
     for _, key, matcher in _index():
-        if matcher.search(lowered) and key not in matched:
+        for found in matcher.finditer(lowered):
+            spans.append((found.start(), found.end(), key))
+
+    matched: list[str] = []
+    for start, end, key in spans:
+        nested = any(
+            (other_start, other_end) != (start, end)
+            and other_start <= start
+            and end <= other_end
+            for other_start, other_end, _ in spans
+        )
+        if not nested and key not in matched:
             matched.append(key)
     return matched
 

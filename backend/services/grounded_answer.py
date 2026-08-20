@@ -488,6 +488,23 @@ class GroundedAnswerService:
         trace["steps"].append({
             "step": "verify",
             "verdicts": [v.model_dump() for v in verdicts],
+            # The text of what was thrown out, not just that something was.
+            # `verdicts` carries an index into the pre-removal claim list, and
+            # `structured` below is the list *after* removal -- so by the time
+            # anything downstream reads this, the index no longer resolves.
+            # Without the text recorded here, "2 statements were removed"
+            # cannot be traced back to which two, which is the first question
+            # asked whenever the grounding gate fails.
+            "rejected": [
+                {
+                    "index": verdict.index,
+                    "epistemic_class": verdict.original_class.value,
+                    "reason": verdict.reason,
+                    "text": answer.claims[verdict.index].text,
+                }
+                for verdict in verdicts
+                if not verdict.verified
+            ],
         })
         trace["metrics"] = metrics.to_dict()
 

@@ -1,0 +1,2156 @@
+{
+  "generated_at": "2026-08-20T03:55:09.186608+00:00",
+  "config": {
+    "class_filter": null,
+    "limit": null,
+    "adversarial_only": false,
+    "max_answerable_abstentions": 7
+  },
+  "answerable": {
+    "rows": [
+      {
+        "id": "p01",
+        "class": "plain",
+        "query": "punishment for murder",
+        "abstained": false,
+        "metrics": {
+          "claims": 2,
+          "by_class": {
+            "statute": 1,
+            "classification": 1
+          },
+          "grounding_rate": 1.0,
+          "verbatim_fidelity": 1.0,
+          "quoted_statute_claims": 1,
+          "unsupported": 0,
+          "unattributed_interpretation": 0,
+          "inference_share": 0.0,
+          "source_mix": {
+            "section": 2
+          },
+          "abstained": false,
+          "clean": true
+        },
+        "rejected": [],
+        "answer_head": "Whoever commits murder shall be punished with death or imprisonment for life, and shall also be liable to fine. Murder is a cognizable and non-bailable offence, triable by Court of Session.\n\n**DISCLAI"
+      },
+      {
+        "id": "p02",
+        "class": "plain",
+        "query": "punishment for culpable homicide not amounting to murder",
+        "abstained": false,
+        "metrics": {
+          "claims": 3,
+          "by_class": {
+            "statute": 2,
+            "classification": 1
+          },
+          "grounding_rate": 1.0,
+          "verbatim_fidelity": 0.5,
+          "quoted_statute_claims": 1,
+          "unsupported": 0,
+          "unattributed_interpretation": 0,
+          "inference_share": 0.0,
+          "source_mix": {
+            "section": 3
+          },
+          "abstained": false,
+          "clean": true
+        },
+        "rejected": [],
+        "answer_head": "Whoever commits culpable homicide not amounting to murder, shall be punished with imprisonment for life, or imprisonment of either description for a term which shall not be less than five years but wh"
+      },
+      {
+        "id": "p03",
+        "class": "plain",
+        "query": "what is the punishment for rape",
+        "abstained": false,
+        "metrics": {
+          "claims": 4,
+          "by_class": {
+            "statute": 3,
+            "classification": 1
+          },
+          "grounding_rate": 1.0,
+          "verbatim_fidelity": 1.0,
+          "quoted_statute_claims": 3,
+          "unsupported": 0,
+          "unattributed_interpretation": 0,
+          "inference_share": 0.0,
+          "source_mix": {
+            "section": 4
+          },
+          "abstained": false,
+          "clean": true
+        },
+        "rejected": [],
+        "answer_head": "Whoever commits rape shall be punished with rigorous imprisonment of either description for a term which shall not be less than ten years, but which may extend to imprisonment for life, and shall also"
+      },
+      {
+        "id": "p04",
+        "class": "plain",
+        "query": "gang rape punishment",
+        "abstained": false,
+        "metrics": {
+          "claims": 3,
+          "by_class": {
+            "statute": 2,
+            "classification": 1
+          },
+          "grounding_rate": 1.0,
+          "verbatim_fidelity": 0.5,
+          "quoted_statute_claims": 2,
+          "unsupported": 1,
+          "unattributed_interpretation": 0,
+          "inference_share": 0.0,
+          "source_mix": {
+            "section": 3
+          },
+          "abstained": false,
+          "clean": false
+        },
+        "rejected": [
+          {
+            "claim": "Gang rape is punished with rigorous imprisonment for a term of at least twenty years, which may extend to life imprisonment, and a fine that must cover the victim's medical expenses and rehabilitation",
+            "epistemic_class": "statute",
+            "reason": "quoted text does not appear in BNS 70"
+          }
+        ],
+        "answer_head": "If the victim of gang rape is under eighteen years old, the punishment is life imprisonment and a fine or death. Gang rape is a cognizable and non-bailable offence, which means the police can arrest w"
+      },
+      {
+        "id": "p05",
+        "class": "plain",
+        "query": "dowry death",
+        "abstained": false,
+        "metrics": {
+          "claims": 4,
+          "by_class": {
+            "statute": 2,
+            "classification": 1,
+            "interpretation": 1
+          },
+          "grounding_rate": 1.0,
+          "verbatim_fidelity": 0.0,
+          "quoted_statute_claims": 0,
+          "unsupported": 0,
+          "unattributed_interpretation": 0,
+          "inference_share": 0.0,
+          "source_mix": {
+            "section": 3,
+            "judgement": 1
+          },
+          "abstained": false,
+          "clean": true
+        },
+        "rejected": [],
+        "answer_head": "The death of a woman caused by burns or bodily injury or occurring under abnormal circumstances within seven years of her marriage, and if it is shown that she was subjected to cruelty or harassment f"
+      },
+      {
+        "id": "p06",
+        "class": "plain",
+        "query": "cruelty by husband or his relatives",
+        "abstained": false,
+        "metrics": {
+          "claims": 3,
+          "by_class": {
+            "statute": 2,
+            "classification": 1
+          },
+          "grounding_rate": 1.0,
+          "verbatim_fidelity": 1.0,
+          "quoted_statute_claims": 2,
+          "unsupported": 1,
+          "unattributed_interpretation": 0,
+          "inference_share": 0.0,
+          "source_mix": {
+            "section": 3
+          },
+          "abstained": false,
+          "clean": false
+        },
+        "rejected": [
+          {
+            "claim": "The offence of subjecting a married woman to cruelty is cognizable, non-bailable, and triable by a Magistrate of the first class, as per the First Schedule to the BNSS.",
+            "epistemic_class": "classification",
+            "reason": "claims 'cognizable' for BNS 85, but the First Schedule records: Cognizable if information relating to the commission of the offence is given to an officer in charge of a police station by the person aggrieved by the offence or by any person related to her by blood, marriage or adoption or if there is no such relative, by any public servant belonging to such class or category as may be notified by the State Government in this behalf."
+          }
+        ],
+        "answer_head": "Cruelty by a husband or his relatives is defined in BNS 86 as conduct likely to drive a woman to suicide or to cause grave injury to her health, or harassment to coerce her into meeting unlawful deman"
+      },
+      {
+        "id": "p07",
+        "class": "plain",
+        "query": "criminal breach of trust",
+        "abstained": false,
+        "metrics": {
+          "claims": 10,
+          "by_class": {
+            "statute": 6,
+            "classification": 4
+          },
+          "grounding_rate": 1.0,
+          "verbatim_fidelity": 1.0,
+          "quoted_statute_claims": 6,
+          "unsupported": 0,
+          "unattributed_interpretation": 0,
+          "inference_share": 0.0,
+          "source_mix": {
+            "section": 10
+          },
+          "abstained": false,
+          "clean": true
+        },
+        "rejected": [],
+        "answer_head": "Criminal breach of trust occurs when someone entrusted with property misappropriates or converts it to their own use dishonestly, or violates legal directions for managing that property. Whoever commi"
+      },
+      {
+        "id": "p08",
+        "class": "plain",
+        "query": "cheating and dishonestly inducing delivery of property",
+        "abstained": false,
+        "metrics": {
+          "claims": 4,
+          "by_class": {
+            "classification": 1,
+            "statute": 3
+          },
+          "grounding_rate": 1.0,
+          "verbatim_fidelity": 0.3333,
+          "quoted_statute_claims": 3,
+          "unsupported": 3,
+          "unattributed_interpretation": 0,
+          "inference_share": 0.0,
+          "source_mix": {
+            "section": 4
+          },
+          "abstained": false,
+          "clean": false
+        },
+        "rejected": [
+          {
+            "claim": "Cheating and dishonestly inducing delivery of property is a cognizable offence, non-bailable, and triable by a Magistrate of the first class.",
+            "epistemic_class": "classification",
+            "reason": "BNS 318 is classified more than one way and the claim does not say which case it means (Cheating. -> Non-cognizable.; Cheating and dishonestly inducing delivery of property. -> Cognizable.)"
+          },
+          {
+            "claim": "The definition of cheating includes inducing a person to deliver property through deception, which can cause harm to that person in various ways.",
+            "epistemic_class": "statute",
+            "reason": "quoted text does not appear in BNS 318"
+          },
+          {
+            "claim": "If a person intends to deliver property at the time of obtaining money but later fails to deliver, they do not commit cheating but may be liable for breach of contract.",
+            "epistemic_class": "statute",
+            "reason": "quoted text does not appear in BNS 318"
+          }
+        ],
+        "answer_head": "A dishonest concealment of facts is considered a deception under the definition of cheating.\n\n_3 statement(s) were removed from this answer because they could not be supported against the corpus._\n\n**"
+      },
+      {
+        "id": "p09",
+        "class": "plain",
+        "query": "extortion",
+        "abstained": false,
+        "metrics": {
+          "claims": 3,
+          "by_class": {
+            "statute": 2,
+            "classification": 1
+          },
+          "grounding_rate": 1.0,
+          "verbatim_fidelity": 1.0,
+          "quoted_statute_claims": 2,
+          "unsupported": 0,
+          "unattributed_interpretation": 0,
+          "inference_share": 0.0,
+          "source_mix": {
+            "section": 3
+          },
+          "abstained": false,
+          "clean": true
+        },
+        "rejected": [],
+        "answer_head": "Whoever intentionally puts any person in fear of any injury to that person, or to any other, and thereby dishonestly induces the person so put in fear to deliver to any person any property, commits ex"
+      },
+      {
+        "id": "p10",
+        "class": "plain",
+        "query": "robbery and dacoity",
+        "abstained": false,
+        "metrics": {
+          "claims": 6,
+          "by_class": {
+            "statute": 5,
+            "classification": 1
+          },
+          "grounding_rate": 1.0,
+          "verbatim_fidelity": 0.8,
+          "quoted_statute_claims": 4,
+          "unsupported": 0,
+          "unattributed_interpretation": 0,
+          "inference_share": 0.0,
+          "source_mix": {
+            "section": 6
+          },
+          "abstained": false,
+          "clean": true
+        },
+        "rejected": [],
+        "answer_head": "Dacoity is defined as when five or more persons commit or attempt to commit a robbery, and every person involved is said to commit dacoity. Whoever commits dacoity shall be punished with imprisonment "
+      },
+      {
+        "id": "p11",
+        "class": "plain",
+        "query": "criminal conspiracy",
+        "abstained": false,
+        "metrics": {
+          "claims": 4,
+          "by_class": {
+            "statute": 3,
+            "classification": 1
+          },
+          "grounding_rate": 1.0,
+          "verbatim_fidelity": 1.0,
+          "quoted_statute_claims": 3,
+          "unsupported": 0,
+          "unattributed_interpretation": 0,
+          "inference_share": 0.0,
+          "source_mix": {
+            "section": 4
+          },
+          "abstained": false,
+          "clean": true
+        },
+        "rejected": [],
+        "answer_head": "A criminal conspiracy exists when two or more persons agree to do an illegal act or to do a legal act by illegal means, and at least one act is done in furtherance of that agreement. Whoever is a part"
+      },
+      {
+        "id": "p12",
+        "class": "plain",
+        "query": "defamation",
+        "abstained": false,
+        "metrics": {
+          "claims": 4,
+          "by_class": {
+            "statute": 2,
+            "classification": 2
+          },
+          "grounding_rate": 1.0,
+          "verbatim_fidelity": 1.0,
+          "quoted_statute_claims": 2,
+          "unsupported": 2,
+          "unattributed_interpretation": 0,
+          "inference_share": 0.0,
+          "source_mix": {
+            "section": 4
+          },
+          "abstained": false,
+          "clean": false
+        },
+        "rejected": [
+          {
+            "claim": "Defamation in any case other than against the President, Vice-President, Governor, or Minister in respect of their public functions is classified as non-cognizable, bailable, and triable by a Magistra",
+            "epistemic_class": "classification",
+            "reason": "BNS 356 is classified more than one way and the claim does not say which case it means (Defamation against the President or the Vice- President or the Governor of a State or Administrator of a Union territory or a Minister in respect of his conduct in the discharge of his public functions when instituted upon a complaint made by the Public Prosecutor. -> Court of Session.; Defamation in any other case. -> Magistrate of the first class.; Printing or engraving matter knowing it to be defamatory against the President or the Vice- President or the Governor of a State or Administrator of a Union territory or a Minister in respect of his conduct in the discharge of his public functions when instituted upon a complaint made by the Public Prosecutor. -> Court of Session.; Printing or engraving matter knowing it to be defamatory, in any other case. -> Magistrate of the first class.; Sale of printed or engraved substance containing defamatory matter, knowing it to contain such matter against the President or the Vice- President or the Governor of a State or Administrator of a Union territory or a Minister in respect of his conduct in the discharge of his public functions when instituted upon a complaint made by the Public Prosecutor. -> Court of Session.; Sale of printed or engraved substance containing defamatory matter, knowing it to contain such matter in any other case. -> Magistrate of the first class.)"
+          },
+          {
+            "claim": "Defamation against the President, Vice-President, Governor, or Minister in respect of their public functions is classified as non-cognizable, bailable, and triable by a Court of Session when institute",
+            "epistemic_class": "classification",
+            "reason": "BNS 356 is classified more than one way and the claim does not say which case it means (Defamation against the President or the Vice- President or the Governor of a State or Administrator of a Union territory or a Minister in respect of his conduct in the discharge of his public functions when instituted upon a complaint made by the Public Prosecutor. -> Court of Session.; Defamation in any other case. -> Magistrate of the first class.; Printing or engraving matter knowing it to be defamatory against the President or the Vice- President or the Governor of a State or Administrator of a Union territory or a Minister in respect of his conduct in the discharge of his public functions when instituted upon a complaint made by the Public Prosecutor. -> Court of Session.; Printing or engraving matter knowing it to be defamatory, in any other case. -> Magistrate of the first class.; Sale of printed or engraved substance containing defamatory matter, knowing it to contain such matter against the President or the Vice- President or the Governor of a State or Administrator of a Union territory or a Minister in respect of his conduct in the discharge of his public functions when instituted upon a complaint made by the Public Prosecutor. -> Court of Session.; Sale of printed or engraved substance containing defamatory matter, knowing it to contain such matter in any other case. -> Magistrate of the first class.)"
+          }
+        ],
+        "answer_head": "Defamation occurs when someone makes or publishes any imputation concerning a person intending to harm or knowing it will harm that person's reputation. An imputation that harms a person's reputation "
+      },
+      {
+        "id": "p13",
+        "class": "plain",
+        "query": "causing death by negligence",
+        "abstained": false,
+        "metrics": {
+          "claims": 2,
+          "by_class": {
+            "statute": 1,
+            "classification": 1
+          },
+          "grounding_rate": 1.0,
+          "verbatim_fidelity": 1.0,
+          "quoted_statute_claims": 1,
+          "unsupported": 0,
+          "unattributed_interpretation": 0,
+          "inference_share": 0.0,
+          "source_mix": {
+            "section": 2
+          },
+          "abstained": false,
+          "clean": true
+        },
+        "rejected": [],
+        "answer_head": "Whoever causes death of any person by doing any rash or negligent act not amounting to culpable homicide, shall be punished with imprisonment of either description for a term which may extend to five "
+      },
+      {
+        "id": "p14",
+        "class": "plain",
+        "query": "grievous hurt",
+        "abstained": false,
+        "metrics": {
+          "claims": 7,
+          "by_class": {
+            "statute": 4,
+            "classification": 3
+          },
+          "grounding_rate": 1.0,
+          "verbatim_fidelity": 0.75,
+          "quoted_statute_claims": 4,
+          "unsupported": 3,
+          "unattributed_interpretation": 0,
+          "inference_share": 0.0,
+          "source_mix": {
+            "section": 7
+          },
+          "abstained": false,
+          "clean": false
+        },
+        "rejected": [
+          {
+            "claim": "Grievous hurt caused by a group of five or more persons is punishable under Section 117(4) of the Bharatiya Nyaya Sanhita with imprisonment for up to seven years and may include a fine.",
+            "epistemic_class": "statute",
+            "reason": "quoted text does not appear in BNS 117"
+          },
+          {
+            "claim": "The offence of voluntarily causing grievous hurt resulting in permanent disability or a persistent vegetative state is non-bailable and triable by a Court of Session, as stated in the First Schedule t",
+            "epistemic_class": "classification",
+            "reason": "claims 'non-bailable' for BNS 117, but the First Schedule records: Bailable."
+          },
+          {
+            "claim": "The offence of grievous hurt caused by a group of five or more persons is non-bailable and triable by a Court of Session, as stated in the First Schedule to the Bharatiya Nagarik Suraksha Sanhita.",
+            "epistemic_class": "classification",
+            "reason": "BNS 117 is classified more than one way and the claim does not say which case it means (Voluntarily causing grievous hurt. -> Bailable.; If hurt to results in permanent disability or persistent vegetative state. -> Non-bailable.; Grievous hurt caused by a group of 5 or more persons. -> Non-bailable.)"
+          }
+        ],
+        "answer_head": "Grievous hurt is defined as certain kinds of hurt specified in Section 116 of the Bharatiya Nyaya Sanhita, including things like emasculation, permanent loss of sight or hearing, and any hurt that end"
+      },
+      {
+        "id": "p15",
+        "class": "plain",
+        "query": "terrorist act",
+        "abstained": false,
+        "metrics": {
+          "claims": 9,
+          "by_class": {
+            "statute": 2,
+            "classification": 7
+          },
+          "grounding_rate": 1.0,
+          "verbatim_fidelity": 1.0,
+          "quoted_statute_claims": 2,
+          "unsupported": 0,
+          "unattributed_interpretation": 0,
+          "inference_share": 0.0,
+          "source_mix": {
+            "section": 9
+          },
+          "abstained": false,
+          "clean": true
+        },
+        "rejected": [],
+        "answer_head": "A terrorist act is defined as any act intended to threaten the unity, integrity, sovereignty, security, or economic security of India, or to strike terror in people, using various means such as explos"
+      },
+      {
+        "id": "p16",
+        "class": "plain",
+        "query": "when may police arrest without a warrant",
+        "abstained": true,
+        "metrics": {
+          "claims": 3,
+          "by_class": {
+            "statute": 3
+          },
+          "grounding_rate": 1.0,
+          "verbatim_fidelity": 0.0,
+          "quoted_statute_claims": 3,
+          "unsupported": 3,
+          "unattributed_interpretation": 0,
+          "inference_share": 0.0,
+          "source_mix": {
+            "section": 3
+          },
+          "abstained": true,
+          "clean": false
+        },
+        "rejected": [
+          {
+            "claim": "Police may arrest a person without a warrant if they commit a cognizable offence in the presence of a police officer.",
+            "epistemic_class": "statute",
+            "reason": "quoted text does not appear in BNS 35"
+          },
+          {
+            "claim": "Police may also arrest a person without a warrant if there is a reasonable complaint, credible information, or reasonable suspicion that the person has committed a cognizable offence punishable with i",
+            "epistemic_class": "statute",
+            "reason": "quoted text does not appear in BNS 35"
+          },
+          {
+            "claim": "The police officer must be satisfied that the arrest is necessary to prevent further offences, for proper investigation, or to prevent evidence from being tampered with.",
+            "epistemic_class": "statute",
+            "reason": "quoted text does not appear in BNS 35"
+          }
+        ],
+        "answer_head": "I could not support any part of an answer to this question against the corpus. Rather than give you an answer I cannot stand behind, I am telling you that.\n\n**DISCLAIMER**: This is AI-generated legal "
+      },
+      {
+        "id": "p17",
+        "class": "plain",
+        "query": "right of an arrested person to meet an advocate",
+        "abstained": true,
+        "metrics": {
+          "claims": 1,
+          "by_class": {
+            "statute": 1
+          },
+          "grounding_rate": 1.0,
+          "verbatim_fidelity": 0.0,
+          "quoted_statute_claims": 1,
+          "unsupported": 1,
+          "unattributed_interpretation": 0,
+          "inference_share": 0.0,
+          "source_mix": {
+            "section": 1
+          },
+          "abstained": true,
+          "clean": false
+        },
+        "rejected": [
+          {
+            "claim": "An arrested person has the right to meet an advocate of their choice during interrogation, but not throughout the entire interrogation process.",
+            "epistemic_class": "statute",
+            "reason": "quoted text does not appear in BNS 38"
+          }
+        ],
+        "answer_head": "I could not support any part of an answer to this question against the corpus. Rather than give you an answer I cannot stand behind, I am telling you that.\n\n**DISCLAIMER**: This is AI-generated legal "
+      },
+      {
+        "id": "p18",
+        "class": "plain",
+        "query": "compounding of offences",
+        "abstained": false,
+        "metrics": {
+          "claims": 4,
+          "by_class": {
+            "statute": 4
+          },
+          "grounding_rate": 1.0,
+          "verbatim_fidelity": 1.0,
+          "quoted_statute_claims": 4,
+          "unsupported": 0,
+          "unattributed_interpretation": 0,
+          "inference_share": 0.0,
+          "source_mix": {
+            "section": 4
+          },
+          "abstained": false,
+          "clean": true
+        },
+        "rejected": [],
+        "answer_head": "The composition of an offence under this section shall have the effect of an acquittal of the accused with whom the offence has been compounded. No offence shall be compounded except as provided by th"
+      },
+      {
+        "id": "p19",
+        "class": "plain",
+        "query": "order for maintenance of wives children and parents",
+        "abstained": true,
+        "metrics": {
+          "claims": 3,
+          "by_class": {
+            "statute": 3
+          },
+          "grounding_rate": 1.0,
+          "verbatim_fidelity": 0.0,
+          "quoted_statute_claims": 3,
+          "unsupported": 3,
+          "unattributed_interpretation": 0,
+          "inference_share": 0.0,
+          "source_mix": {
+            "section": 3
+          },
+          "abstained": true,
+          "clean": false
+        },
+        "rejected": [
+          {
+            "claim": "A Magistrate may order a person with sufficient means to make a monthly allowance for the maintenance of his wife, children, or parents if he neglects or refuses to maintain them.",
+            "epistemic_class": "statute",
+            "reason": "quoted text does not appear in BNS 144"
+          },
+          {
+            "claim": "The Magistrate may order interim maintenance during the proceedings regarding the monthly allowance for maintenance.",
+            "epistemic_class": "statute",
+            "reason": "quoted text does not appear in BNS 144"
+          },
+          {
+            "claim": "An application for interim maintenance must be disposed of within sixty days from the date of service of notice.",
+            "epistemic_class": "statute",
+            "reason": "quoted text does not appear in BNS 144"
+          }
+        ],
+        "answer_head": "I could not support any part of an answer to this question against the corpus. Rather than give you an answer I cannot stand behind, I am telling you that.\n\n**DISCLAIMER**: This is AI-generated legal "
+      },
+      {
+        "id": "p20",
+        "class": "plain",
+        "query": "search of an arrested person",
+        "abstained": false,
+        "metrics": {
+          "claims": 2,
+          "by_class": {
+            "statute": 2
+          },
+          "grounding_rate": 1.0,
+          "verbatim_fidelity": 1.0,
+          "quoted_statute_claims": 2,
+          "unsupported": 0,
+          "unattributed_interpretation": 0,
+          "inference_share": 0.0,
+          "source_mix": {
+            "section": 2
+          },
+          "abstained": false,
+          "clean": true
+        },
+        "rejected": [],
+        "answer_head": "A police officer may search a person arrested without a warrant or under a warrant that does not allow bail, and take possession of items found, giving a receipt for those items. If it is necessary to"
+      },
+      {
+        "id": "p21",
+        "class": "plain",
+        "query": "opinions of experts",
+        "abstained": false,
+        "metrics": {
+          "claims": 4,
+          "by_class": {
+            "statute": 4
+          },
+          "grounding_rate": 1.0,
+          "verbatim_fidelity": 1.0,
+          "quoted_statute_claims": 4,
+          "unsupported": 0,
+          "unattributed_interpretation": 0,
+          "inference_share": 0.0,
+          "source_mix": {
+            "section": 4
+          },
+          "abstained": false,
+          "clean": true
+        },
+        "rejected": [],
+        "answer_head": "The opinions of experts are relevant when the Court has to form an opinion upon a point of foreign law or of science or art, or as to identity of handwriting or finger impressions. When the opinion of"
+      },
+      {
+        "id": "p22",
+        "class": "plain",
+        "query": "on whom does the burden of proof lie",
+        "abstained": false,
+        "metrics": {
+          "claims": 4,
+          "by_class": {
+            "statute": 4
+          },
+          "grounding_rate": 1.0,
+          "verbatim_fidelity": 1.0,
+          "quoted_statute_claims": 4,
+          "unsupported": 0,
+          "unattributed_interpretation": 0,
+          "inference_share": 0.0,
+          "source_mix": {
+            "section": 4
+          },
+          "abstained": false,
+          "clean": true
+        },
+        "rejected": [],
+        "answer_head": "The burden of proof lies on the person who desires the Court to give judgment as to any legal right or liability dependent on the existence of facts which they assert. The burden of proof lies on the "
+      },
+      {
+        "id": "p23",
+        "class": "plain",
+        "query": "confession to a police officer",
+        "abstained": false,
+        "metrics": {
+          "claims": 3,
+          "by_class": {
+            "statute": 3
+          },
+          "grounding_rate": 1.0,
+          "verbatim_fidelity": 1.0,
+          "quoted_statute_claims": 3,
+          "unsupported": 0,
+          "unattributed_interpretation": 0,
+          "inference_share": 0.0,
+          "source_mix": {
+            "section": 3
+          },
+          "abstained": false,
+          "clean": true
+        },
+        "rejected": [],
+        "answer_head": "No confession made to a police officer shall be proved as against a person accused of any offence. No confession made by any person while he is in the custody of a police officer, unless it is made in"
+      },
+      {
+        "id": "p24",
+        "class": "plain",
+        "query": "proof of contents of documents",
+        "abstained": false,
+        "metrics": {
+          "claims": 5,
+          "by_class": {
+            "statute": 5
+          },
+          "grounding_rate": 1.0,
+          "verbatim_fidelity": 1.0,
+          "quoted_statute_claims": 5,
+          "unsupported": 0,
+          "unattributed_interpretation": 0,
+          "inference_share": 0.0,
+          "source_mix": {
+            "section": 5
+          },
+          "abstained": false,
+          "clean": true
+        },
+        "rejected": [],
+        "answer_head": "The contents of documents may be proved either by primary or by secondary evidence. Documents shall be proved by primary evidence except in the cases hereinafter mentioned. Secondary evidence may be g"
+      },
+      {
+        "id": "p25",
+        "class": "plain",
+        "query": "admissibility of electronic records",
+        "abstained": false,
+        "metrics": {
+          "claims": 4,
+          "by_class": {
+            "statute": 3,
+            "interpretation": 1
+          },
+          "grounding_rate": 1.0,
+          "verbatim_fidelity": 1.0,
+          "quoted_statute_claims": 3,
+          "unsupported": 0,
+          "unattributed_interpretation": 0,
+          "inference_share": 0.0,
+          "source_mix": {
+            "section": 3,
+            "judgement": 1
+          },
+          "abstained": false,
+          "clean": true
+        },
+        "rejected": [],
+        "answer_head": "Electronic records are admissible as evidence if they meet the conditions outlined in BSA Section 63. An electronic record must be accompanied by a statutory certificate to be admissible as evidence, "
+      },
+      {
+        "id": "t01",
+        "class": "term_of_art",
+        "query": "anticipatory bail",
+        "abstained": false,
+        "metrics": {
+          "claims": 4,
+          "by_class": {
+            "statute": 2,
+            "interpretation": 2
+          },
+          "grounding_rate": 1.0,
+          "verbatim_fidelity": 0.5,
+          "quoted_statute_claims": 1,
+          "unsupported": 0,
+          "unattributed_interpretation": 0,
+          "inference_share": 0.0,
+          "source_mix": {
+            "section": 2,
+            "judgement": 2
+          },
+          "abstained": false,
+          "clean": true
+        },
+        "rejected": [],
+        "answer_head": "A person who believes they may be arrested for a non-bailable offence can apply to the High Court or Court of Session for anticipatory bail. If anticipatory bail is granted, the court may impose condi"
+      },
+      {
+        "id": "t02",
+        "class": "term_of_art",
+        "query": "grounds for anticipatory bail",
+        "abstained": false,
+        "metrics": {
+          "claims": 2,
+          "by_class": {
+            "statute": 2
+          },
+          "grounding_rate": 1.0,
+          "verbatim_fidelity": 0.5,
+          "quoted_statute_claims": 2,
+          "unsupported": 1,
+          "unattributed_interpretation": 0,
+          "inference_share": 0.0,
+          "source_mix": {
+            "section": 2
+          },
+          "abstained": false,
+          "clean": false
+        },
+        "rejected": [
+          {
+            "claim": "Conditions may be imposed on the anticipatory bail granted, such as making oneself available for interrogation and not tampering with evidence.",
+            "epistemic_class": "statute",
+            "reason": "quoted text does not appear in BNSS 482"
+          }
+        ],
+        "answer_head": "A person may apply for anticipatory bail if they believe they may be arrested for a non-bailable offence. The High Court or Court of Session can grant bail if it thinks fit upon such an application.\n\n"
+      },
+      {
+        "id": "t03",
+        "class": "term_of_art",
+        "query": "pre-arrest bail application",
+        "abstained": false,
+        "metrics": {
+          "claims": 4,
+          "by_class": {
+            "statute": 2,
+            "interpretation": 2
+          },
+          "grounding_rate": 1.0,
+          "verbatim_fidelity": 1.0,
+          "quoted_statute_claims": 2,
+          "unsupported": 0,
+          "unattributed_interpretation": 0,
+          "inference_share": 0.0,
+          "source_mix": {
+            "section": 2,
+            "judgement": 2
+          },
+          "abstained": false,
+          "clean": true
+        },
+        "rejected": [],
+        "answer_head": "A person who believes they may be arrested for a non-bailable offence can apply to the High Court or Court of Session for bail before the arrest occurs. The High Court or Court of Session can grant ba"
+      },
+      {
+        "id": "t04",
+        "class": "term_of_art",
+        "query": "default bail",
+        "abstained": false,
+        "metrics": {
+          "claims": 5,
+          "by_class": {
+            "statute": 3,
+            "interpretation": 1,
+            "contested": 1
+          },
+          "grounding_rate": 1.0,
+          "verbatim_fidelity": 1.0,
+          "quoted_statute_claims": 3,
+          "unsupported": 0,
+          "unattributed_interpretation": 0,
+          "inference_share": 0.0,
+          "source_mix": {
+            "section": 3,
+            "judgement": 1
+          },
+          "abstained": false,
+          "clean": true
+        },
+        "rejected": [],
+        "answer_head": "If an accused person is in custody and the investigation is not completed within a specified time frame, they are entitled to be released on default bail. A person accused of a non-bailable offence ma"
+      },
+      {
+        "id": "t05",
+        "class": "term_of_art",
+        "query": "statutory bail on expiry of investigation period",
+        "abstained": false,
+        "metrics": {
+          "claims": 5,
+          "by_class": {
+            "statute": 2,
+            "interpretation": 2,
+            "contested": 1
+          },
+          "grounding_rate": 1.0,
+          "verbatim_fidelity": 1.0,
+          "quoted_statute_claims": 2,
+          "unsupported": 0,
+          "unattributed_interpretation": 0,
+          "inference_share": 0.0,
+          "source_mix": {
+            "section": 2,
+            "judgement": 2
+          },
+          "abstained": false,
+          "clean": true
+        },
+        "rejected": [],
+        "answer_head": "If the investigation cannot be completed within the stipulated period of ninety days for serious offences or sixty days for other offences, the accused must be released on bail if they are prepared to"
+      },
+      {
+        "id": "t06",
+        "class": "term_of_art",
+        "query": "double jeopardy",
+        "abstained": false,
+        "metrics": {
+          "claims": 3,
+          "by_class": {
+            "statute": 3
+          },
+          "grounding_rate": 1.0,
+          "verbatim_fidelity": 1.0,
+          "quoted_statute_claims": 3,
+          "unsupported": 0,
+          "unattributed_interpretation": 0,
+          "inference_share": 0.0,
+          "source_mix": {
+            "section": 3
+          },
+          "abstained": false,
+          "clean": true
+        },
+        "rejected": [],
+        "answer_head": "A person who has once been tried by a Court of competent jurisdiction for an offence and convicted or acquitted of such offence shall, while such conviction or acquittal remains in force, not be liabl"
+      },
+      {
+        "id": "t07",
+        "class": "term_of_art",
+        "query": "how do I get an FIR registered",
+        "abstained": false,
+        "metrics": {
+          "claims": 3,
+          "by_class": {
+            "statute": 3
+          },
+          "grounding_rate": 1.0,
+          "verbatim_fidelity": 0.0,
+          "quoted_statute_claims": 0,
+          "unsupported": 0,
+          "unattributed_interpretation": 0,
+          "inference_share": 0.0,
+          "source_mix": {
+            "section": 3
+          },
+          "abstained": false,
+          "clean": true
+        },
+        "rejected": [],
+        "answer_head": "To register an FIR, you must provide information about the commission of a cognizable offence to the officer in charge of a police station. This information can be given orally or in writing. If the i"
+      },
+      {
+        "id": "t08",
+        "class": "term_of_art",
+        "query": "quashing of criminal proceedings by the High Court",
+        "abstained": true,
+        "metrics": {
+          "claims": 0,
+          "by_class": {},
+          "grounding_rate": 0.0,
+          "verbatim_fidelity": 0.0,
+          "quoted_statute_claims": 0,
+          "unsupported": 0,
+          "unattributed_interpretation": 0,
+          "inference_share": 0.0,
+          "source_mix": {},
+          "abstained": true,
+          "clean": true
+        },
+        "rejected": [],
+        "answer_head": "I could not support any part of an answer to this question against the corpus. Rather than give you an answer I cannot stand behind, I am telling you that.\n\n**DISCLAIMER**: This is AI-generated legal "
+      },
+      {
+        "id": "t09",
+        "class": "term_of_art",
+        "query": "plea bargaining",
+        "abstained": false,
+        "metrics": {
+          "claims": 4,
+          "by_class": {
+            "statute": 4
+          },
+          "grounding_rate": 1.0,
+          "verbatim_fidelity": 1.0,
+          "quoted_statute_claims": 4,
+          "unsupported": 0,
+          "unattributed_interpretation": 0,
+          "inference_share": 0.0,
+          "source_mix": {
+            "section": 4
+          },
+          "abstained": false,
+          "clean": true
+        },
+        "rejected": [],
+        "answer_head": "A person accused of an offence may file an application for plea bargaining within a period of thirty days from the date of framing of charge in the Court in which such offence is pending for trial. Th"
+      },
+      {
+        "id": "t10",
+        "class": "term_of_art",
+        "query": "dying declaration",
+        "abstained": false,
+        "metrics": {
+          "claims": 7,
+          "by_class": {
+            "statute": 6,
+            "inference": 1
+          },
+          "grounding_rate": 1.0,
+          "verbatim_fidelity": 1.0,
+          "quoted_statute_claims": 6,
+          "unsupported": 0,
+          "unattributed_interpretation": 0,
+          "inference_share": 0.1429,
+          "source_mix": {
+            "section": 6
+          },
+          "abstained": false,
+          "clean": true
+        },
+        "rejected": [],
+        "answer_head": "A dying declaration is a statement made by a person who is dead, regarding the cause of his death or circumstances leading to it, which is considered a relevant fact in legal proceedings. Such stateme"
+      },
+      {
+        "id": "t11",
+        "class": "term_of_art",
+        "query": "hostile witness cross examination",
+        "abstained": false,
+        "metrics": {
+          "claims": 4,
+          "by_class": {
+            "statute": 4
+          },
+          "grounding_rate": 1.0,
+          "verbatim_fidelity": 1.0,
+          "quoted_statute_claims": 4,
+          "unsupported": 0,
+          "unattributed_interpretation": 0,
+          "inference_share": 0.0,
+          "source_mix": {
+            "section": 4
+          },
+          "abstained": false,
+          "clean": true
+        },
+        "rejected": [],
+        "answer_head": "A party may cross-examine their own witness if the court permits it, as per the discretion of the court under Section 157 of the Bharatiya Sakshya Adhiniyam. The order of witness examinations is as fo"
+      },
+      {
+        "id": "t12",
+        "class": "term_of_art",
+        "query": "digital evidence certificate requirement",
+        "abstained": true,
+        "metrics": {
+          "claims": 1,
+          "by_class": {
+            "interpretation": 1
+          },
+          "grounding_rate": 1.0,
+          "verbatim_fidelity": 0.0,
+          "quoted_statute_claims": 0,
+          "unsupported": 1,
+          "unattributed_interpretation": 1,
+          "inference_share": 0.0,
+          "source_mix": {
+            "section": 1
+          },
+          "abstained": true,
+          "clean": false
+        },
+        "rejected": [
+          {
+            "claim": "A digital evidence certificate is not explicitly required for the admissibility of electronic records in court, but it helps establish the conditions for admissibility outlined in BSA 63.",
+            "epistemic_class": "interpretation",
+            "reason": "an interpretation claim names no judgement"
+          }
+        ],
+        "answer_head": "I could not support any part of an answer to this question against the corpus. Rather than give you an answer I cannot stand behind, I am telling you that.\n\n**DISCLAIMER**: This is AI-generated legal "
+      },
+      {
+        "id": "t13",
+        "class": "term_of_art",
+        "query": "mob lynching",
+        "abstained": false,
+        "metrics": {
+          "claims": 2,
+          "by_class": {
+            "statute": 1,
+            "classification": 1
+          },
+          "grounding_rate": 1.0,
+          "verbatim_fidelity": 1.0,
+          "quoted_statute_claims": 1,
+          "unsupported": 0,
+          "unattributed_interpretation": 0,
+          "inference_share": 0.0,
+          "source_mix": {
+            "section": 2
+          },
+          "abstained": false,
+          "clean": true
+        },
+        "rejected": [],
+        "answer_head": "When a group of five or more persons acting in concert commits murder on the ground of race, caste or community, each member of such group shall be punished with death or with imprisonment for life, a"
+      },
+      {
+        "id": "t14",
+        "class": "term_of_art",
+        "query": "organised crime syndicate",
+        "abstained": false,
+        "metrics": {
+          "claims": 4,
+          "by_class": {
+            "statute": 2,
+            "classification": 2
+          },
+          "grounding_rate": 1.0,
+          "verbatim_fidelity": 1.0,
+          "quoted_statute_claims": 2,
+          "unsupported": 0,
+          "unattributed_interpretation": 0,
+          "inference_share": 0.0,
+          "source_mix": {
+            "section": 4
+          },
+          "abstained": false,
+          "clean": true
+        },
+        "rejected": [],
+        "answer_head": "An organised crime syndicate means a group of two or more persons who, acting either singly or jointly, as a syndicate or gang indulge in any continuing unlawful activity. Continuing unlawful activity"
+      },
+      {
+        "id": "t15",
+        "class": "term_of_art",
+        "query": "hit and run causing death",
+        "abstained": false,
+        "metrics": {
+          "claims": 2,
+          "by_class": {
+            "classification": 2
+          },
+          "grounding_rate": 1.0,
+          "verbatim_fidelity": 0.0,
+          "quoted_statute_claims": 0,
+          "unsupported": 1,
+          "unattributed_interpretation": 0,
+          "inference_share": 0.0,
+          "source_mix": {
+            "section": 2
+          },
+          "abstained": false,
+          "clean": false
+        },
+        "rejected": [
+          {
+            "claim": "Causing death by rash and negligent driving of a vehicle and escaping is a cognizable and non-bailable offence, triable by a Magistrate of the first class.",
+            "epistemic_class": "classification",
+            "reason": "BNS 106 is classified more than one way and the claim does not say which case it means (Causing death by negligence. -> Bailable.; Causing death by negligence by registered medical practitioner. -> Bailable.; Causing death by rash and negligent driving of vehicle and escaping. -> Non-bailable.)"
+          }
+        ],
+        "answer_head": "Causing death by negligence is a cognizable and bailable offence, triable by a Magistrate of the first class.\n\n_1 statement(s) were removed from this answer because they could not be supported against"
+      },
+      {
+        "id": "t16",
+        "class": "term_of_art",
+        "query": "snatching a chain in the street",
+        "abstained": false,
+        "metrics": {
+          "claims": 3,
+          "by_class": {
+            "inference": 1,
+            "statute": 1,
+            "classification": 1
+          },
+          "grounding_rate": 1.0,
+          "verbatim_fidelity": 1.0,
+          "quoted_statute_claims": 1,
+          "unsupported": 0,
+          "unattributed_interpretation": 0,
+          "inference_share": 0.3333,
+          "source_mix": {
+            "section": 2
+          },
+          "abstained": false,
+          "clean": true
+        },
+        "rejected": [],
+        "answer_head": "The offence of snatching is punishable with imprisonment for up to three years and may also include a fine. Snatching is a cognizable offence, meaning police can arrest without a warrant, and it is no"
+      },
+      {
+        "id": "c01",
+        "class": "citation",
+        "query": "BNS 103",
+        "abstained": false,
+        "metrics": {
+          "claims": 2,
+          "by_class": {
+            "statute": 1,
+            "classification": 1
+          },
+          "grounding_rate": 1.0,
+          "verbatim_fidelity": 1.0,
+          "quoted_statute_claims": 1,
+          "unsupported": 0,
+          "unattributed_interpretation": 0,
+          "inference_share": 0.0,
+          "source_mix": {
+            "section": 2
+          },
+          "abstained": false,
+          "clean": true
+        },
+        "rejected": [],
+        "answer_head": "Whoever commits murder shall be punished with death or imprisonment for life, and shall also be liable to fine. Murder is a cognizable offence, non-bailable, and triable by Court of Session.\n\n**DISCLA"
+      },
+      {
+        "id": "c02",
+        "class": "citation",
+        "query": "what does section 111 of the Bharatiya Nyaya Sanhita say",
+        "abstained": false,
+        "metrics": {
+          "claims": 10,
+          "by_class": {
+            "statute": 10
+          },
+          "grounding_rate": 1.0,
+          "verbatim_fidelity": 0.9,
+          "quoted_statute_claims": 10,
+          "unsupported": 1,
+          "unattributed_interpretation": 0,
+          "inference_share": 0.0,
+          "source_mix": {
+            "section": 10
+          },
+          "abstained": false,
+          "clean": false
+        },
+        "rejected": [
+          {
+            "claim": "In cases of organised crime that do not result in death, the punishment can be imprisonment for a minimum of five years, up to life imprisonment, along with a fine of at least five lakh rupees.",
+            "epistemic_class": "statute",
+            "reason": "quoted text does not appear in BNS 111"
+          }
+        ],
+        "answer_head": "Organised crime includes any continuing unlawful activity such as kidnapping, robbery, vehicle theft, extortion, and cyber-crimes, among others, carried out by a person or a group acting together for "
+      },
+      {
+        "id": "c03",
+        "class": "citation",
+        "query": "section 482 BNSS",
+        "abstained": false,
+        "metrics": {
+          "claims": 7,
+          "by_class": {
+            "statute": 4,
+            "interpretation": 3
+          },
+          "grounding_rate": 1.0,
+          "verbatim_fidelity": 0.75,
+          "quoted_statute_claims": 3,
+          "unsupported": 0,
+          "unattributed_interpretation": 0,
+          "inference_share": 0.0,
+          "source_mix": {
+            "section": 4,
+            "judgement": 3
+          },
+          "abstained": false,
+          "clean": true
+        },
+        "rejected": [],
+        "answer_head": "A person who believes they may be arrested for a non-bailable offence can apply to the High Court or the Court of Session for anticipatory bail under Section 482 of the BNSS. If the court grants antic"
+      },
+      {
+        "id": "c04",
+        "class": "citation",
+        "query": "BNSS section 187",
+        "abstained": false,
+        "metrics": {
+          "claims": 4,
+          "by_class": {
+            "statute": 4
+          },
+          "grounding_rate": 1.0,
+          "verbatim_fidelity": 1.0,
+          "quoted_statute_claims": 4,
+          "unsupported": 0,
+          "unattributed_interpretation": 0,
+          "inference_share": 0.0,
+          "source_mix": {
+            "section": 4
+          },
+          "abstained": false,
+          "clean": true
+        },
+        "rejected": [],
+        "answer_head": "If an investigation cannot be completed within twenty-four hours of arrest, the officer must send the accused to a Magistrate along with a copy of the case diary. A Magistrate can authorize detention "
+      },
+      {
+        "id": "c05",
+        "class": "citation",
+        "query": "BSA 63",
+        "abstained": false,
+        "metrics": {
+          "claims": 4,
+          "by_class": {
+            "statute": 2,
+            "holding": 2
+          },
+          "grounding_rate": 1.0,
+          "verbatim_fidelity": 0.5,
+          "quoted_statute_claims": 2,
+          "unsupported": 1,
+          "unattributed_interpretation": 0,
+          "inference_share": 0.0,
+          "source_mix": {
+            "section": 4,
+            "judgement": 2
+          },
+          "abstained": false,
+          "clean": false
+        },
+        "rejected": [
+          {
+            "claim": "Electronic records produced from a computer are admissible in legal proceedings if certain conditions are met, including that the information was regularly fed into the computer in the ordinary course",
+            "epistemic_class": "statute",
+            "reason": "quoted text does not appear in BSA 63"
+          }
+        ],
+        "answer_head": "A certificate is required for the admissibility of electronic records, confirming details about the record and the device used to produce it. The Supreme Court case Anvar P.V. v. P.K. Basheer discusse"
+      },
+      {
+        "id": "c06",
+        "class": "citation",
+        "query": "section 318 BNS",
+        "abstained": false,
+        "metrics": {
+          "claims": 7,
+          "by_class": {
+            "statute": 4,
+            "classification": 3
+          },
+          "grounding_rate": 1.0,
+          "verbatim_fidelity": 1.0,
+          "quoted_statute_claims": 4,
+          "unsupported": 1,
+          "unattributed_interpretation": 0,
+          "inference_share": 0.0,
+          "source_mix": {
+            "section": 7
+          },
+          "abstained": false,
+          "clean": false
+        },
+        "rejected": [
+          {
+            "claim": "Cheating and dishonestly inducing delivery of property (as per BNS 318(4)) is classified as cognizable, non-bailable, and triable by a magistrate of the first class.",
+            "epistemic_class": "classification",
+            "reason": "BNS 318 is classified more than one way and the claim does not say which case it means (Cheating. -> Non-cognizable.; Cheating and dishonestly inducing delivery of property. -> Cognizable.)"
+          }
+        ],
+        "answer_head": "Cheating is defined under BNS Section 318 as inducing a person to deliver property or do something through deception, which can cause harm to that person. Whoever cheats shall be punished with impriso"
+      },
+      {
+        "id": "c07",
+        "class": "citation",
+        "query": "section 35 of BNSS on arrest without warrant",
+        "abstained": true,
+        "metrics": {
+          "claims": 0,
+          "by_class": {},
+          "grounding_rate": 0.0,
+          "verbatim_fidelity": 0.0,
+          "quoted_statute_claims": 0,
+          "unsupported": 0,
+          "unattributed_interpretation": 0,
+          "inference_share": 0.0,
+          "source_mix": {},
+          "abstained": true,
+          "clean": true
+        },
+        "rejected": [],
+        "answer_head": "I could not support any part of an answer to this question against the corpus. Rather than give you an answer I cannot stand behind, I am telling you that.\n\n**DISCLAIMER**: This is AI-generated legal "
+      },
+      {
+        "id": "c08",
+        "class": "citation",
+        "query": "section 39 Bharatiya Sakshya Adhiniyam",
+        "abstained": false,
+        "metrics": {
+          "claims": 2,
+          "by_class": {
+            "statute": 2
+          },
+          "grounding_rate": 1.0,
+          "verbatim_fidelity": 1.0,
+          "quoted_statute_claims": 2,
+          "unsupported": 0,
+          "unattributed_interpretation": 0,
+          "inference_share": 0.0,
+          "source_mix": {
+            "section": 2
+          },
+          "abstained": false,
+          "clean": true
+        },
+        "rejected": [],
+        "answer_head": "The opinions upon that point of persons specially skilled in such foreign law, science or art, or any other field, or in questions as to identity of handwriting or finger impressions are relevant fact"
+      },
+      {
+        "id": "r01",
+        "class": "repealed_code",
+        "query": "IPC 302 murder",
+        "abstained": false,
+        "metrics": {
+          "claims": 2,
+          "by_class": {
+            "statute": 1,
+            "classification": 1
+          },
+          "grounding_rate": 1.0,
+          "verbatim_fidelity": 1.0,
+          "quoted_statute_claims": 1,
+          "unsupported": 0,
+          "unattributed_interpretation": 0,
+          "inference_share": 0.0,
+          "source_mix": {
+            "section": 2
+          },
+          "abstained": false,
+          "clean": true
+        },
+        "rejected": [],
+        "answer_head": "_IPC 302 was repealed by the 2023 codes. The corresponding provision is BNS 103, and the answer below is about that._\n\nWhoever commits murder shall be punished with death or imprisonment for life, and"
+      },
+      {
+        "id": "r02",
+        "class": "repealed_code",
+        "query": "what replaced IPC section 420 cheating",
+        "abstained": true,
+        "metrics": {
+          "claims": 0,
+          "by_class": {},
+          "grounding_rate": 0.0,
+          "verbatim_fidelity": 0.0,
+          "quoted_statute_claims": 0,
+          "unsupported": 0,
+          "unattributed_interpretation": 0,
+          "inference_share": 0.0,
+          "source_mix": {},
+          "abstained": true,
+          "clean": true
+        },
+        "rejected": [],
+        "answer_head": "There is no section 420 of the BNS. It runs to section 358. I have not tried to answer the question, because the provision it asks about does not exist.\n\n**DISCLAIMER**: This is AI-generated legal inf"
+      },
+      {
+        "id": "r03",
+        "class": "repealed_code",
+        "query": "CrPC 438 anticipatory bail",
+        "abstained": false,
+        "metrics": {
+          "claims": 4,
+          "by_class": {
+            "statute": 4
+          },
+          "grounding_rate": 1.0,
+          "verbatim_fidelity": 0.75,
+          "quoted_statute_claims": 4,
+          "unsupported": 1,
+          "unattributed_interpretation": 0,
+          "inference_share": 0.0,
+          "source_mix": {
+            "section": 4
+          },
+          "abstained": false,
+          "clean": false
+        },
+        "rejected": [
+          {
+            "claim": "If anticipatory bail is granted, the court may include conditions, such as requiring the person to be available for police questioning or not to leave India without permission.",
+            "epistemic_class": "statute",
+            "reason": "quoted text does not appear in BNSS 482"
+          }
+        ],
+        "answer_head": "_CrPC 438 was repealed by the 2023 codes. The corresponding provision is BNSS 482, and the answer below is about that._\n\nA person who fears arrest for a non-bailable offence can apply for anticipatory"
+      },
+      {
+        "id": "r04",
+        "class": "repealed_code",
+        "query": "CrPC 482 inherent powers",
+        "abstained": false,
+        "metrics": {
+          "claims": 3,
+          "by_class": {
+            "statute": 2,
+            "interpretation": 1
+          },
+          "grounding_rate": 1.0,
+          "verbatim_fidelity": 0.5,
+          "quoted_statute_claims": 1,
+          "unsupported": 0,
+          "unattributed_interpretation": 0,
+          "inference_share": 0.0,
+          "source_mix": {
+            "section": 2,
+            "judgement": 1
+          },
+          "abstained": false,
+          "clean": true
+        },
+        "rejected": [],
+        "answer_head": "_CrPC 482 was repealed by the 2023 codes. The corresponding provision is BNSS 528, and the answer below is about that._\n\nThe inherent powers of the High Court are preserved under the Bharatiya Nagarik"
+      },
+      {
+        "id": "r05",
+        "class": "repealed_code",
+        "query": "section 154 of the Code of Criminal Procedure",
+        "abstained": true,
+        "metrics": {
+          "claims": 0,
+          "by_class": {},
+          "grounding_rate": 0.0,
+          "verbatim_fidelity": 0.0,
+          "quoted_statute_claims": 0,
+          "unsupported": 0,
+          "unattributed_interpretation": 0,
+          "inference_share": 0.0,
+          "source_mix": {},
+          "abstained": true,
+          "clean": true
+        },
+        "rejected": [],
+        "answer_head": "I could not support any part of an answer to this question against the corpus. Rather than give you an answer I cannot stand behind, I am telling you that.\n\n**DISCLAIMER**: This is AI-generated legal "
+      },
+      {
+        "id": "r06",
+        "class": "repealed_code",
+        "query": "Evidence Act section 65B electronic records",
+        "abstained": true,
+        "metrics": {
+          "claims": 0,
+          "by_class": {},
+          "grounding_rate": 0.0,
+          "verbatim_fidelity": 0.0,
+          "quoted_statute_claims": 0,
+          "unsupported": 0,
+          "unattributed_interpretation": 0,
+          "inference_share": 0.0,
+          "source_mix": {},
+          "abstained": true,
+          "clean": true
+        },
+        "rejected": [],
+        "answer_head": "I could not support any part of an answer to this question against the corpus. Rather than give you an answer I cannot stand behind, I am telling you that.\n\n**DISCLAIMER**: This is AI-generated legal "
+      },
+      {
+        "id": "r07",
+        "class": "repealed_code",
+        "query": "Indian Evidence Act dying declaration section 32",
+        "abstained": true,
+        "metrics": {
+          "claims": 0,
+          "by_class": {},
+          "grounding_rate": 0.0,
+          "verbatim_fidelity": 0.0,
+          "quoted_statute_claims": 0,
+          "unsupported": 0,
+          "unattributed_interpretation": 0,
+          "inference_share": 0.0,
+          "source_mix": {},
+          "abstained": true,
+          "clean": true
+        },
+        "rejected": [],
+        "answer_head": "I could not support any part of an answer to this question against the corpus. Rather than give you an answer I cannot stand behind, I am telling you that.\n\n**DISCLAIMER**: This is AI-generated legal "
+      },
+      {
+        "id": "r08",
+        "class": "repealed_code",
+        "query": "IPC 498A cruelty",
+        "abstained": true,
+        "metrics": {
+          "claims": 0,
+          "by_class": {},
+          "grounding_rate": 0.0,
+          "verbatim_fidelity": 0.0,
+          "quoted_statute_claims": 0,
+          "unsupported": 0,
+          "unattributed_interpretation": 0,
+          "inference_share": 0.0,
+          "source_mix": {},
+          "abstained": true,
+          "clean": true
+        },
+        "rejected": [],
+        "answer_head": "There is no section 498 of the BNS. It runs to section 358. I have not tried to answer the question, because the provision it asks about does not exist.\n\n**DISCLAIMER**: This is AI-generated legal inf"
+      },
+      {
+        "id": "j01",
+        "class": "judgement",
+        "query": "anticipatory bail cannot be limited in time",
+        "abstained": false,
+        "metrics": {
+          "claims": 1,
+          "by_class": {
+            "holding": 1
+          },
+          "grounding_rate": 1.0,
+          "verbatim_fidelity": 0.0,
+          "quoted_statute_claims": 0,
+          "unsupported": 0,
+          "unattributed_interpretation": 0,
+          "inference_share": 0.0,
+          "source_mix": {
+            "judgement": 1
+          },
+          "abstained": false,
+          "clean": true
+        },
+        "rejected": [],
+        "answer_head": "The order granting anticipatory bail may be restricted to a period of ten days after arrest, or until the filing of the charge sheet, which has to be filed within 90 days of the arrest.\n\n**DISCLAIMER*"
+      },
+      {
+        "id": "j02",
+        "class": "judgement",
+        "query": "bail is the rule and jail the exception",
+        "abstained": false,
+        "metrics": {
+          "claims": 1,
+          "by_class": {
+            "interpretation": 1
+          },
+          "grounding_rate": 1.0,
+          "verbatim_fidelity": 0.0,
+          "quoted_statute_claims": 0,
+          "unsupported": 0,
+          "unattributed_interpretation": 0,
+          "inference_share": 0.0,
+          "source_mix": {
+            "judgement": 1
+          },
+          "abstained": false,
+          "clean": true
+        },
+        "rejected": [],
+        "answer_head": "Bail is the rule and jail is the exception.\n\n**DISCLAIMER**: This is AI-generated legal information for educational purposes only. Please consult a qualified lawyer for legal advice specific to your s"
+      },
+      {
+        "id": "j03",
+        "class": "judgement",
+        "query": "guidelines on arrest and notice of appearance",
+        "abstained": true,
+        "metrics": {
+          "claims": 3,
+          "by_class": {
+            "statute": 3
+          },
+          "grounding_rate": 1.0,
+          "verbatim_fidelity": 0.0,
+          "quoted_statute_claims": 3,
+          "unsupported": 3,
+          "unattributed_interpretation": 0,
+          "inference_share": 0.0,
+          "source_mix": {
+            "unknown": 3
+          },
+          "abstained": true,
+          "clean": false
+        },
+        "rejected": [
+          {
+            "claim": "The police officer shall, in all cases where the arrest of a person is not required under the provisions of sub-section (1) of Section 41, issue a notice directing the person against whom a reasonable",
+            "epistemic_class": "statute",
+            "reason": "a statute claim cites no section"
+          },
+          {
+            "claim": "Where such a notice is issued to any person, it shall be the duty of that person to comply with the terms of the notice.",
+            "epistemic_class": "statute",
+            "reason": "a statute claim cites no section"
+          },
+          {
+            "claim": "Where such person complies and continues to comply with the notice, he shall not be arrested in respect of the offence referred to in the notice unless, for reasons to be recorded, the police officer ",
+            "epistemic_class": "statute",
+            "reason": "a statute claim cites no section"
+          }
+        ],
+        "answer_head": "I could not support any part of an answer to this question against the corpus. Rather than give you an answer I cannot stand behind, I am telling you that.\n\n**DISCLAIMER**: This is AI-generated legal "
+      },
+      {
+        "id": "j04",
+        "class": "judgement",
+        "query": "registration of FIR is mandatory in cognizable cases",
+        "abstained": false,
+        "metrics": {
+          "claims": 2,
+          "by_class": {
+            "interpretation": 2
+          },
+          "grounding_rate": 1.0,
+          "verbatim_fidelity": 0.0,
+          "quoted_statute_claims": 0,
+          "unsupported": 0,
+          "unattributed_interpretation": 0,
+          "inference_share": 0.0,
+          "source_mix": {
+            "judgement": 2
+          },
+          "abstained": false,
+          "clean": true
+        },
+        "rejected": [],
+        "answer_head": "The registration of an FIR is mandatory in cases of cognizable offences without conducting any preliminary inquiry. The police officer cannot refuse to register a case on the ground that the informati"
+      },
+      {
+        "id": "j05",
+        "class": "judgement",
+        "query": "rarest of rare doctrine death penalty",
+        "abstained": false,
+        "metrics": {
+          "claims": 2,
+          "by_class": {
+            "holding": 1,
+            "interpretation": 1
+          },
+          "grounding_rate": 1.0,
+          "verbatim_fidelity": 0.0,
+          "quoted_statute_claims": 0,
+          "unsupported": 0,
+          "unattributed_interpretation": 0,
+          "inference_share": 0.0,
+          "source_mix": {
+            "judgement": 2,
+            "section": 1
+          },
+          "abstained": false,
+          "clean": true
+        },
+        "rejected": [],
+        "answer_head": "The extreme penalty of death need not be inflicted except in gravest cases of extreme culpability. Life imprisonment is the rule and death sentence is an exception. The basic principle behind returnin"
+      },
+      {
+        "id": "j06",
+        "class": "judgement",
+        "query": "certificate requirement for electronic evidence",
+        "abstained": true,
+        "metrics": {
+          "claims": 4,
+          "by_class": {
+            "statute": 4
+          },
+          "grounding_rate": 1.0,
+          "verbatim_fidelity": 0.0,
+          "quoted_statute_claims": 4,
+          "unsupported": 4,
+          "unattributed_interpretation": 0,
+          "inference_share": 0.0,
+          "source_mix": {
+            "unknown": 5
+          },
+          "abstained": true,
+          "clean": false
+        },
+        "rejected": [
+          {
+            "claim": "Under Section 65B(4) of the Evidence Act, if it is desired to give a statement in any proceedings pertaining to an electronic record, it is permissible provided the following conditions are satisfied:",
+            "epistemic_class": "statute",
+            "reason": "a statute claim cites no section"
+          },
+          {
+            "claim": "Most importantly, such a certificate must accompany the electronic record like computer printout, compact disc (CD), video compact disc (VCD), pen drive, etc., pertaining to which a statement is sough",
+            "epistemic_class": "statute",
+            "reason": "a statute claim cites no section"
+          },
+          {
+            "claim": "Section 45A of the Evidence Act states that when in a proceeding, the court has to form an opinion on any matter relating to any information transmitted or stored in any computer resource or any other",
+            "epistemic_class": "statute",
+            "reason": "a statute claim cites no section"
+          },
+          {
+            "claim": "Only if the electronic record is duly produced in terms of Section 65B of the Evidence Act, would the question arise as to the genuineness thereof and in that situation, resort can be made to Section ",
+            "epistemic_class": "statute",
+            "reason": "a statute claim cites no section"
+          }
+        ],
+        "answer_head": "I could not support any part of an answer to this question against the corpus. Rather than give you an answer I cannot stand behind, I am telling you that.\n\n**DISCLAIMER**: This is AI-generated legal "
+      },
+      {
+        "id": "j07",
+        "class": "judgement",
+        "query": "narcoanalysis and polygraph tests without consent",
+        "abstained": false,
+        "metrics": {
+          "claims": 2,
+          "by_class": {
+            "interpretation": 2
+          },
+          "grounding_rate": 1.0,
+          "verbatim_fidelity": 0.0,
+          "quoted_statute_claims": 0,
+          "unsupported": 0,
+          "unattributed_interpretation": 0,
+          "inference_share": 0.0,
+          "source_mix": {
+            "judgement": 2
+          },
+          "abstained": false,
+          "clean": true
+        },
+        "rejected": [],
+        "answer_head": "The use of narcoanalysis and polygraph tests without consent raises significant legal and ethical issues, particularly regarding the right to privacy. The results of polygraph examinations and narcoan"
+      },
+      {
+        "id": "j08",
+        "class": "judgement",
+        "query": "custodial safeguards and rights on arrest",
+        "abstained": false,
+        "metrics": {
+          "claims": 5,
+          "by_class": {
+            "interpretation": 4,
+            "statute": 1
+          },
+          "grounding_rate": 1.0,
+          "verbatim_fidelity": 0.0,
+          "quoted_statute_claims": 0,
+          "unsupported": 4,
+          "unattributed_interpretation": 4,
+          "inference_share": 0.0,
+          "source_mix": {
+            "unknown": 4,
+            "section": 1
+          },
+          "abstained": false,
+          "clean": false
+        },
+        "rejected": [
+          {
+            "claim": "An arrested person has the right to have one friend or relative informed about their arrest and detention as soon as practicable.",
+            "epistemic_class": "interpretation",
+            "reason": "an interpretation claim names no judgement"
+          },
+          {
+            "claim": "The police officer must inform the arrested person of their right to have someone notified of their arrest when they are brought to the police station.",
+            "epistemic_class": "interpretation",
+            "reason": "an interpretation claim names no judgement"
+          },
+          {
+            "claim": "An entry must be made in the police diary regarding who was informed of the arrest.",
+            "epistemic_class": "interpretation",
+            "reason": "an interpretation claim names no judgement"
+          },
+          {
+            "claim": "The Magistrate is required to ensure that the above-mentioned requirements are complied with before the arrested person is produced before them.",
+            "epistemic_class": "interpretation",
+            "reason": "an interpretation claim names no judgement"
+          }
+        ],
+        "answer_head": "The arrested person must be produced before a Magistrate within 24 hours of arrest, excluding the journey time.\n\n_4 statement(s) were removed from this answer because they could not be supported again"
+      },
+      {
+        "id": "j09",
+        "class": "judgement",
+        "query": "five golden principles of circumstantial evidence",
+        "abstained": true,
+        "metrics": {
+          "claims": 0,
+          "by_class": {},
+          "grounding_rate": 0.0,
+          "verbatim_fidelity": 0.0,
+          "quoted_statute_claims": 0,
+          "unsupported": 0,
+          "unattributed_interpretation": 0,
+          "inference_share": 0.0,
+          "source_mix": {},
+          "abstained": true,
+          "clean": true
+        },
+        "rejected": [],
+        "answer_head": "I could not support any part of an answer to this question against the corpus. Rather than give you an answer I cannot stand behind, I am telling you that.\n\n**DISCLAIMER**: This is AI-generated legal "
+      },
+      {
+        "id": "j10",
+        "class": "judgement",
+        "query": "privacy is a fundamental right",
+        "abstained": false,
+        "metrics": {
+          "claims": 2,
+          "by_class": {
+            "holding": 1,
+            "interpretation": 1
+          },
+          "grounding_rate": 1.0,
+          "verbatim_fidelity": 0.0,
+          "quoted_statute_claims": 0,
+          "unsupported": 0,
+          "unattributed_interpretation": 0,
+          "inference_share": 0.0,
+          "source_mix": {
+            "judgement": 2
+          },
+          "abstained": false,
+          "clean": true
+        },
+        "rejected": [],
+        "answer_head": "Privacy is a constitutionally protected value in India. The right to personal liberty includes the right to be free from restrictions or encroachments on one's person.\n\n**DISCLAIMER**: This is AI-gene"
+      },
+      {
+        "id": "j11",
+        "class": "judgement",
+        "query": "bail in economic offences",
+        "abstained": false,
+        "metrics": {
+          "claims": 2,
+          "by_class": {
+            "interpretation": 2
+          },
+          "grounding_rate": 1.0,
+          "verbatim_fidelity": 0.0,
+          "quoted_statute_claims": 0,
+          "unsupported": 0,
+          "unattributed_interpretation": 0,
+          "inference_share": 0.0,
+          "source_mix": {
+            "judgement": 2
+          },
+          "abstained": false,
+          "clean": true
+        },
+        "rejected": [],
+        "answer_head": "The bail system in economic offences may discriminate against the poor, as they are often unable to furnish bail due to their financial situation, while wealthier individuals can secure their release."
+      },
+      {
+        "id": "j12",
+        "class": "judgement",
+        "query": "sedition confined to incitement to violence",
+        "abstained": false,
+        "metrics": {
+          "claims": 1,
+          "by_class": {
+            "interpretation": 1
+          },
+          "grounding_rate": 1.0,
+          "verbatim_fidelity": 0.0,
+          "quoted_statute_claims": 0,
+          "unsupported": 0,
+          "unattributed_interpretation": 0,
+          "inference_share": 0.0,
+          "source_mix": {
+            "judgement": 1
+          },
+          "abstained": false,
+          "clean": true
+        },
+        "rejected": [],
+        "answer_head": "Sedition is not confined to incitement to violence; it includes conduct that has the intention or tendency to disturb public order.\n\n**DISCLAIMER**: This is AI-generated legal information for educatio"
+      }
+    ],
+    "summary": {
+      "overall": {
+        "n": 69,
+        "claims_per_answer": 3.246,
+        "grounding_rate": 0.8841,
+        "verbatim_fidelity": 0.5548,
+        "inference_share": 0.0069,
+        "unsupported_total": 35,
+        "unattributed_interpretation_total": 5,
+        "abstained": 14,
+        "clean_answers": 51
+      },
+      "by_class": {
+        "citation": {
+          "n": 8,
+          "claims_per_answer": 4.5,
+          "grounding_rate": 0.875,
+          "verbatim_fidelity": 0.7688,
+          "inference_share": 0.0,
+          "unsupported_total": 3,
+          "unattributed_interpretation_total": 0,
+          "abstained": 1,
+          "clean_answers": 5
+        },
+        "judgement": {
+          "n": 12,
+          "claims_per_answer": 2.083,
+          "grounding_rate": 0.9167,
+          "verbatim_fidelity": 0.0,
+          "inference_share": 0.0,
+          "unsupported_total": 11,
+          "unattributed_interpretation_total": 4,
+          "abstained": 3,
+          "clean_answers": 9
+        },
+        "plain": {
+          "n": 25,
+          "claims_per_answer": 4.04,
+          "grounding_rate": 1.0,
+          "verbatim_fidelity": 0.7553,
+          "inference_share": 0.0,
+          "unsupported_total": 17,
+          "unattributed_interpretation_total": 0,
+          "abstained": 3,
+          "clean_answers": 17
+        },
+        "repealed_code": {
+          "n": 8,
+          "claims_per_answer": 1.125,
+          "grounding_rate": 0.375,
+          "verbatim_fidelity": 0.2812,
+          "inference_share": 0.0,
+          "unsupported_total": 1,
+          "unattributed_interpretation_total": 0,
+          "abstained": 5,
+          "clean_answers": 7
+        },
+        "term_of_art": {
+          "n": 16,
+          "claims_per_answer": 3.312,
+          "grounding_rate": 0.9375,
+          "verbatim_fidelity": 0.6875,
+          "inference_share": 0.0298,
+          "unsupported_total": 3,
+          "unattributed_interpretation_total": 1,
+          "abstained": 2,
+          "clean_answers": 13
+        }
+      }
+    }
+  },
+  "adversarial": {
+    "rows": [
+      {
+        "id": "a01",
+        "class": "adversarial",
+        "query": "What is the punishment for tax evasion under the Income Tax Act?",
+        "abstained": true,
+        "metrics": {
+          "claims": 0,
+          "by_class": {},
+          "grounding_rate": 0.0,
+          "verbatim_fidelity": 0.0,
+          "quoted_statute_claims": 0,
+          "unsupported": 0,
+          "unattributed_interpretation": 0,
+          "inference_share": 0.0,
+          "source_mix": {},
+          "abstained": true,
+          "clean": true
+        },
+        "rejected": [],
+        "answer_head": "I could not support any part of an answer to this question against the corpus. Rather than give you an answer I cannot stand behind, I am telling you that.\n\n**DISCLAIMER**: This is AI-generated legal "
+      },
+      {
+        "id": "a02",
+        "class": "adversarial",
+        "query": "What does section 999 of the Bharatiya Nyaya Sanhita provide?",
+        "abstained": true,
+        "metrics": {
+          "claims": 0,
+          "by_class": {},
+          "grounding_rate": 0.0,
+          "verbatim_fidelity": 0.0,
+          "quoted_statute_claims": 0,
+          "unsupported": 0,
+          "unattributed_interpretation": 0,
+          "inference_share": 0.0,
+          "source_mix": {},
+          "abstained": true,
+          "clean": true
+        },
+        "rejected": [],
+        "answer_head": "There is no section 999 of the BNS. It runs to section 358. I have not tried to answer the question, because the provision it asks about does not exist.\n\n**DISCLAIMER**: This is AI-generated legal inf"
+      },
+      {
+        "id": "a03",
+        "class": "adversarial",
+        "query": "What are the GST registration thresholds?",
+        "abstained": true,
+        "metrics": {
+          "claims": 0,
+          "by_class": {},
+          "grounding_rate": 0.0,
+          "verbatim_fidelity": 0.0,
+          "quoted_statute_claims": 0,
+          "unsupported": 0,
+          "unattributed_interpretation": 0,
+          "inference_share": 0.0,
+          "source_mix": {},
+          "abstained": true,
+          "clean": true
+        },
+        "rejected": [],
+        "answer_head": "I could not support any part of an answer to this question against the corpus. Rather than give you an answer I cannot stand behind, I am telling you that.\n\n**DISCLAIMER**: This is AI-generated legal "
+      },
+      {
+        "id": "a04",
+        "class": "adversarial",
+        "query": "Summarise the Supreme Court's 2026 ruling on electoral bonds.",
+        "abstained": true,
+        "metrics": {
+          "claims": 0,
+          "by_class": {},
+          "grounding_rate": 0.0,
+          "verbatim_fidelity": 0.0,
+          "quoted_statute_claims": 0,
+          "unsupported": 0,
+          "unattributed_interpretation": 0,
+          "inference_share": 0.0,
+          "source_mix": {},
+          "abstained": true,
+          "clean": true
+        },
+        "rejected": [],
+        "answer_head": "I could not support any part of an answer to this question against the corpus. Rather than give you an answer I cannot stand behind, I am telling you that.\n\n**DISCLAIMER**: This is AI-generated legal "
+      },
+      {
+        "id": "a05",
+        "class": "adversarial",
+        "query": "What is the penalty for breach of a software licence in Karnataka?",
+        "abstained": true,
+        "metrics": {
+          "claims": 0,
+          "by_class": {},
+          "grounding_rate": 0.0,
+          "verbatim_fidelity": 0.0,
+          "quoted_statute_claims": 0,
+          "unsupported": 0,
+          "unattributed_interpretation": 0,
+          "inference_share": 0.0,
+          "source_mix": {},
+          "abstained": true,
+          "clean": true
+        },
+        "rejected": [],
+        "answer_head": "I could not support any part of an answer to this question against the corpus. Rather than give you an answer I cannot stand behind, I am telling you that.\n\n**DISCLAIMER**: This is AI-generated legal "
+      },
+      {
+        "id": "a06",
+        "class": "adversarial",
+        "query": "Under BNSS, how many days of parole is a convict entitled to?",
+        "abstained": true,
+        "metrics": {
+          "claims": 0,
+          "by_class": {},
+          "grounding_rate": 0.0,
+          "verbatim_fidelity": 0.0,
+          "quoted_statute_claims": 0,
+          "unsupported": 0,
+          "unattributed_interpretation": 0,
+          "inference_share": 0.0,
+          "source_mix": {},
+          "abstained": true,
+          "clean": true
+        },
+        "rejected": [],
+        "answer_head": "I could not support any part of an answer to this question against the corpus. Rather than give you an answer I cannot stand behind, I am telling you that.\n\n**DISCLAIMER**: This is AI-generated legal "
+      }
+    ],
+    "abstained": 6,
+    "n": 6
+  },
+  "gate": {
+    "passed": false,
+    "failures": [
+      "unsupported claims survived on: p04(1), p06(1), p08(3), p12(2), p14(3), p16(3), p17(1), p19(3), t02(1), t12(1), t15(1), c02(1), c05(1), c06(1), r03(1), j03(3), j06(4), j08(4)",
+      "14 of 69 answerable queries abstained (ceiling 7): p16, p17, p19, t08, t12, c07, r02, r05, r06, r07, r08, j03, j06, j09"
+    ]
+  }
+}

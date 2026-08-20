@@ -249,6 +249,33 @@ class TestTrace:
         assert verify_step["verdicts"][0]["verified"] is False
         assert "Non-bailable" in verify_step["verdicts"][0]["reason"]
 
+    def test_the_text_of_a_rejected_claim_is_recorded(self, service):
+        """
+        Not just that something was removed -- what.
+
+        ``verdicts`` carries an index into the claim list as synthesis emitted
+        it, while the answer that ships has the failures stripped out. So the
+        index cannot be resolved by anything reading the result afterwards, and
+        against the shorter list it resolves to a *different* claim rather than
+        failing: an innocent claim reported as the rejected one. The text is
+        recorded here, where both are still in hand.
+        """
+        service.llm_service.generate.side_effect = [BAD_SYNTHESIS, BAD_SYNTHESIS]
+        verify_step = service.answer("is murder bailable").trace["steps"][-1]
+
+        rejected = verify_step["rejected"]
+        assert len(rejected) == 1
+        assert rejected[0]["text"] == "Murder is bailable."
+        assert rejected[0]["epistemic_class"] == "classification"
+        assert "Non-bailable" in rejected[0]["reason"]
+
+    def test_nothing_rejected_records_an_empty_list(self, service):
+        """Distinguishable from "the step never ran", which is why it is a key
+        that is always present rather than one added when it has content."""
+        service.llm_service.generate.return_value = GOOD_SYNTHESIS
+        verify_step = service.answer("what is murder").trace["steps"][-1]
+        assert verify_step["rejected"] == []
+
     def test_an_abstention_records_why(self, service):
         service.llm_service.generate.side_effect = [BAD_SYNTHESIS, BAD_SYNTHESIS]
         assert "could not support" in service.answer("is murder bailable").trace["abstained"]

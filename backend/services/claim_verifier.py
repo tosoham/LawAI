@@ -268,7 +268,8 @@ def _verify_attributed_to_a_case(
 ) -> tuple[bool, str]:
     judgements = _judgements_of(claim)
     if not judgements:
-        return False, f"a {label} claim names no judgement"
+        article = "an" if label[:1] in "aeiou" else "a"
+        return False, f"{article} {label} claim names no judgement"
 
     unknown = [
         j
