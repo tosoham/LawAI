@@ -241,6 +241,23 @@ class GroundedAnswerService:
         repealed citation is *not* refused here -- "CrPC 438" names a real
         provision whose replacement the corpus does hold, and the question is
         answerable even though the number is not resolvable.
+
+        What is checked is ``citation.sections`` -- the sections that will
+        actually be looked up -- and not ``citation.section``, the number the
+        query wrote down. For a current citation the two are the same. For a
+        repealed one they are not, and comparing the old number against the new
+        act asks a question with no meaning: "what replaced IPC section 420"
+        was refused with "there is no section 420 of the BNS", which is true,
+        irrelevant, and the confident wrong refusal this pre-check exists to
+        avoid. "IPC 302" survived only by luck -- BNS 302 exists (it is about
+        snatching), so an equally meaningless check happened to pass.
+
+        Since a repealed citation is resolvable only through the concordance,
+        and every concordance target was checked against our own parse of the
+        gazette when it was built, the repealed branch should now never refuse.
+        It is still checked rather than assumed: this pre-check is the one
+        place that can refuse an answer with no model in the loop, so it must
+        be certain rather than nearly certain.
         """
         citation = parse_citation(query)
         if citation is None or not citation.resolvable or citation.collection is None:
@@ -249,9 +266,15 @@ class GroundedAnswerService:
         act = {"bns_sections": "BNS", "bnss_sections": "BNSS", "bsa_sections": "BSA"}[
             citation.collection
         ]
-        key = section_key(act, citation.section)
         graph = get_legal_graph()
-        if graph.has_section(key):
+        missing = [
+            number
+            for number in citation.sections
+            if not graph.has_section(section_key(act, number))
+        ]
+        if not missing or len(missing) < len(citation.sections):
+            # A repealed provision often became several (IPC 498A -> BNS 85 and
+            # 86). One of them existing is enough to answer the question.
             return None
 
         highest = max(
@@ -262,8 +285,10 @@ class GroundedAnswerService:
             ),
             default=0,
         )
+        numbers = ", ".join(missing)
+        plural = "s" if len(missing) > 1 else ""
         return (
-            f"There is no section {citation.section} of the {act}. It runs to "
+            f"There is no section{plural} {numbers} of the {act}. It runs to "
             f"section {highest}. I have not tried to answer the question, because "
             "the provision it asks about does not exist."
         )

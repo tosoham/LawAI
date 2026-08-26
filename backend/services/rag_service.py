@@ -65,8 +65,39 @@ class RAGService:
         for i, (doc, meta) in enumerate(zip(documents, metadatas, strict=True), 1):
             # Format based on document type
             if 'section_number' in meta:
-                # Legal section
-                header = f"[{i}] {meta.get('act', 'Unknown Act')}, Section {meta.get('section_number', 'N/A')}"
+                # Legal section.
+                #
+                # The header leads with the citation key -- "BNSS 35" -- and not
+                # the act's full name, for the same reason the judgement header
+                # below leads with the id: a claim is verified against the key,
+                # so the key is what the model must be given rather than
+                # something it has to translate into one.
+                #
+                # The translation here is not merely extra work, it is
+                # ambiguous. All three acts begin "Bharatiya", and a model
+                # shown "Bharatiya Nagarik Suraksha Sanhita, Section 35"
+                # abbreviates it to BNS. Measured over the golden set: seven
+                # correct statements of BNSS law were labelled BNS and deleted
+                # -- arrest without warrant checked against the right of
+                # private defence (BNSS 35 vs BNS 35), the right to meet an
+                # advocate against private defence causing death (38), and
+                # maintenance of wives and children against exploitation of a
+                # trafficked person (144). Every one was true of the provision
+                # it described and false of the provision it named.
+                #
+                # The synthesis prompt already says BNS 103 and BNSS 103 are
+                # unrelated provisions. It was not enough, and could not be: a
+                # warning cannot supply a string the context never contains.
+                citation = f"{meta['short_name']} {meta['section_number']}" if meta.get(
+                    'short_name'
+                ) and meta.get('section_number') else None
+                if citation:
+                    header = f"[{i}] {citation} ({meta.get('act', 'Unknown Act')})"
+                else:
+                    header = (
+                        f"[{i}] {meta.get('act', 'Unknown Act')}, "
+                        f"Section {meta.get('section_number', 'N/A')}"
+                    )
                 if 'title' in meta:
                     header += f" - {meta['title']}"
             elif 'case_name' in meta:

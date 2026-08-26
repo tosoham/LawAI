@@ -129,6 +129,31 @@ class TestCitationPrecheck:
     def test_an_ordinary_question_is_not_refused(self, service):
         assert service.check_citation("what is the punishment for murder") is None
 
+    def test_a_repealed_number_is_checked_against_its_replacement(self, service):
+        """
+        The regression. The pre-check ran the *old* number against the *new*
+        act: "what replaced IPC section 420" asked whether BNS 420 exists, and
+        since the BNS runs to 358 it refused with "there is no section 420 of
+        the BNS" -- true, unrelated to the question, and unanswerable by any
+        later stage because the refusal happens before retrieval.
+
+        IPC 420 is answered by BNS 318. That is what has to exist.
+        """
+        assert service.check_citation("what replaced IPC section 420 cheating") is None
+
+    def test_a_repealed_number_that_exists_in_the_new_act_is_not_a_pass(self, service):
+        """
+        The same bug in the direction that hid it. BNS 302 exists -- it is
+        snatching, nothing to do with IPC 302 murder -- so the meaningless
+        check passed and the query looked healthy. It must now pass for the
+        right reason: BNS 103, which is what the concordance maps IPC 302 to.
+        """
+        assert service.check_citation("IPC 302 murder") is None
+
+    def test_a_repealed_citation_split_across_sections_is_not_refused(self, service):
+        """IPC 498A became BNS 85 and BNS 86; either existing answers it."""
+        assert service.check_citation("IPC 498A cruelty by husband") is None
+
 
 class TestAbstention:
     def test_nothing_retrieved_abstains(self, service):

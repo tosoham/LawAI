@@ -72,6 +72,42 @@ class TestRAGService:
         assert 'BNSS' in context
         assert 'Bail provisions' in context
 
+    def test_the_header_leads_with_the_citation_key(self, rag_service):
+        """
+        A claim is verified against "BNSS 35", so "BNSS 35" is what the context
+        has to contain.
+
+        The header used to give the act's full name, and all three acts begin
+        "Bharatiya" -- a model shown "Bharatiya Nagarik Suraksha Sanhita,
+        Section 35" writes BNS. Seven correct statements of BNSS law were
+        deleted over the golden set for exactly that, checked against the BNS
+        section that happens to carry the same number and a different subject.
+        """
+        context = rag_service._format_context({
+            'documents': ['35. Any police officer may without an order...'],
+            'metadatas': [{
+                'section_number': '35',
+                'short_name': 'BNSS',
+                'act': 'Bharatiya Nagarik Suraksha Sanhita',
+                'title': 'When police may arrest without warrant',
+            }],
+        })
+
+        assert 'BNSS 35' in context
+        # The full name stays, so the model can still tell the reader which act
+        # it is; it just no longer has to derive the abbreviation.
+        assert 'Bharatiya Nagarik Suraksha Sanhita' in context
+
+    def test_a_chunk_without_a_short_name_still_formats(self, rag_service):
+        """Older records carry no short_name; the header degrades, not fails."""
+        context = rag_service._format_context({
+            'documents': ['text'],
+            'metadatas': [{'section_number': '479', 'act': 'BNSS'}],
+        })
+
+        assert 'Section 479' in context
+        assert 'BNSS' in context
+
     def test_format_context_empty(self, rag_service):
         """Test context formatting with empty results"""
         search_results = {'documents': [], 'metadatas': []}
