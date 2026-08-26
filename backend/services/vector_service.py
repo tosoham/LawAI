@@ -12,6 +12,12 @@ from chromadb.errors import NotFoundError
 
 from .embedding_service import get_embedding_service
 from .query_expansion import expand_query
+from .retrieval.reranker import (
+    DEFAULT_CANDIDATES,
+    as_distance,
+    get_reranker,
+    rerank_enabled,
+)
 from .retrieval.structured_filter import parse_citation
 
 logger = logging.getLogger(__name__)
@@ -208,7 +214,8 @@ class VectorService:
         query: str,
         top_k: int = 5,
         expand: bool = True,
-        structured: bool = True
+        structured: bool = True,
+        rerank: bool | None = None,
     ) -> dict[str, Any]:
         """
         Search for similar documents in a collection
@@ -226,6 +233,12 @@ class VectorService:
             structured: Resolve a cited section by exact metadata lookup and
                 rank it first, ahead of the vector results. Pass False to
                 measure retrieval without it.
+            rerank: Reorder the vector hits with a cross-encoder (see
+                ``services.retrieval.reranker``). ``None`` follows the
+                ``ENABLE_RERANK`` environment variable. Reranking pulls a
+                deeper candidate pool and cuts back to ``top_k`` afterwards, so
+                turning it on changes what the caller sees without changing
+                what it asked for.
 
         Returns:
             Dict with 'documents', 'metadatas', 'distances', 'ids'
@@ -244,10 +257,15 @@ class VectorService:
             # Generate query embedding
             query_embedding = self.embedding_service.embed_text(search_text)
 
+            # A reranker can only reorder what it is given, so it is given more
+            # than the caller asked for.
+            reranking = rerank_enabled() if rerank is None else rerank
+            n_results = max(top_k, DEFAULT_CANDIDATES) if reranking else top_k
+
             # Search
             results = collection.query(
                 query_embeddings=[query_embedding],
-                n_results=top_k
+                n_results=n_results
             )
 
             # Format results
@@ -257,6 +275,23 @@ class VectorService:
                 'distances': results['distances'][0] if results['distances'] else [],
                 'ids': results['ids'][0] if results['ids'] else []
             }
+
+            if reranking:
+                # The *expanded* text, not the user's wording. Reranking was
+                # first built on the raw query, on the reasoning that expansion
+                # is a crutch for a bi-encoder that never sees the chunk while a
+                # cross-encoder does. Measured, that cost term_of_art 0.250 of
+                # recall@3 and 0.306 of MRR -- the class where expansion is
+                # load-bearing, because the term of art is absent from the
+                # section that governs it. "Anticipatory" appears nowhere in
+                # BNSS 482, so a cross-encoder shown "grounds for anticipatory
+                # bail" reads a chunk that never says the word and demotes what
+                # expansion had just surfaced. Seeing both texts together does
+                # not help a model that has not been told they are the same
+                # thing; the alias table is what says so.
+                formatted_results = self._rerank(
+                    search_text, formatted_results, top_k
+                )
 
             if exact:
                 formatted_results = self._merge_exact_hits(
@@ -268,6 +303,42 @@ class VectorService:
         except Exception as e:
             logger.error(f"Error searching {collection_name}: {e}")
             raise
+
+    @staticmethod
+    def _rerank(
+        query: str, results: dict[str, Any], top_k: int
+    ) -> dict[str, Any]:
+        """
+        Reorder vector hits by cross-encoder relevance and cut to ``top_k``.
+
+        The bi-encoder's distances are kept under ``vector_distances`` and
+        ``distances`` is rewritten from the rerank scores. That is not
+        bookkeeping: ``RAGService._format_sources`` turns a distance into the
+        relevance score the UI shows, so an ordering from one model beside
+        scores from another puts the second source above the first on the page.
+        Whichever model decided the order has to be the one that explains it.
+
+        A reranker that cannot load leaves the order alone and the list is
+        simply truncated -- the caller still gets ``top_k`` bi-encoder hits,
+        which is what it would have got had reranking never been asked for.
+        """
+        documents = results["documents"]
+        if not documents:
+            return results
+
+        order = get_reranker().order(query, documents)
+        if order is None:
+            return {key: values[:top_k] for key, values in results.items()}
+
+        order = order[:top_k]
+        scores = get_reranker().score(query, documents) or []
+        reranked: dict[str, Any] = {
+            key: [results[key][i] for i in order]
+            for key in ("ids", "documents", "metadatas")
+        }
+        reranked["vector_distances"] = [results["distances"][i] for i in order]
+        reranked["distances"] = [as_distance(scores[i]) for i in order]
+        return reranked
 
     @staticmethod
     def _merge_exact_hits(

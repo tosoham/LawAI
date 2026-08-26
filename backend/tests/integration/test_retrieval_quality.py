@@ -33,9 +33,11 @@ def vector_service():
     return service
 
 
-def sections(service, collection, query, *, expand=True, top_k=6):
+def sections(service, collection, query, *, expand=True, top_k=6, rerank=None):
     """Section numbers returned for a query, in rank order."""
-    results = service.search(collection, query, top_k=top_k, expand=expand)
+    results = service.search(
+        collection, query, top_k=top_k, expand=expand, rerank=rerank
+    )
     return [metadata.get("section_number") for metadata in results["metadatas"]]
 
 
@@ -62,23 +64,56 @@ class TestVocabularyMismatch:
         )
         assert "482" in ranked[:TOP_N], f"{query!r} ranked: {ranked}"
 
-    def test_bnss_482_is_unreachable_without_expansion(self, vector_service):
+    def test_bnss_482_is_unreachable_by_the_embedder_alone(self, vector_service):
         """
         Documents *why* the expansion layer exists. If this ever starts failing
         because 482 now ranks unaided — a better embedding model, say — the
         expansion entry for anticipatory bail has become redundant and this
         whole module deserves rethinking rather than patching.
+
+        Reranking is held off along with expansion, because the claim under
+        test is about what the *embedder* can reach. It is not a hypothetical
+        distinction: the cross-encoder does lift 482 into the top 6 unexpanded
+        (see the test below), and reading that as "the alias is redundant now"
+        would be wrong — measured over the golden set, reranking on the
+        unexpanded query costs term_of_art 0.250 of recall@3.
         """
         ranked = sections(
             vector_service,
             VectorService.BNSS_COLLECTION,
             "anticipatory bail",
             expand=False,
+            rerank=False,
         )
         assert "482" not in ranked, (
-            "BNSS 482 is now retrievable without query expansion; reconsider "
+            "BNSS 482 is now retrievable by the embedder alone; reconsider "
             f"whether the alias is still needed. Ranked: {ranked}"
         )
+
+    def test_the_reranker_recovers_482_from_deep_in_the_unexpanded_pool(
+        self, vector_service
+    ):
+        """
+        What a cross-encoder is for, on the hardest class in the corpus.
+
+        Unexpanded, the embedder puts BNSS 482 at rank 18 — retrieved, and far
+        below anything a reader sees. The cross-encoder scores the query
+        against the chunk rather than comparing two separately-embedded points,
+        and lifts it into the top 6.
+
+        This does not make expansion redundant, and the two are not
+        alternatives: reranking can only reorder what was retrieved, so it
+        depends on 482 being in the candidate pool at all. Expansion is what
+        puts it there for the queries where it is not.
+        """
+        ranked = sections(
+            vector_service,
+            VectorService.BNSS_COLLECTION,
+            "anticipatory bail",
+            expand=False,
+            rerank=True,
+        )
+        assert "482" in ranked, f"ranked: {ranked}"
 
     def test_default_bail_reaches_the_detention_limit_provisions(self, vector_service):
         """

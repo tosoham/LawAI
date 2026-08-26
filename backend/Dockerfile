@@ -31,10 +31,19 @@ RUN pip install --index-url https://download.pytorch.org/whl/cpu torch
 COPY backend/requirements.txt /tmp/requirements.txt
 RUN pip install -r /tmp/requirements.txt
 
-# Pre-download all-MiniLM-L6-v2 into the image.
+# Pre-download both models into the image: all-MiniLM-L6-v2 builds and queries
+# the index, ms-marco-MiniLM-L-6-v2 reranks the candidates.
+#
+# The reranker has to be baked for the same reason the embedder does, but it
+# fails differently and worse. HF_HUB_OFFLINE=1 below means an absent model
+# cannot be fetched at runtime, and `services/retrieval/reranker.py` fails soft
+# by design -- so a container missing it would start, serve, and quietly return
+# bi-encoder rankings, giving up the +0.043 recall@3 with nothing in the
+# response to say so. An unbaked embedder at least fails loudly.
 ENV HF_HOME=/opt/hf
-RUN python -c "from sentence_transformers import SentenceTransformer; \
-SentenceTransformer('all-MiniLM-L6-v2')"
+RUN python -c "from sentence_transformers import SentenceTransformer, CrossEncoder; \
+SentenceTransformer('all-MiniLM-L6-v2'); \
+CrossEncoder('cross-encoder/ms-marco-MiniLM-L-6-v2')"
 
 # ---------------------------------------------------------------- runtime ----
 FROM python:3.12-slim AS runtime

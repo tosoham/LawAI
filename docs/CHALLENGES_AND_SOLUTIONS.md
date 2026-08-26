@@ -387,6 +387,43 @@ value.
 
 ---
 
+### 3.8 A reranker made retrieval worse, on the class it was meant to help ⚑
+
+**Symptom.** The cross-encoder was added to close a measured precision gap (recall@1 0.812
+against recall@10 0.986 — in ~19% of queries the right chunk was retrieved and ranked below
+first). It gained on `judgement` (+0.083 R@3) and `plain` (+0.040), and lost **0.250 of
+recall@3 and 0.306 of MRR on `term_of_art`** — a net **−0.029** overall.
+**Cause.** It was scored on the **raw** query. The reasoning had been that query expansion is
+a crutch for a bi-encoder which never sees the chunk, while a cross-encoder does — so the
+appended statutory phrasing was noise to score around. But `term_of_art` is exactly the class
+where the term is *absent from the section governing it*: "anticipatory" occurs nowhere in
+BNSS 482. Shown "grounds for anticipatory bail", the cross-encoder reads a chunk that never
+says the word and demotes what expansion had just surfaced.
+**Fix.** Score on the expanded text. `term_of_art` went from −0.250 to **+0.062**, overall
+from −0.029 to **+0.043**, no class regressed, recall@1 0.812 → 0.870 with recall@10 unmoved.
+**Guard.** `eval_retrieval.py --rerank`, reported **per class** — the overall mean alone read
+as a small loss and would have hidden a large regression inside a modest set of gains.
+**The lesson.** *Seeing two texts together does not tell a model they mean the same thing.*
+The alias table is what says so, and no amount of joint encoding substitutes for it.
+
+### 3.9 A documented limitation stopped being true for the wrong reason ⚑
+
+**Symptom.** `test_bnss_482_is_unreachable_without_expansion` began failing once reranking
+was on. Its own docstring said this meant the alias had become redundant.
+**Reality.** 482 was not ranking *unaided* — it was ranking with a **different** aid. The
+embedder puts it at rank 18 unexpanded; the cross-encoder lifts it into the top 6. The eval
+says the alias is still load-bearing: reranking on the unexpanded query costs `term_of_art`
+0.250 of recall@3.
+**Fix.** The test holds *both* aids off, since the claim under test is what the embedder can
+reach. A second test records the new fact — that the reranker recovers 482 from rank 18 —
+and states why the two layers are not alternatives: reranking reorders what was retrieved and
+can never add to it.
+**The lesson.** *A test that tells you what to conclude when it fails is worth writing, and
+still worth re-deriving.* The instruction was right about the trigger and wrong about the
+cause.
+
+---
+
 ## 4. Grounding and verification
 
 ### 4.1 Post-hoc labelling is a guess about a guess ⚑
@@ -509,6 +546,67 @@ words out.
 **Fix.** Where a *quotation* failed, the feedback explicitly tells the model it may **keep
 the point and paraphrase**. A paraphrase is still checked — the cited section must exist and
 be the right one.
+
+---
+
+### 4.15 The pre-check ran the old section number against the new act ⚑
+
+**Symptom.** *"What replaced IPC section 420?"* was refused, before retrieval and with no
+model call, with **"There is no section 420 of the BNS."** True, unrelated, and unrecoverable
+— nothing downstream runs after the pre-check refuses.
+**Cause.** The check read `citation.section` — the number the query wrote down — instead of
+`citation.sections`, the numbers that will actually be looked up. For a current citation they
+are the same. For a repealed one they are not: IPC 420 is answered by BNS 318, and the BNS
+runs to 358.
+**Why it hid.** *"IPC 302"* passed — because BNS 302 happens to exist (it is about snatching).
+An equally meaningless check, giving the right answer by luck.
+**Fix.** Check what will be looked up. A repealed provision that became several (IPC 498A →
+BNS 85 **and** 86) passes if any target exists.
+**Guard.** Tests for both directions, including the one that used to pass for the wrong reason.
+**The lesson.** *The most dangerous checks are the ones that usually pass.* Six of eight
+`repealed_code` queries were abstaining; two remain.
+
+### 4.16 Seven correct statements deleted for naming the wrong act ⚑
+
+**Symptom.** Answers stating BNSS law correctly were cited to **BNS** and rejected: arrest
+without warrant checked against the right of private defence (BNSS 35 vs BNS 35), the right
+to meet an advocate against private defence causing death (38), maintenance of wives and
+children against exploitation of a trafficked person (144). Every claim was true of the
+provision it described and false of the provision it named.
+**Cause.** The retrieved-context header gave the act's **full name**. All three begin
+"Bharatiya", and a model shown *"Bharatiya Nagarik Suraksha Sanhita, Section 35"* writes BNS.
+`short_name: "BNSS"` sat unused in the metadata.
+**Why the prompt did not save it.** The synthesis prompt already said *"BNS 103 and BNSS 103
+are unrelated provisions."* It could not have been enough: **a warning cannot supply a string
+the context never contains.**
+**Fix.** The header leads with the citation key — `[1] BNSS 35 (Bharatiya Nagarik Suraksha
+Sanhita) - When police may arrest without warrant`.
+**Measured.** Unsupported claims 35 → 20, abstentions 14 → 9, verbatim fidelity +0.135,
+`plain` class 17 → 2 unsupported; adversarial abstention unchanged at 6/6.
+**The lesson.** *Give the model the key it is checked against, not something it must
+translate into one.* Identical in shape to the judgement-id bug that had made the `holding`
+and `interpretation` classes unreachable — the same mistake, found twice, because the fix the
+first time was treated as specific to judgements rather than as a rule.
+
+---
+
+### 4.17 A grounding number that moved on its own ⚑
+
+**Symptom.** Turning reranking on appeared to take the `plain` class from **2 unsupported
+claims to 18** while `judgement` went from 13 to 3. A clear, large, contradictory signal.
+**Check before believing it.** The same configuration was run twice with **no code change**:
+overall unsupported 20 → 18, abstentions 9 → 6, `judgement` **13 → 6**, `plain` **2 → 7**.
+**Cause.** Synthesis is a sampled model call, the classes are small (12 judgement queries, 25
+plain), each answer carries several claims, and one answer flipping between attempting and
+abstaining moves its whole class.
+**Consequence.** A per-class swing under ~7 is not evidence. A single A/B run of the grounding
+harness **cannot settle a retrieval change** — the deterministic `eval_retrieval.py` decides
+those, because embedding and ranking involve no sampling and its diffs are exact.
+**Fix.** The noise floor is written into the harness docstring beside the gate, with the two
+runs that measured it, so the next person reads a diff at the right resolution.
+**The lesson.** *Measure your instrument before you trust a reading off it.* The gated
+invariants were fine — they are properties of the deterministic verifier. It was the
+*reported means and counts*, the numbers most likely to be quoted, that needed an error bar.
 
 ---
 

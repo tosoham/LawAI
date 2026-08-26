@@ -16,6 +16,7 @@ Usage:
 
     python scripts/eval_retrieval.py                      # current config
     python scripts/eval_retrieval.py --no-expand          # expansion ablation
+    python scripts/eval_retrieval.py --rerank             # cross-encoder on top
     python scripts/eval_retrieval.py --label baseline     # name the run
     python scripts/eval_retrieval.py --compare baseline   # diff against a run
     python scripts/eval_retrieval.py --class term_of_art  # one class only
@@ -123,7 +124,9 @@ def aggregate(rows: list[dict[str, Any]]) -> dict[str, Any]:
     return summary
 
 
-def run(expand: bool, only_class: str | None, top_k: int) -> dict[str, Any]:
+def run(
+    expand: bool, only_class: str | None, top_k: int, rerank: bool = False
+) -> dict[str, Any]:
     """Score every golden query against the current vector store."""
     golden = json.loads(GOLDEN_PATH.read_text())
     service = get_vector_service()
@@ -134,7 +137,11 @@ def run(expand: bool, only_class: str | None, top_k: int) -> dict[str, Any]:
             continue
 
         results = service.search(
-            query["collection"], query["query"], top_k=top_k, expand=expand
+            query["collection"],
+            query["query"],
+            top_k=top_k,
+            expand=expand,
+            rerank=rerank,
         )
         ranked = dedupe(
             [result_key(query["collection"], m) for m in results["metadatas"]]
@@ -154,7 +161,12 @@ def run(expand: bool, only_class: str | None, top_k: int) -> dict[str, Any]:
 
     return {
         "generated_at": datetime.now(UTC).isoformat(),
-        "config": {"expand": expand, "top_k": top_k, "class_filter": only_class},
+        "config": {
+            "expand": expand,
+            "top_k": top_k,
+            "rerank": rerank,
+            "class_filter": only_class,
+        },
         "overall": aggregate(rows),
         "by_class": {name: aggregate(items) for name, items in sorted(by_class.items())},
         "queries": rows,
@@ -163,7 +175,10 @@ def run(expand: bool, only_class: str | None, top_k: int) -> dict[str, Any]:
 
 def print_report(report: dict[str, Any]) -> None:
     config = report["config"]
-    print(f"\nexpand={config['expand']}  top_k={config['top_k']}")
+    print(
+        f"\nexpand={config['expand']}  top_k={config['top_k']}  "
+        f"rerank={config.get('rerank', False)}"
+    )
     print("-" * 62)
     print(f"{'class':<16}{'n':>4}{'R@1':>8}{'R@3':>8}{'R@10':>8}{'MRR':>8}{'nDCG':>8}")
     for name, summary in report["by_class"].items():
@@ -222,11 +237,21 @@ def main() -> int:
     parser.add_argument("--label", default="latest", help="name for this run's report file")
     parser.add_argument("--compare", help="label of an earlier run to diff against")
     parser.add_argument("--no-expand", action="store_true", help="disable query expansion")
+    parser.add_argument(
+        "--rerank",
+        action="store_true",
+        help="reorder the candidate pool with the cross-encoder",
+    )
     parser.add_argument("--class", dest="cls", help="score only one query class")
     parser.add_argument("--top-k", type=int, default=RETRIEVE_K)
     args = parser.parse_args()
 
-    report = run(expand=not args.no_expand, only_class=args.cls, top_k=args.top_k)
+    report = run(
+        expand=not args.no_expand,
+        only_class=args.cls,
+        top_k=args.top_k,
+        rerank=args.rerank,
+    )
     print_report(report)
 
     if args.compare:

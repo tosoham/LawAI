@@ -52,6 +52,28 @@ regardless of sampling because they are properties of the *verifier*, which is
 deterministic — every check is a lookup against committed data. The means
 (``grounding_rate``, ``verbatim_fidelity``, ``inference_share``) are reported
 for the ``--compare`` diff and trend-watched by a human, not gated.
+
+## How much a number has to move before it means anything
+
+**Measured, because guessing at this is how a change gets credited or blamed
+for sampling noise.** Two runs of the identical configuration, back to back:
+
+    run                claims/ans  unsup  abstained   judgement  plain
+    grounding                3.29     20          9          13      2
+    grounding (repeat)       3.46     18          6           6      7
+
+So on unchanged code the overall unsupported count moved by 2, abstentions by
+3, and the **per-class counts by 7** -- larger than most changes worth making.
+The classes are small (12 judgement queries, 25 plain), a single answer carries
+several claims, and one answer flipping between attempting and abstaining moves
+its whole class.
+
+Read accordingly: a per-class swing under about 7 is not evidence of anything,
+and a single A/B run of this harness cannot settle a retrieval change. The
+*deterministic* eval is what decides those -- ``eval_retrieval.py`` embeds and
+ranks with no sampling anywhere, so its diffs are exact. This harness answers a
+different question, which is whether the grounding invariants still hold, and
+those are gated precisely because they do not depend on sampling.
 """
 import argparse
 import json
