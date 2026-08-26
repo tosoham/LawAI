@@ -12,6 +12,12 @@ from chromadb.errors import NotFoundError
 
 from .embedding_service import get_embedding_service
 from .query_expansion import expand_query
+from .retrieval.lexical import (
+    CANDIDATES,
+    get_index,
+    hybrid_enabled,
+    reciprocal_rank_fusion,
+)
 from .retrieval.reranker import (
     DEFAULT_CANDIDATES,
     as_distance,
@@ -216,6 +222,7 @@ class VectorService:
         expand: bool = True,
         structured: bool = True,
         rerank: bool | None = None,
+        hybrid: bool | None = None,
     ) -> dict[str, Any]:
         """
         Search for similar documents in a collection
@@ -239,6 +246,9 @@ class VectorService:
                 deeper candidate pool and cuts back to ``top_k`` afterwards, so
                 turning it on changes what the caller sees without changing
                 what it asked for.
+            hybrid: Fuse a BM25 ranking into the candidate pool by reciprocal
+                rank fusion (see ``services.retrieval.lexical``). ``None``
+                follows the ``ENABLE_HYBRID`` environment variable.
 
         Returns:
             Dict with 'documents', 'metadatas', 'distances', 'ids'
@@ -258,9 +268,15 @@ class VectorService:
             query_embedding = self.embedding_service.embed_text(search_text)
 
             # A reranker can only reorder what it is given, so it is given more
-            # than the caller asked for.
+            # than the caller asked for; fusion goes deeper still, because it
+            # decides which candidates the reranker ever sees.
             reranking = rerank_enabled() if rerank is None else rerank
-            n_results = max(top_k, DEFAULT_CANDIDATES) if reranking else top_k
+            fusing = hybrid_enabled() if hybrid is None else hybrid
+            n_results = top_k
+            if reranking:
+                n_results = max(n_results, DEFAULT_CANDIDATES)
+            if fusing:
+                n_results = max(n_results, CANDIDATES)
 
             # Search
             results = collection.query(
@@ -275,6 +291,30 @@ class VectorService:
                 'distances': results['distances'][0] if results['distances'] else [],
                 'ids': results['ids'][0] if results['ids'] else []
             }
+
+            if fusing:
+                # The expanded text here too. Built on the raw query first, on
+                # the reasoning that expansion is a crutch for an embedder that
+                # cannot match a word it never sees, while BM25 matches words
+                # it does -- so the appended phrase would be a second bag of
+                # legal terms competing with the user's own.
+                #
+                # Measured, that was backwards. BM25 on the raw query scores
+                # term_of_art at recall@3 0.250; on the expanded query, 0.938,
+                # with recall@20 going 0.870 -> 0.986 overall and *not one
+                # query regressing*. The alias table does not append vocabulary,
+                # it appends the statute's own phrasing -- "power of High Court
+                # to prevent abuse of process" is nearly verbatim BNSS 528 --
+                # and matching literal text is the one thing BM25 is better at
+                # than anything else here.
+                #
+                # Three layers now, and every one of them wants the expanded
+                # query. The expansion is not a dense-retrieval workaround; it
+                # is the bridge from what a lawyer says to what the gazette
+                # printed, and every retriever needs to cross it.
+                formatted_results = self._fuse_lexical(
+                    collection, collection_name, search_text, formatted_results, n_results
+                )
 
             if reranking:
                 # The *expanded* text, not the user's wording. Reranking was
@@ -292,6 +332,14 @@ class VectorService:
                 formatted_results = self._rerank(
                     search_text, formatted_results, top_k
                 )
+            elif n_results > top_k:
+                # Fusion pulls a deeper pool than the caller asked for, and
+                # reranking is what normally cuts it back. With reranking off
+                # nothing did, so ``search(top_k=6)`` returned thirty results
+                # and every caller's context budget silently grew fivefold.
+                formatted_results = {
+                    key: values[:top_k] for key, values in formatted_results.items()
+                }
 
             if exact:
                 formatted_results = self._merge_exact_hits(
@@ -303,6 +351,95 @@ class VectorService:
         except Exception as e:
             logger.error(f"Error searching {collection_name}: {e}")
             raise
+
+    @staticmethod
+    def _fuse_lexical(
+        collection: Any,
+        collection_name: str,
+        query: str,
+        dense: dict[str, Any],
+        n_results: int,
+    ) -> dict[str, Any]:
+        """
+        Fuse a BM25 ranking into the dense candidates by reciprocal rank fusion.
+
+        The two retrievers fail on disjoint sets, which is the only reason this
+        is worth its complexity: measured alone over the golden set, BM25 beats
+        dense at recall@3 on citation (0.875 vs 0.250), judgement (1.000 vs
+        0.833) and plain (1.000 vs 0.960), and is beaten badly on term_of_art
+        (0.250 vs 0.875). One matches the query's words, the other matches its
+        meaning, and legal questions come in both shapes.
+
+        A chunk BM25 finds that dense missed has no distance of its own, so it
+        is given the worst distance in the dense list rather than a fabricated
+        one. The number is a floor, not a measurement -- what orders the list
+        after this is fusion rank and then the cross-encoder, both of which
+        ignore it. It exists so downstream code that reads ``distances`` gets a
+        value that cannot overstate the match.
+        """
+        index = get_index(collection, collection_name)
+        if index is None:
+            return dense
+
+        # Both rankings are expressed in the same identity so a chunk found by
+        # both fuses as one document. Without that it appears twice and RRF
+        # counts it as two documents that one retriever liked, rather than one
+        # that both did -- which inverts the property fusion is bought for.
+        by_key: dict[str, dict[str, Any]] = {}
+        dense_ranking: list[str] = []
+        for position, chroma_id in enumerate(dense["ids"]):
+            key = VectorService._chunk_key(dense["metadatas"][position], chroma_id)
+            dense_ranking.append(key)
+            by_key.setdefault(key, {
+                "id": chroma_id,
+                "document": dense["documents"][position],
+                "metadata": dense["metadatas"][position],
+                "distance": dense["distances"][position],
+            })
+
+        # A lexical-only hit has no distance of its own. It is given the worst
+        # in the dense list -- a floor, not a measurement. What orders the list
+        # from here is fusion rank and then the cross-encoder, both of which
+        # ignore it; it exists so downstream code reading ``distances`` cannot
+        # be handed a number that overstates the match.
+        worst = max(dense["distances"], default=1.0)
+        lexical_ranking: list[str] = []
+        for position in index.top(query, n_results):
+            metadata = index.metadatas[position]
+            key = VectorService._chunk_key(metadata)
+            lexical_ranking.append(key)
+            by_key.setdefault(key, {
+                "id": key,
+                "document": index.documents[position],
+                "metadata": metadata,
+                "distance": worst,
+            })
+
+        fused = reciprocal_rank_fusion([dense_ranking, lexical_ranking])[:n_results]
+        return {
+            "ids": [by_key[key]["id"] for key in fused],
+            "documents": [by_key[key]["document"] for key in fused],
+            "metadatas": [by_key[key]["metadata"] for key in fused],
+            "distances": [by_key[key]["distance"] for key in fused],
+        }
+
+    @staticmethod
+    def _chunk_key(metadata: dict[str, Any], fallback: str | None = None) -> str:
+        """
+        A stable identity for a chunk, so the two retrievers fuse as one list.
+
+        Fusion has to recognise that dense hit #3 and lexical hit #7 are the
+        same chunk, or the document appears twice and RRF counts it as two
+        documents one retriever liked rather than one both did. The BM25 index
+        is built from ``collection.get``, which returns documents and metadata
+        without the ids ``collection.query`` returns, so identity comes from
+        the metadata the ingest wrote: the parent document plus which chunk of
+        it this is.
+        """
+        parent = metadata.get("parent_id") or metadata.get("id")
+        if not parent:
+            return fallback or f"?#{metadata.get('chunk_index', 0)}"
+        return f"{parent}#{metadata.get('chunk_index', 0)}"
 
     @staticmethod
     def _rerank(

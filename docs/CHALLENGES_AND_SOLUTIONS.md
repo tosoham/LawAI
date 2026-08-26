@@ -424,6 +424,47 @@ cause.
 
 ---
 
+### 3.10 "BM25 would not help here" was right about one class and wrong as a policy ⚑
+
+**The standing claim.** Query expansion's own docstring said a hybrid retriever would not fix
+a term-of-art miss: "anticipatory" is absent from BNSS 482, so there is nothing to match
+lexically. True — and it had been generalised into a reason not to have BM25 at all.
+**What measuring found.** Each retriever alone, recall@3 over the golden set:
+
+| class | BM25 | dense |
+|---|---|---|
+| citation | **0.875** | 0.250 |
+| judgement | **1.000** | 0.833 |
+| plain | **1.000** | 0.960 |
+| term_of_art | 0.250 | **0.875** |
+
+BM25 is *better* everywhere except the one class the claim was about. Both failures have the
+same cause read from opposite ends — whether the query's words appear in the answer's text.
+**Fix.** Fuse the two by reciprocal rank fusion, ranks only, no score normalisation to fit.
+**The lesson.** *A true finding about one class had been promoted to a policy about a
+technique.* The measurement that established it never covered the classes it was being used
+to rule out.
+
+### 3.11 Every retrieval layer wants the expanded query — got wrong twice ⚑
+
+**Symptom.** Built on the user's raw wording, the cross-encoder cost `term_of_art` 0.250 of
+recall@3 (3.8); built the same way, BM25 scored `term_of_art` at 0.250 against **0.938** on the
+expanded query — and gained on every other class with **not one query regressing**.
+**The reasoning that failed, twice.** *Expansion is a crutch for a bi-encoder that cannot match
+a word it never sees; a cross-encoder sees the chunk, and BM25 matches words that are there, so
+the appended phrase is noise.*
+**Why it is wrong.** The alias table does not append vocabulary. It appends **the statute's own
+phrasing** — `"quashing"` → `"power of High Court to prevent abuse of process"`, which is nearly
+verbatim BNSS 528. That is not a hint for a weak embedder; it is the bridge from what a lawyer
+says to what the gazette printed, and every retriever has to cross it. For BM25 the appended
+phrase is the *best* signal available, being literal text.
+**Result.** recall@3 went to **1.000 on all 69 golden queries**, every class.
+**The lesson.** *When the same wrong call is made twice in two layers, the mistake is in how the
+component was described, not in the judgement.* "Query expansion" reads like a dense-retrieval
+workaround. It is a vocabulary bridge, and naming it as one would have prevented both.
+
+---
+
 ## 4. Grounding and verification
 
 ### 4.1 Post-hoc labelling is a guess about a guess ⚑

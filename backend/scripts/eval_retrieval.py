@@ -17,6 +17,7 @@ Usage:
     python scripts/eval_retrieval.py                      # current config
     python scripts/eval_retrieval.py --no-expand          # expansion ablation
     python scripts/eval_retrieval.py --rerank             # cross-encoder on top
+    python scripts/eval_retrieval.py --no-hybrid          # dense only, no BM25
     python scripts/eval_retrieval.py --label baseline     # name the run
     python scripts/eval_retrieval.py --compare baseline   # diff against a run
     python scripts/eval_retrieval.py --class term_of_art  # one class only
@@ -125,7 +126,11 @@ def aggregate(rows: list[dict[str, Any]]) -> dict[str, Any]:
 
 
 def run(
-    expand: bool, only_class: str | None, top_k: int, rerank: bool = False
+    expand: bool,
+    only_class: str | None,
+    top_k: int,
+    rerank: bool = False,
+    hybrid: bool = True,
 ) -> dict[str, Any]:
     """Score every golden query against the current vector store."""
     golden = json.loads(GOLDEN_PATH.read_text())
@@ -142,6 +147,7 @@ def run(
             top_k=top_k,
             expand=expand,
             rerank=rerank,
+            hybrid=hybrid,
         )
         ranked = dedupe(
             [result_key(query["collection"], m) for m in results["metadatas"]]
@@ -165,6 +171,7 @@ def run(
             "expand": expand,
             "top_k": top_k,
             "rerank": rerank,
+            "hybrid": hybrid,
             "class_filter": only_class,
         },
         "overall": aggregate(rows),
@@ -177,7 +184,8 @@ def print_report(report: dict[str, Any]) -> None:
     config = report["config"]
     print(
         f"\nexpand={config['expand']}  top_k={config['top_k']}  "
-        f"rerank={config.get('rerank', False)}"
+        f"rerank={config.get('rerank', False)}  "
+        f"hybrid={config.get('hybrid', False)}"
     )
     print("-" * 62)
     print(f"{'class':<16}{'n':>4}{'R@1':>8}{'R@3':>8}{'R@10':>8}{'MRR':>8}{'nDCG':>8}")
@@ -242,6 +250,11 @@ def main() -> int:
         action="store_true",
         help="reorder the candidate pool with the cross-encoder",
     )
+    parser.add_argument(
+        "--no-hybrid",
+        action="store_true",
+        help="dense only; do not fuse a BM25 ranking",
+    )
     parser.add_argument("--class", dest="cls", help="score only one query class")
     parser.add_argument("--top-k", type=int, default=RETRIEVE_K)
     args = parser.parse_args()
@@ -251,6 +264,7 @@ def main() -> int:
         only_class=args.cls,
         top_k=args.top_k,
         rerank=args.rerank,
+        hybrid=not args.no_hybrid,
     )
     print_report(report)
 

@@ -33,10 +33,12 @@ def vector_service():
     return service
 
 
-def sections(service, collection, query, *, expand=True, top_k=6, rerank=None):
+def sections(service, collection, query, *, expand=True, top_k=6, rerank=None,
+             hybrid=None):
     """Section numbers returned for a query, in rank order."""
     results = service.search(
-        collection, query, top_k=top_k, expand=expand, rerank=rerank
+        collection, query, top_k=top_k, expand=expand, rerank=rerank,
+        hybrid=hybrid,
     )
     return [metadata.get("section_number") for metadata in results["metadatas"]]
 
@@ -71,12 +73,13 @@ class TestVocabularyMismatch:
         expansion entry for anticipatory bail has become redundant and this
         whole module deserves rethinking rather than patching.
 
-        Reranking is held off along with expansion, because the claim under
-        test is about what the *embedder* can reach. It is not a hypothetical
-        distinction: the cross-encoder does lift 482 into the top 6 unexpanded
-        (see the test below), and reading that as "the alias is redundant now"
-        would be wrong — measured over the golden set, reranking on the
-        unexpanded query costs term_of_art 0.250 of recall@3.
+        Reranking and lexical fusion are held off along with expansion,
+        because the claim under test is about what the *embedder* can reach.
+        That is not a hypothetical distinction — both of the other layers do
+        reach 482 unexpanded (see the tests below), and reading either as "the
+        alias is redundant now" would be wrong. Measured over the golden set,
+        dropping expansion costs the cross-encoder 0.250 of term_of_art
+        recall@3 and costs BM25 0.688.
         """
         ranked = sections(
             vector_service,
@@ -84,6 +87,7 @@ class TestVocabularyMismatch:
             "anticipatory bail",
             expand=False,
             rerank=False,
+            hybrid=False,
         )
         assert "482" not in ranked, (
             "BNSS 482 is now retrievable by the embedder alone; reconsider "
@@ -112,8 +116,25 @@ class TestVocabularyMismatch:
             "anticipatory bail",
             expand=False,
             rerank=True,
+            hybrid=False,
         )
         assert "482" in ranked, f"ranked: {ranked}"
+
+    def test_a_deeper_pool_is_still_cut_back_to_top_k(self, vector_service):
+        """
+        Fusion pulls thirty candidates and reranking is what cuts them back.
+        With reranking off nothing did, and a caller asking for six chunks got
+        thirty — five times the context budget, silently.
+        """
+        ranked = sections(
+            vector_service,
+            VectorService.BNSS_COLLECTION,
+            "anticipatory bail",
+            top_k=6,
+            rerank=False,
+            hybrid=True,
+        )
+        assert len(ranked) <= 6, f"got {len(ranked)}: {ranked}"
 
     def test_default_bail_reaches_the_detention_limit_provisions(self, vector_service):
         """
