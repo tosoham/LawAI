@@ -14,6 +14,7 @@ import ReactMarkdown from 'react-markdown';
 import api, {
   AgentQueryResponse,
   AgentSource,
+  AgentTrail,
   AnswerVerification,
   LiveJudgment,
   stripAppendedBlocks,
@@ -41,6 +42,7 @@ interface Message {
   sources?: AgentSource[];
   liveSources?: LiveJudgment[];
   verification?: AnswerVerification | null;
+  trail?: AgentTrail | null;
 }
 
 /** How the classified intent is described to the user. */
@@ -100,6 +102,7 @@ export const ChatInterface: React.FC = () => {
           sources: result.sources,
           liveSources: result.live_sources,
           verification: result.verification,
+          trail: result.agent_trail,
         },
       ]);
     } catch (err) {
@@ -229,7 +232,11 @@ export const ChatInterface: React.FC = () => {
                 )}
 
                 {message.verification && (
-                  <TracePanel verification={message.verification} className="mt-3.5" />
+                  <TracePanel
+                    verification={message.verification}
+                    trail={message.trail}
+                    className="mt-3.5"
+                  />
                 )}
 
                 <LegalDisclaimer className="mt-3.5" />

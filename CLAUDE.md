@@ -149,6 +149,68 @@ Four findings from running it that are easy to reintroduce:
 
 **The trace panel** (`components/legal/TracePanel.tsx`) is collapsed by default and always one click away: metrics, and every claim the verifier rejected with its reason. "Nothing was removed" is stated rather than left as an absence — otherwise the section's presence reads as a bad sign and its absence as a clean bill of health.
 
+## Multi-agent orchestration
+
+`agents/legal_agent.py` compiles one `StateGraph` carrying two paths. Most questions take the
+cheap one; the expensive one exists for the questions that need it, and keeping that ratio
+right is the whole design problem.
+
+```
+classify_intent → triage ┬─ simple ──→ existing single pass (one model call)
+                         └─ complex ─→ plan ─Send()─┬ statute   ┐
+                                                    ├ case_law  │ parallel
+                                                    ├ offence   │ (free)
+                                                    └ doctrine  ┘ (free)
+                                                          ↓
+                                                       gather → verifier → format
+```
+
+- **Specialists gather evidence; only the synthesiser emits claims.** The rule the whole
+  architecture rests on. Six agents emitting their own conclusions would put generation
+  *after* the point `claim_verifier` runs, so part of an answer would be checked and part
+  would not, with nothing in the output to say which. `grounded_answer.answer()` takes a
+  `retrieved` argument that skips retrieval **and only retrieval** — the citation pre-check,
+  graph expansion, synthesis prompt, verification, regeneration, abstention and metrics all
+  still run. A fanned-out answer is checked by identical machinery to a single-pass one.
+- **Triage's job is mostly to say no** (`agents/triage.py`). No model call of its own, because
+  a triage step that costs a call has already spent a fraction of what escalating costs.
+  Measured over the fixture: **69 of 69 answerable golden queries and 6 of 6 adversarial ones
+  stay `simple`.** Only a question *about the law* is ever escalated — drafting, analysis,
+  chat and live research go to their own nodes whatever triage thought.
+- **Two specialists make no model call at all.** `offence` reads the First Schedule, `doctrine`
+  reads the curated graph. Free, identical every run, and incapable of hallucinating; tests
+  assert `model_calls == 0` so a refactor cannot quietly put a model in either path. The
+  planner prompt is told they cost nothing, so it prefers them.
+- **The retrieve loop is bounded three ways** (`agents/specialists/base.py`). The budget is
+  *spent* rather than consulted, so the cap counts total corpus queries and not follow-ups; a
+  follow-up returning nothing new ends the loop, because a model asked what else it needs will
+  always find something to ask for; and a budget of one does not even plan a follow-up, which
+  saves the model call rather than just the query.
+- **`AgentState` needs reducers, and this fails at runtime rather than import.** `evidence`
+  and `errors` accumulate; `tool_results` merges by specialist key rather than deep-merging,
+  since a deep merge fuses two agents' findings and loses which produced what. `messages`
+  accumulates so a checkpointed conversation appends each turn instead of replacing it.
+  **`update_state` drops accumulating fields unless explicitly passed** — every node returns
+  the whole state, and LangGraph applies `operator.add` to whatever a node returns, so a
+  passthrough node appends the list to itself.
+- **The contested path is the one place a second agent does something one agent cannot**
+  (`agents/contested.py`). Round one independent so neither anchors; round two one rebuttal
+  each; then it stops, because open dialogue converges and **convergence is the failure** — a
+  conceding advocate leaves one position, which the verifier rejects for carrying fewer than
+  two, so a "successful" debate produces an abstention. Neither may concede or invent; an
+  unsupported position is reported, not dropped. The two sides come from the curated
+  doctrine's `contest_note`, which already names both without declaring a winner.
+- **Memory and the draft pause are off by default** (`ENABLE_CONVERSATION_MEMORY`,
+  `ENABLE_DRAFT_CONFIRMATION`). The available checkpointer keeps threads in process memory, so
+  switching it on is a decision about where state lives. Note `interrupt` signals by raising
+  `GraphInterrupt`, which is an `Exception` — it must sit outside a node's `except Exception`
+  or the pause is swallowed and reported as a failed draft.
+- **The agent trail is reported** (`agent_trail` on the response, rendered by `TracePanel`).
+  Null on the single-pass path. It carries triage's reason, the plan, per-specialist costs and
+  both contested positions — because an answer that consulted four researchers and one that
+  consulted one look identical once written, and the fan-out's whole risk is that it quietly
+  becomes the default.
+
 ## Structured lookups
 
 Two things the corpus holds under an exact key, looked up rather than searched for (`services/retrieval/`):
@@ -260,7 +322,7 @@ The finding worth keeping is what it *cannot* do. `relevant_sections` means "is 
 
 ## API surface (`/api/v1`)
 
-- `agent/query`, `agent/query/stream` — main agent entry points
+- `agent/query`, `agent/query/stream` — main agent entry points. Optional `workspace` (settles the intent instead of inferring it) and `thread_id` (conversation, when memory is on); both ignored when absent, so every existing caller keeps working. The response carries `agent_trail` when more than one agent was involved.
 - `search/rag` — direct RAG search over a chosen collection
 - `search/grounded` — typed claims, per-claim verdicts, grounding metrics and a trace; abstains rather than guessing
 - `offences/{act}/{section}`, `offences` — classification, connected doctrine and case law, and the custody timeline. No model involved

@@ -69,6 +69,40 @@ apiClient.interceptors.response.use(
 );
 
 // Types
+/** One researcher's contribution and what it cost. */
+export interface SpecialistRun {
+  specialist: string;
+  retrievals: number;
+  model_calls: number;
+  evidence: number;
+}
+
+/** One side of a contested question, as its advocate developed it. */
+export interface ContestedPosition {
+  label: string;
+  summary: string;
+  authority: string[];
+  rebuttal: string;
+  supported: boolean;
+}
+
+/**
+ * How a multi-agent answer was arrived at.
+ *
+ * Null on the single-pass path — most questions — where there is no exchange
+ * to show and a panel of one row would only suggest there had been one.
+ */
+export interface AgentTrail {
+  complexity: string;
+  triage: { complexity: string; reason: string } | null;
+  plan: { specialist: string; reason: string }[];
+  specialists: SpecialistRun[];
+  model_calls: number;
+  retrievals: number;
+  errors: { specialist: string | null; stage: string; message: string }[];
+  positions: ContestedPosition[];
+}
+
 export interface AgentQueryRequest {
   query: string;
   stream?: boolean;
@@ -118,6 +152,11 @@ export interface AgentQueryResponse {
    * reads it can render each claim as what it actually is.
    */
   verification?: AnswerVerification | null;
+  /**
+   * How the answer was arrived at, when more than one agent was involved.
+   * Absent on the single-pass path, which is most questions.
+   */
+  agent_trail?: AgentTrail | null;
   error?: string | null;
 }
 

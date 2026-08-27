@@ -1092,5 +1092,56 @@ class LegalAgent:
             # reads it can show a claim as what it actually is rather than as
             # another sentence.
             "verification": verification,
+            # How the answer was arrived at, when more than one agent was
+            # involved. Absent on the single-pass path, where there is no
+            # exchange to show and a panel of one row would only suggest there
+            # had been one.
+            "agent_trail": self._agent_trail(final_state),
             "error": final_state.get("error")
+        }
+
+    @staticmethod
+    def _agent_trail(state: AgentState) -> dict[str, Any] | None:
+        """
+        The exchange behind a multi-agent answer, for the trace panel.
+
+        Reported for the same reason rejected claims are: an answer that
+        consulted four researchers and an answer that consulted one look
+        identical once written, and the difference is exactly what a reader
+        checking the work would want. It also makes the cost visible -- the
+        risk of fanning out is that it quietly becomes the default, and a
+        number nobody can see is a number nobody notices growing.
+
+        ``None`` on the simple path. An empty trail rendered as a panel would
+        imply an exchange that never happened.
+        """
+        if state.get("complexity", Complexity.SIMPLE.value) == Complexity.SIMPLE.value:
+            return None
+
+        specialists = [
+            {"specialist": name, **costs}
+            for name, costs in (state.get("tool_results") or {}).items()
+            if isinstance(costs, dict) and "retrievals" in costs
+        ]
+        return {
+            "complexity": state.get("complexity"),
+            "triage": (state.get("metadata") or {}).get("triage"),
+            "plan": (state.get("metadata") or {}).get("plan") or [],
+            "specialists": specialists,
+            "model_calls": sum(s.get("model_calls", 0) for s in specialists),
+            "retrievals": sum(s.get("retrievals", 0) for s in specialists),
+            # Recorded rather than raised: a query that lost one researcher is
+            # still answerable from the others, and the reader should be told
+            # which one it lost.
+            "errors": [e.model_dump() for e in (state.get("errors") or [])],
+            "positions": [
+                {
+                    "label": p.label,
+                    "summary": p.summary,
+                    "authority": p.authority,
+                    "rebuttal": p.rebuttal,
+                    "supported": p.supported,
+                }
+                for p in (state.get("positions") or [])
+            ],
         }

@@ -48,6 +48,15 @@ class AgentQueryResponse(BaseModel):
     response: str = Field(..., description="Agent response")
     intent: str = Field(..., description="Classified intent")
     metadata: dict[str, Any] = Field(default_factory=dict, description="Additional metadata")
+    agent_trail: dict[str, Any] | None = Field(
+        default=None,
+        description=(
+            "How a multi-agent answer was arrived at: what triage decided and "
+            "why, which researchers ran and what each cost, any that failed, "
+            "and both sides of a contested question with their rebuttals. "
+            "Null on the single-pass path, where there is no exchange to show."
+        ),
+    )
     sources: list[dict[str, Any]] = Field(
         default_factory=list,
         description=(
@@ -121,6 +130,7 @@ async def process_query(request: AgentQueryRequest):
             sources=result.get("sources", []),
             live_sources=result.get("live_sources", []),
             verification=result.get("verification"),
+            agent_trail=result.get("agent_trail"),
             error=result.get("error")
         )
 

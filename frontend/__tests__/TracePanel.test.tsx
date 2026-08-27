@@ -11,7 +11,7 @@
 import React from 'react';
 import { render, screen, fireEvent, within } from '@testing-library/react';
 import TracePanel from '@/components/legal/TracePanel';
-import { AnswerVerification, ClaimVerdict } from '@/lib/api';
+import { AgentTrail, AnswerVerification, ClaimVerdict } from '@/lib/api';
 
 function verdict(overrides: Partial<ClaimVerdict> = {}): ClaimVerdict {
   return {
@@ -131,5 +131,137 @@ describe('TracePanel', () => {
     render(<TracePanel verification={verification()} />);
     fireEvent.click(screen.getByTestId('trace-toggle'));
     expect(screen.getByText(/quotation must match it word for word/)).toBeInTheDocument();
+  });
+});
+
+
+function trail(overrides: Partial<AgentTrail> = {}): AgentTrail {
+  return {
+    complexity: 'complex',
+    triage: { complexity: 'complex', reason: 'spans statute and case law' },
+    plan: [{ specialist: 'statute', reason: 'the provision' }],
+    specialists: [
+      { specialist: 'statute', retrievals: 2, model_calls: 1, evidence: 6 },
+      { specialist: 'offence', retrievals: 0, model_calls: 0, evidence: 1 },
+    ],
+    model_calls: 1,
+    retrievals: 2,
+    errors: [],
+    positions: [],
+    ...overrides,
+  };
+}
+
+function openPanel(ui: React.ReactElement) {
+  render(ui);
+  fireEvent.click(screen.getByTestId('trace-toggle'));
+}
+
+describe('TracePanel — the agent trail', () => {
+  it('is absent on the single-pass path', () => {
+    /*
+     * Most questions take it. An empty trail rendered as a panel would imply
+     * an exchange that never happened.
+     */
+    openPanel(<TracePanel verification={verification()} />);
+    expect(screen.queryByTestId('agent-trail')).not.toBeInTheDocument();
+  });
+
+  it('says why the question was escalated', () => {
+    /* An escalation costs roughly eight model calls against one. It should be
+       arguable after the fact, not a silent cost. */
+    openPanel(<TracePanel verification={verification()} trail={trail()} />);
+    expect(screen.getByTestId('triage-reason')).toHaveTextContent(
+      'spans statute and case law'
+    );
+  });
+
+  it('shows what each researcher cost', () => {
+    openPanel(<TracePanel verification={verification()} trail={trail()} />);
+    const specialists = screen.getByTestId('specialists');
+    expect(specialists).toHaveTextContent('statute');
+    expect(specialists).toHaveTextContent('2 searches');
+  });
+
+  it('says plainly when a researcher used no model at all', () => {
+    /*
+     * The First Schedule and the curated graph are exact lookups, so those
+     * researchers are free and cannot invent anything. Zero is the
+     * interesting number here, not an absence.
+     */
+    openPanel(<TracePanel verification={verification()} trail={trail()} />);
+    expect(screen.getByTestId('specialists')).toHaveTextContent('no model call');
+  });
+
+  it('totals the cost', () => {
+    openPanel(<TracePanel verification={verification()} trail={trail()} />);
+    expect(screen.getByTestId('trail-cost')).toHaveTextContent('1 model call');
+  });
+
+  it('names a researcher that could not be consulted', () => {
+    /* A query that lost one is still answerable from the others, and the
+       reader should be told which one it lost. */
+    openPanel(
+      <TracePanel
+        verification={verification()}
+        trail={trail({
+          errors: [{ specialist: 'case_law', stage: 'run', message: 'timed out' }],
+        })}
+      />
+    );
+    expect(screen.getByTestId('trail-errors')).toHaveTextContent('case_law');
+    expect(screen.getByTestId('trail-errors')).toHaveTextContent('timed out');
+  });
+});
+
+describe('TracePanel — contested positions', () => {
+  const twoSides = trail({
+    complexity: 'contested',
+    positions: [
+      {
+        label: 'Bail is the rule',
+        summary: 'Liberty is the norm.',
+        authority: ['BNSS 480'],
+        rebuttal: 'The proviso is narrower than claimed.',
+        supported: true,
+      },
+      {
+        label: 'The statutory bar is strict',
+        summary: 'The twin conditions apply.',
+        authority: [],
+        rebuttal: '',
+        supported: false,
+      },
+    ],
+  });
+
+  it('sets out both readings', () => {
+    openPanel(<TracePanel verification={verification()} trail={twoSides} />);
+    expect(screen.getAllByTestId('position')).toHaveLength(2);
+  });
+
+  it('presents neither as the answer', () => {
+    openPanel(<TracePanel verification={verification()} trail={twoSides} />);
+    expect(screen.getByTestId('contested-positions')).toHaveTextContent(
+      'Neither is presented as the answer'
+    );
+  });
+
+  it('shows the reply each side made to the other', () => {
+    openPanel(<TracePanel verification={verification()} trail={twoSides} />);
+    expect(screen.getByTestId('contested-positions')).toHaveTextContent(
+      'The proviso is narrower than claimed'
+    );
+  });
+
+  it('reports a side it could not support rather than hiding it', () => {
+    /*
+     * That a reading cannot be supported from this corpus is a finding, and a
+     * more useful one than a citation stretched to prop it up.
+     */
+    openPanel(<TracePanel verification={verification()} trail={twoSides} />);
+    expect(screen.getByTestId('unsupported-position')).toHaveTextContent(
+      'No authority found'
+    );
   });
 });

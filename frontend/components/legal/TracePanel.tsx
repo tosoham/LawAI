@@ -14,11 +14,17 @@
  */
 
 import React, { useState } from 'react';
-import { AnswerVerification, ClaimVerdict } from '@/lib/api';
+import { AgentTrail, AnswerVerification, ClaimVerdict } from '@/lib/api';
 import { ChevronDownIcon, CheckIcon, CloseIcon } from '@/components/shared/Icons';
 
 interface TracePanelProps {
   verification: AnswerVerification;
+  /**
+   * How the answer was arrived at, when more than one agent was involved.
+   * Omitted on the single-pass path — an empty trail rendered as a panel would
+   * imply an exchange that never happened.
+   */
+  trail?: AgentTrail | null;
   className?: string;
 }
 
@@ -55,7 +61,113 @@ function Verdict({ verdict }: { verdict: ClaimVerdict }) {
   );
 }
 
-export default function TracePanel({ verification, className = '' }: TracePanelProps) {
+/**
+ * The exchange behind a multi-agent answer.
+ *
+ * Two things are shown that nothing else surfaces. The **cost** — an answer
+ * that consulted four researchers and one that consulted one look identical
+ * once written, and the risk of fanning out is that it quietly becomes the
+ * default. And the **contested positions**, kept visually apart from the
+ * verified claims above: an advocate's argument is unverified prose, the
+ * claims are checked, and rendering them alike would erase the only
+ * distinction this system exists to preserve.
+ */
+function AgentTrailSection({ trail }: { trail: AgentTrail }) {
+  return (
+    <div className="mt-4 border-t border-line pt-3" data-testid="agent-trail">
+      <h4 className="text-xs font-medium uppercase tracking-wide text-muted">
+        How this answer was researched
+      </h4>
+
+      {trail.triage && (
+        <p className="mt-1 text-xs text-muted" data-testid="triage-reason">
+          Treated as <span className="text-ink">{trail.complexity}</span> —{' '}
+          {trail.triage.reason}.
+        </p>
+      )}
+
+      {trail.specialists.length > 0 && (
+        <ul className="mt-2 space-y-1" data-testid="specialists">
+          {trail.specialists.map((run) => (
+            <li key={run.specialist} className="flex flex-wrap gap-x-2 text-xs">
+              <span className="font-medium text-ink">{run.specialist}</span>
+              <span className="text-muted">
+                {run.evidence} finding{run.evidence === 1 ? '' : 's'}
+                {' · '}
+                {run.retrievals} search{run.retrievals === 1 ? '' : 'es'}
+                {' · '}
+                {/* Zero is the interesting number: the First Schedule and the
+                    curated graph are exact lookups, so those researchers are
+                    free and cannot invent anything. */}
+                {run.model_calls === 0 ? 'no model call' : `${run.model_calls} model calls`}
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
+
+      <p className="mt-2 text-xs text-muted" data-testid="trail-cost">
+        {trail.model_calls} model call{trail.model_calls === 1 ? '' : 's'} and{' '}
+        {trail.retrievals} corpus search{trail.retrievals === 1 ? '' : 'es'} in total.
+      </p>
+
+      {trail.errors.length > 0 && (
+        <ul className="mt-2 space-y-1" data-testid="trail-errors">
+          {trail.errors.map((failure, index) => (
+            <li key={index} className="text-xs text-live">
+              {failure.specialist ?? failure.stage} could not be consulted —{' '}
+              {failure.message}
+            </li>
+          ))}
+        </ul>
+      )}
+
+      {trail.positions.length > 0 && (
+        <div className="mt-3" data-testid="contested-positions">
+          <h5 className="text-xs font-medium uppercase tracking-wide text-muted">
+            Argued both ways
+          </h5>
+          <div className="mt-1.5 grid gap-2 sm:grid-cols-2">
+            {trail.positions.map((position, index) => (
+              <div
+                key={index}
+                className="rounded-md border border-brass/40 bg-canvas p-2.5"
+                data-testid="position"
+              >
+                <p className="text-xs font-medium text-ink">{position.label}</p>
+                <p className="mt-1 text-xs leading-snug text-muted">{position.summary}</p>
+                {position.rebuttal && (
+                  <p className="mt-1.5 border-t border-line pt-1.5 text-xs leading-snug text-muted">
+                    <span className="text-ink">In reply: </span>
+                    {position.rebuttal}
+                  </p>
+                )}
+                {/* Reported, not hidden. That a side cannot be supported from
+                    this corpus is a finding, and a more useful one than a
+                    citation stretched to prop it up. */}
+                {!position.supported && (
+                  <p className="mt-1.5 text-xs text-live" data-testid="unsupported-position">
+                    No authority found in the corpus for this reading.
+                  </p>
+                )}
+              </div>
+            ))}
+          </div>
+          <p className="mt-1.5 text-xs text-muted">
+            Both readings are set out because the authorities differ. Neither is
+            presented as the answer.
+          </p>
+        </div>
+      )}
+    </div>
+  );
+}
+
+export default function TracePanel({
+  verification,
+  trail = null,
+  className = '',
+}: TracePanelProps) {
   const [open, setOpen] = useState(false);
   const { metrics, verdicts } = verification;
   const rejected = verdicts.filter((v) => !v.verified);
@@ -130,6 +242,8 @@ export default function TracePanel({ verification, className = '' }: TracePanelP
               </ul>
             </details>
           )}
+
+          {trail && <AgentTrailSection trail={trail} />}
 
           <p className="mt-3 border-t border-line pt-2 text-xs text-muted">
             Every claim is checked against the corpus — the section must exist, a
