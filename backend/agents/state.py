@@ -66,7 +66,14 @@ class AgentState(TypedDict):
         error: Error message if any
         metadata: Additional metadata
     """
-    messages: list[dict[str, str]]
+    messages: Annotated[list[dict[str, str]], operator.add]
+    """The conversation so far.
+
+    Accumulating, so that with a checkpointer attached each turn appends to the
+    thread rather than replacing it -- which is the whole of what conversation
+    memory means here. Without the reducer the checkpoint faithfully stored one
+    message per thread and every turn started again."""
+
     user_query: str
     intent: str
     tool_results: Annotated[dict[str, Any], _merge_results]
@@ -141,7 +148,7 @@ def create_initial_state(
 #: Fields whose reducer *appends*. Returning one of these unchanged from a node
 #: re-adds it, because LangGraph applies the reducer to whatever the node
 #: returns rather than diffing it against what was there.
-_ACCUMULATING = ("evidence", "errors")
+_ACCUMULATING = ("messages", "evidence", "errors")
 
 
 def update_state(
@@ -193,9 +200,10 @@ def add_message(
     Returns:
         Updated AgentState
     """
-    new_state = state.copy()
-    new_state["messages"].append({"role": role, "content": content})
-    return new_state
+    # Returns only the new message, not the whole list. ``messages``
+    # accumulates through a reducer, so returning the existing list alongside
+    # the new one would append the entire history to itself on every turn.
+    return {"messages": [{"role": role, "content": content}]}  # type: ignore[return-value]
 
 
 def set_error(

@@ -6,7 +6,9 @@ Orchestrates tool execution based on user intent using LangGraph.
 
 import asyncio
 import logging
+import os
 from typing import Any
+from uuid import uuid4
 
 from langgraph.graph import END, StateGraph
 from langgraph.types import Send
@@ -27,6 +29,44 @@ from tools.base_tool import ToolResult
 from tools.registry import ToolRegistry
 
 logger = logging.getLogger(__name__)
+
+
+def conversation_memory_enabled() -> bool:
+    """
+    Whether the agent remembers a conversation across turns.
+
+    Off by default. The saver available here keeps threads in process memory,
+    so it grows without bound and does not survive a restart or a second
+    worker -- fine for a desktop session or a test, wrong for a deployment
+    that has not chosen it. Turning it on is a decision about where state
+    lives, not a convenience.
+    """
+    return os.getenv("ENABLE_CONVERSATION_MEMORY", "false").strip().lower() in {
+        "1", "true", "yes",
+    }
+
+
+def draft_confirmation_enabled() -> bool:
+    """
+    Whether drafting pauses for confirmation before it writes.
+
+    Requires conversation memory: ``interrupt`` records where it stopped in a
+    checkpoint, so without one there is nothing to resume from and the pause
+    would simply lose the turn.
+    """
+    return os.getenv("ENABLE_DRAFT_CONFIRMATION", "false").strip().lower() in {
+        "1", "true", "yes",
+    }
+
+
+def _make_checkpointer():
+    """The checkpointer, or ``None`` when memory is off."""
+    if not conversation_memory_enabled():
+        return None
+    from langgraph.checkpoint.memory import InMemorySaver
+
+    logger.info("conversation memory is on (in-process; not shared between workers)")
+    return InMemorySaver()
 
 # The three statute collections, searched together. Judgements are reached
 # through the graph rather than by searching that collection directly: a
@@ -116,6 +156,7 @@ class LegalAgent:
         self.intent_classifier = intent_classifier
         self.tool_registry = tool_registry
         self.llm_service = llm_service
+        self.checkpointer = _make_checkpointer()
         self.graph = self._build_graph()
 
     def _build_graph(self) -> StateGraph:
@@ -183,8 +224,15 @@ class LegalAgent:
         # format_response goes to END
         graph.add_edge("format_response", END)
 
-        # Compile graph
-        return graph.compile()
+        # Compile graph.
+        #
+        # A checkpointer is attached only when conversation memory is switched
+        # on. Compiling with one unconditionally would be worse than useless:
+        # LangGraph then *requires* a thread_id on every invocation, so a
+        # single-turn caller that never wanted memory would start failing, and
+        # the in-memory saver grows without bound for a server that never reads
+        # a thread back.
+        return graph.compile(checkpointer=self.checkpointer)
 
     async def _classify_intent_node(self, state: AgentState) -> AgentState:
         """
@@ -490,11 +538,35 @@ class LegalAgent:
         Returns:
             Updated state with tool results
         """
+        query = state["user_query"]
+        document_type = self._infer_document_type(query)
+
+        # Pause for confirmation before producing a document, when asked to.
+        # A drafted legal document is the one output here a person may file
+        # rather than read, and the document type is *inferred* from the query
+        # -- inferring "bail application" from a question that wanted a
+        # complaint produces something plausible and wrong in a way an answer
+        # never is. Off by default: it needs a checkpointer and a caller that
+        # knows how to resume.
+        #
+        # Deliberately outside the try below. `interrupt` signals by raising
+        # GraphInterrupt, which is an Exception, so an `except Exception` around
+        # it swallows the pause and reports it as a failed draft -- which is
+        # exactly what happened the first time this was written, and it looked
+        # like the flag simply not working.
+        if draft_confirmation_enabled() and self.checkpointer is not None:
+            from langgraph.types import interrupt
+
+            interrupt(
+                {
+                    "awaiting": "draft_confirmation",
+                    "document_type": document_type,
+                    "query": query,
+                }
+            )
+
         try:
             tool = self.tool_registry.get_tool("draft_document")
-            query = state["user_query"]
-
-            document_type = self._infer_document_type(query)
 
             logger.info(
                 f"Executing draft document ({document_type}) for: {query[:50]}..."
@@ -958,7 +1030,10 @@ class LegalAgent:
         return corpus, live
 
     async def process(
-        self, query: str, workspace: str | None = None
+        self,
+        query: str,
+        workspace: str | None = None,
+        thread_id: str | None = None,
     ) -> dict[str, Any]:
         """
         Process a user query through the agent.
@@ -966,6 +1041,9 @@ class LegalAgent:
         Args:
             query: User query
             workspace: Which UI workspace it came from, when known
+            thread_id: Conversation this turn belongs to. Only meaningful when
+                ENABLE_CONVERSATION_MEMORY is on; ignored otherwise, so a
+                caller that always sends one keeps working either way.
 
         Returns:
             Agent response with the answer, the classified intent, the sources
@@ -976,8 +1054,25 @@ class LegalAgent:
         # Create initial state
         initial_state = create_initial_state(query, workspace=workspace)
 
-        # Run graph asynchronously
-        final_state = await self.graph.ainvoke(initial_state)
+        # Run graph asynchronously.
+        #
+        # The config is only passed when there is a checkpointer to use it.
+        # LangGraph rejects a thread_id on a graph compiled without one, so
+        # sending it unconditionally would make every caller that passes a
+        # thread fail the moment memory is switched off -- which is the
+        # default, and therefore the configuration nobody would test.
+        config = None
+        if self.checkpointer is not None:
+            # A checkpointer makes thread_id compulsory -- LangGraph refuses to
+            # run without one -- so a caller that switched memory on and then
+            # asked a single question would get a ValueError rather than an
+            # answer. A turn with no thread gets a throwaway one: it runs
+            # normally, checkpoints to an id nothing will ask for again, and
+            # shares memory with nothing.
+            config = {
+                "configurable": {"thread_id": thread_id or f"anon-{uuid4()}"}
+            }
+        final_state = await self.graph.ainvoke(initial_state, config=config)
 
         corpus_sources, live_sources = self._collect_sources(
             final_state.get("tool_results", {}) or {}

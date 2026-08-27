@@ -50,7 +50,10 @@ class AgentService:
         logger.info("AgentService initialized successfully")
 
     async def process_query(
-        self, query: str, workspace: str | None = None
+        self,
+        query: str,
+        workspace: str | None = None,
+        thread_id: str | None = None,
     ) -> dict[str, Any]:
         """
         Process a user query through the agent.
@@ -58,6 +61,7 @@ class AgentService:
         Args:
             query: User query string
             workspace: Which UI workspace the query came from, when known
+            thread_id: Conversation this turn belongs to, when memory is on
 
         Returns:
             Agent response with:
@@ -70,7 +74,7 @@ class AgentService:
             logger.info(f"Processing query: {query[:100]}...")
 
             # Agent.process is now async
-            result = await self.agent.process(query, workspace=workspace)
+            result = await self.agent.process(query, workspace=workspace, thread_id=thread_id)
 
             logger.info(f"Query processed successfully. Intent: {result.get('intent')}")
 
@@ -86,7 +90,10 @@ class AgentService:
             }
 
     async def process_query_stream(
-        self, query: str, workspace: str | None = None
+        self,
+        query: str,
+        workspace: str | None = None,
+        thread_id: str | None = None,
     ) -> AsyncGenerator[str, None]:
         """
         Process a user query with streaming response.
@@ -104,7 +111,7 @@ class AgentService:
             logger.info(f"Processing query with streaming: {query[:100]}...")
 
             # Process query asynchronously
-            result = await self.agent.process(query, workspace=workspace)
+            result = await self.agent.process(query, workspace=workspace, thread_id=thread_id)
 
             response = result.get("response", "")
 

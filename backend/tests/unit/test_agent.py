@@ -41,13 +41,20 @@ class TestAgentState:
         assert updated["user_query"] == "test query"  # Original fields preserved
 
     def test_add_message(self):
-        """Test adding message to state"""
-        state = create_initial_state("test query")
-        updated = add_message(state, "assistant", "test response")
+        """
+        Returns only the new message, not the whole list.
 
-        assert len(updated["messages"]) == 2
-        assert updated["messages"][1]["role"] == "assistant"
-        assert updated["messages"][1]["content"] == "test response"
+        ``messages`` accumulates through a reducer so that a checkpointed
+        conversation appends each turn instead of replacing it. Returning the
+        existing list alongside the new one would therefore append the entire
+        history to itself on every turn.
+        """
+        state = create_initial_state("test query")
+        update = add_message(state, "assistant", "test response")
+
+        assert update["messages"] == [
+            {"role": "assistant", "content": "test response"}
+        ]
 
     def test_set_error(self):
         """Test setting error in state"""

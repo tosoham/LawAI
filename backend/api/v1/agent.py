@@ -32,6 +32,15 @@ class AgentQueryRequest(BaseModel):
             "than leaving it to be inferred from keywords."
         ),
     )
+    thread_id: str | None = Field(
+        default=None,
+        max_length=200,
+        description=(
+            "Conversation this turn belongs to. Only meaningful when the "
+            "server has ENABLE_CONVERSATION_MEMORY on; ignored otherwise, so "
+            "a client may always send one."
+        ),
+    )
 
 
 class AgentQueryResponse(BaseModel):
@@ -99,7 +108,11 @@ async def process_query(request: AgentQueryRequest):
         logger.info(f"Received agent query: {request.query[:100]}...")
 
         agent_service = get_agent_service()
-        result = await agent_service.process_query(request.query, workspace=request.workspace)
+        result = await agent_service.process_query(
+            request.query,
+            workspace=request.workspace,
+            thread_id=request.thread_id,
+        )
 
         return AgentQueryResponse(
             response=result["response"],
@@ -151,7 +164,11 @@ async def process_query_stream(request: AgentQueryRequest):
 
         async def generate():
             try:
-                async for chunk in agent_service.process_query_stream(request.query, workspace=request.workspace):
+                async for chunk in agent_service.process_query_stream(
+            request.query,
+            workspace=request.workspace,
+            thread_id=request.thread_id,
+        ):
                     yield chunk
             except Exception as e:
                 logger.error(f"Error in streaming: {e}")
