@@ -10,6 +10,7 @@ at all.
 The end-to-end behaviour against a real model is in
 ``tests/integration/test_grounded_answer_live.py``, which is marked ``live``.
 """
+import json
 from unittest.mock import MagicMock
 
 import pytest
@@ -104,6 +105,39 @@ class TestParseSynthesis:
 
     def test_empty_input(self):
         assert parse_synthesis("").claims == []
+
+    def test_one_unusable_claim_does_not_discard_the_others(self):
+        """
+        The regression. Validating the whole payload at once meant a single
+        unrecognised epistemic_class took the answer down with it: judge mode
+        emitted "doctrine" on claim 3 -- a reasonable guess, the graph context
+        has a DOCTRINE block -- and claims 0, 1 and 2 went too, abstaining on
+        "what governs bail in a non-bailable offence?".
+
+        Nothing is given away by salvaging: every surviving claim is still
+        verified individually, so this cannot admit an unsupported claim. It
+        only stops a formatting error destroying claims that would have passed.
+        """
+        answer = parse_synthesis(json.dumps({"claims": [
+            {"text": "BNSS 480 governs bail in non-bailable offences.",
+             "epistemic_class": "statute", "sources": ["BNSS 480"]},
+            {"text": "The court considers the nature of the accusation.",
+             "epistemic_class": "statute", "sources": ["BNSS 480"]},
+            {"text": "Bail is the rule.",
+             "epistemic_class": "doctrine", "sources": ["sc_x"]},
+        ]}))
+
+        assert len(answer.claims) == 2
+        assert all(c.epistemic_class.value == "statute" for c in answer.claims)
+
+    def test_a_payload_where_no_claim_survives_is_an_abstention(self):
+        answer = parse_synthesis(json.dumps({"claims": [
+            {"text": "x", "epistemic_class": "doctrine"},
+        ]}))
+        assert answer.claims == []
+
+    def test_a_payload_with_no_claims_list_is_not_salvaged(self):
+        assert parse_synthesis(json.dumps({"claims": "nonsense"})).claims == []
 
 
 class TestCitationPrecheck:

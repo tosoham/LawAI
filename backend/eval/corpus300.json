@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-08-26T19:38:12.242167+00:00",
+  "generated_at": "2026-08-27T13:15:19.382025+00:00",
   "config": {
     "expand": true,
     "top_k": 20,
@@ -9,12 +9,12 @@
   },
   "overall": {
     "n": 69,
-    "recall@1": 0.8986,
-    "recall@3": 1.0,
+    "recall@1": 0.8551,
+    "recall@3": 0.971,
     "recall@5": 1.0,
     "recall@10": 1.0,
-    "mrr": 0.9444,
-    "ndcg@10": 0.9453
+    "mrr": 0.9075,
+    "ndcg@10": 0.9184
   },
   "by_class": {
     "citation": {
@@ -28,12 +28,12 @@
     },
     "judgement": {
       "n": 12,
-      "recall@1": 0.75,
-      "recall@3": 1.0,
+      "recall@1": 0.5,
+      "recall@3": 0.8333,
       "recall@5": 1.0,
       "recall@10": 1.0,
-      "mrr": 0.875,
-      "ndcg@10": 0.8975
+      "mrr": 0.6625,
+      "ndcg@10": 0.7428
     },
     "plain": {
       "n": 25,
@@ -1917,17 +1917,24 @@
       "score": {
         "recall": {
           "@1": false,
-          "@3": true,
+          "@3": false,
           "@5": true,
           "@10": true
         },
-        "rr": 0.5,
-        "ndcg@10": 0.6309297535714575,
-        "first_rank": 2,
+        "rr": 0.2,
+        "ndcg@10": 0.38685280723454163,
+        "first_rank": 5,
         "returned": [
+          "sc_adri_dharan_das_vs_state_of_west_bengal_2005",
+          "sc_balchand_jain_vs_state_of_madhya_pradesh_1976",
           "sc_gurbaksh_singh_sibbia_v_state_of_punjab_1980",
+          "sc_sunita_devi_vs_state_of_bihar_and_ors_2004",
           "sc_sushila_aggarwal_v_state_nct_of_delhi_2020",
-          "sc_siddharam_satlingappa_mhetre_v_state_of_maharashtra_2010"
+          "sc_sushila_aggarwal_vs_state_nct_of_delhi_2018",
+          "sc_sundeep_kumar_bafna_vs_state_of_maharashtra_anr_2014",
+          "sc_siddharam_satlingappa_mhetre_v_state_of_maharashtra_2010",
+          "sc_dhanraj_aswani_vs_amar_s_mulchandani_2024",
+          "sc_union_of_india_vs_padam_narain_aggarwal_etc_2008"
         ]
       }
     },
@@ -1953,12 +1960,13 @@
           "sc_satender_kumar_antil_v_central_bureau_of_investigation_2022",
           "sc_state_of_rajasthan_jaipur_v_balchand_1977",
           "sc_nikesh_tarachand_shah_v_union_of_india_2017",
-          "sc_sushila_aggarwal_v_state_nct_of_delhi_2020",
-          "sc_gurbaksh_singh_sibbia_v_state_of_punjab_1980",
-          "sc_machhi_singh_v_state_of_punjab_1983",
+          "sc_balchand_jain_vs_state_of_madhya_pradesh_1976",
           "sc_hussainara_khatoon_v_home_secretary_state_of_bihar_1979",
+          "sc_prahlad_singh_bhati_vs_n_c_t_delhi_anr_2001",
           "sc_moti_ram_v_state_of_madhya_pradesh_1978",
-          "sc_arnab_manoranjan_goswami_v_state_of_maharashtra_2020"
+          "sc_gurbaksh_singh_sibbia_v_state_of_punjab_1980",
+          "sc_arnab_manoranjan_goswami_v_state_of_maharashtra_2020",
+          "sc_sundeep_kumar_bafna_vs_state_of_maharashtra_anr_2014"
         ]
       }
     },
@@ -1979,13 +1987,16 @@
           "@10": true
         },
         "rr": 1.0,
-        "ndcg@10": 0.8772153153380493,
+        "ndcg@10": 0.8503449055347546,
         "first_rank": 1,
         "returned": [
           "sc_arnesh_kumar_v_state_of_bihar_2014",
           "sc_satender_kumar_antil_v_central_bureau_of_investigation_2022",
+          "sc_satender_kumar_antil_vs_central_bureau_of_investigation_2026",
           "sc_d_k_basu_v_state_of_west_bengal_1997",
-          "sc_joginder_kumar_v_state_of_uttar_pradesh_1994"
+          "sc_joginder_kumar_v_state_of_uttar_pradesh_1994",
+          "sc_the_state_of_uttar_pradesh_vs_brij_pal_singh_2026",
+          "sc_tusharbhai_rajnikantbhai_shah_vs_state_of_gujarat_2024"
         ]
       }
     },
@@ -1999,18 +2010,23 @@
       ],
       "score": {
         "recall": {
-          "@1": true,
+          "@1": false,
           "@3": true,
           "@5": true,
           "@10": true
         },
-        "rr": 1.0,
-        "ndcg@10": 1.0,
-        "first_rank": 1,
+        "rr": 0.3333333333333333,
+        "ndcg@10": 0.5,
+        "first_rank": 3,
         "returned": [
+          "sc_state_by_karnataka_lokayukta_police_vs_m_r_hiremath_2019",
+          "sc_hdfc_securities_ltd_ors_vs_state_of_maharashtra_anr_2016",
           "sc_lalita_kumari_v_government_of_uttar_pradesh_2013",
-          "sc_arnab_manoranjan_goswami_v_state_of_maharashtra_2020",
-          "sc_state_of_haryana_v_bhajan_lal_1990"
+          "sc_the_state_of_telangana_vs_habib_abdullah_jeelani_ors_2017",
+          "sc_the_state_of_karnataka_vs_t_n_sudhakar_reddy_2025",
+          "sc_lalita_kumari_vs_govt_of_u_p_ors_2012",
+          "sc_ramdev_food_products_private_limited_vs_state_of_gujarat_2015",
+          "sc_the_state_of_uttar_pradesh_vs_brij_pal_singh_2026"
         ]
       }
     },
@@ -2025,18 +2041,23 @@
       ],
       "score": {
         "recall": {
-          "@1": true,
+          "@1": false,
           "@3": true,
           "@5": true,
           "@10": true
         },
-        "rr": 1.0,
-        "ndcg@10": 1.0,
-        "first_rank": 1,
+        "rr": 0.3333333333333333,
+        "ndcg@10": 0.5437713091520254,
+        "first_rank": 3,
         "returned": [
+          "sc_mohinder_singh_vs_state_of_punjab_2013",
+          "sc_md_mannan_abdul_mannan_vs_state_of_bihar_2019",
           "sc_bachan_singh_v_state_of_punjab_1980",
+          "sc_shankar_kisanrao_khade_vs_state_of_maharashtra_2013",
           "sc_machhi_singh_v_state_of_punjab_1983",
-          "sc_mohd_arif_ashfaq_v_registrar_supreme_court_of_india_2014"
+          "sc_sundar_sundarrajan_vs_state_by_inspector_of_police_2023",
+          "sc_rajendra_prahladrao_wasnik_vs_the_state_of_maharashtra_2018",
+          "sc_shivu_and_anr_vs_r_g_high_court_of_karnataka_and_anr_2007"
         ]
       }
     },
@@ -2051,15 +2072,17 @@
       ],
       "score": {
         "recall": {
-          "@1": true,
+          "@1": false,
           "@3": true,
           "@5": true,
           "@10": true
         },
-        "rr": 1.0,
-        "ndcg@10": 1.0,
-        "first_rank": 1,
+        "rr": 0.3333333333333333,
+        "ndcg@10": 0.5706417189553201,
+        "first_rank": 3,
         "returned": [
+          "sc_state_by_karnataka_lokayukta_police_vs_m_r_hiremath_2019",
+          "sc_shafhi_mohammad_vs_the_state_of_himachal_pradesh_2018",
           "sc_arjun_panditrao_khotkar_v_kailash_kushanrao_gorantyal_2020",
           "sc_anvar_p_v_v_p_k_basheer_2014"
         ]
@@ -2108,10 +2131,12 @@
         "first_rank": 1,
         "returned": [
           "sc_d_k_basu_v_state_of_west_bengal_1997",
+          "sc_khursheed_ahmad_chohan_vs_union_of_territory_of_jammu_and_kashmir_2025",
           "sc_joginder_kumar_v_state_of_uttar_pradesh_1994",
-          "sc_sushila_aggarwal_v_state_nct_of_delhi_2020",
+          "sc_sundeep_kumar_bafna_vs_state_of_maharashtra_anr_2014",
           "sc_p_chidambaram_v_directorate_of_enforcement_2019",
           "sc_mohd_arif_ashfaq_v_registrar_supreme_court_of_india_2014",
+          "sc_the_state_of_karnataka_vs_sri_darshan_etc_etc_2025",
           "sc_satender_kumar_antil_v_central_bureau_of_investigation_2022"
         ]
       }
@@ -2136,12 +2161,15 @@
         "first_rank": 1,
         "returned": [
           "sc_sharad_birdhichand_sarda_v_state_of_maharashtra_1984",
-          "sc_anvar_p_v_v_p_k_basheer_2014",
-          "sc_selvi_v_state_of_karnataka_2010",
-          "sc_arjun_panditrao_khotkar_v_kailash_kushanrao_gorantyal_2020",
-          "sc_vijay_madanlal_choudhary_v_union_of_india_2022",
-          "sc_nandini_satpathy_v_p_l_dani_1978",
-          "sc_machhi_singh_v_state_of_punjab_1983"
+          "sc_chetan_vs_state_of_karnataka_2025",
+          "sc_chandrabhan_sudam_sanap_vs_the_state_of_maharashtra_2025",
+          "sc_bodh_raj_bodha_and_ors_vs_state_of_jammu_and_kashmir_2002",
+          "sc_rameshbhai_chandubhai_rathod_vs_state_of_gujarat_2009",
+          "sc_sonu_amar_vs_state_of_haryana_2017",
+          "sc_shivu_and_anr_vs_r_g_high_court_of_karnataka_and_anr_2007",
+          "sc_shivaji_dadya_shankar_alhat_vs_state_of_maharashtra_2008",
+          "sc_sattatiya_satish_rajanna_kartalla_vs_state_of_maharashtra_2008",
+          "sc_jaharlal_das_vs_state_of_orissa_1991"
         ]
       }
     },
@@ -2164,7 +2192,9 @@
         "ndcg@10": 1.0,
         "first_rank": 1,
         "returned": [
-          "sc_justice_k_s_puttaswamy_retd_v_union_of_india_2017"
+          "sc_justice_k_s_puttaswamy_retd_v_union_of_india_2017",
+          "sc_common_cause_a_regd_society_vs_union_of_india_2018",
+          "sc_tofan_singh_vs_the_state_of_tamil_nadu_2020"
         ]
       }
     },
@@ -2179,22 +2209,24 @@
       "score": {
         "recall": {
           "@1": false,
-          "@3": true,
+          "@3": false,
           "@5": true,
           "@10": true
         },
-        "rr": 0.5,
-        "ndcg@10": 0.6309297535714575,
-        "first_rank": 2,
+        "rr": 0.25,
+        "ndcg@10": 0.43067655807339306,
+        "first_rank": 4,
         "returned": [
+          "sc_serious_fraud_investigation_office_vs_nittin_johari_2019",
           "sc_satender_kumar_antil_v_central_bureau_of_investigation_2022",
+          "sc_arvind_dham_vs_directorate_of_enforcement_2026",
           "sc_p_chidambaram_v_directorate_of_enforcement_2019",
+          "sc_tarun_kumar_vs_assistant_director_directorate_of_2023",
+          "sc_serious_fraud_investigation_office_vs_aditya_sarda_2025",
           "sc_hussainara_khatoon_v_home_secretary_state_of_bihar_1979",
-          "sc_gurbaksh_singh_sibbia_v_state_of_punjab_1980",
           "sc_sushila_aggarwal_v_state_nct_of_delhi_2020",
-          "sc_nikesh_tarachand_shah_v_union_of_india_2017",
-          "sc_d_k_basu_v_state_of_west_bengal_1997",
-          "sc_moti_ram_v_state_of_madhya_pradesh_1978"
+          "sc_nagarajan_vs_the_state_of_tamil_nadu_2025",
+          "sc_adri_dharan_das_vs_state_of_west_bengal_2005"
         ]
       }
     },
@@ -2218,10 +2250,11 @@
         "first_rank": 1,
         "returned": [
           "sc_kedar_nath_singh_v_state_of_bihar_1962",
+          "sc_the_state_of_karnataka_vs_sri_darshan_etc_etc_2025",
           "sc_shreya_singhal_v_union_of_india_2015",
           "sc_sheela_barse_v_state_of_maharashtra_1983",
-          "sc_sharad_birdhichand_sarda_v_state_of_maharashtra_1984",
-          "sc_nandini_satpathy_v_p_l_dani_1978"
+          "sc_state_of_haryana_ors_vs_jagdish_2010",
+          "sc_niranjan_singh_karam_singh_punjabi_vs_jitendra_bhimaraj_bijje_and_ors_etc_1990"
         ]
       }
     }

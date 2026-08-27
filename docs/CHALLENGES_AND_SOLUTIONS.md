@@ -465,6 +465,29 @@ workaround. It is a vocabulary bridge, and naming it as one would have prevented
 
 ---
 
+### 3.12 A corpus ten times bigger made the eval look worse, and retrieval was fine ⚑
+
+**Symptom.** Growing `sc_judgements` from 30 to 300 dropped the judgement class from recall@3
+**1.000 to 0.833** and recall@1 from 0.750 to 0.500. The four statute classes moved +0.000.
+**Check before believing it.** Every expected authority was still retrieved, **none below rank
+5** — recall@5 and recall@10 both 1.000, nothing lost.
+**Cause.** The fixture, not the retriever. Each judgement query names one expected case. At 30
+judgements that case was very nearly the only relevant one in the corpus; at 300 it must outrank
+five to ten genuine competitors. The cases now ranked above it are real authorities on the same
+question: Shafhi Mohammad above Arjun Panditrao on the section 65B certificate — *the case
+Arjun Panditrao overruled* — and SFIO v. Nittin Johari and Satender Kumar Antil above
+P. Chidambaram on economic-offence bail.
+**What was deliberately not done.** Tuning retrieval to restore the old number. The fixture no
+longer expresses what "correct" means for this class, and optimising against it would be fitting
+the eval — the same error as 4.17, arriving from the opposite direction.
+**Guard.** The finding is recorded beside the corpus table, with recall@5 as the number that
+still means something for this class.
+**The lesson.** *A golden set encodes the corpus it was written against.* Ten-fold growth is
+exactly the change that invalidates a single-expected-answer fixture, and the metric falling is
+the least informative thing about it.
+
+---
+
 ## 4. Grounding and verification
 
 ### 4.1 Post-hoc labelling is a guess about a guess ⚑
@@ -648,6 +671,26 @@ runs that measured it, so the next person reads a diff at the right resolution.
 **The lesson.** *Measure your instrument before you trust a reading off it.* The gated
 invariants were fine — they are properties of the deterministic verifier. It was the
 *reported means and counts*, the numbers most likely to be quoted, that needed an error bar.
+
+---
+
+### 4.18 One unusable claim discarded the whole answer ⚑
+
+**Symptom.** Judge mode abstained on *"what governs bail in a non-bailable offence?"* — a
+question the corpus answers directly. The safety tests around it passed; this was the *other*
+judge-mode test, the one asserting that declining to decide is not declining to answer.
+**Cause.** The synthesis payload was validated as a whole. The model labelled claim 3
+`"doctrine"`, which is not in the enum — a reasonable guess, since the graph context has a
+DOCTRINE block — and `ValidationError` took claims 0, 1 and 2 with it.
+**Fix.** Claims are validated one at a time and the unusable ones dropped.
+**Why this gives nothing away.** Every claim that survives parsing is still verified
+individually afterwards, so salvaging cannot admit an unsupported claim. It only stops a
+formatting error destroying claims that would have passed — the verifier's own rule, applied
+one stage earlier: failures are removed, not hedged, and not allowed to take their neighbours
+with them.
+**The lesson.** *An all-or-nothing parse turns a labelling slip into an abstention.* The
+system is built to delete what fails and keep what stands; the parser was the one place still
+doing the opposite.
 
 ---
 

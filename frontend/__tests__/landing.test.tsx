@@ -65,12 +65,13 @@ describe('Landing', () => {
       expect(
         screen.getByText(count('repealed_concordance.json').toLocaleString('en-US'))
       ).toBeInTheDocument();
+      expect(screen.getByText(String(count('sc_judgements.json')))).toBeInTheDocument();
     });
 
     it('matches the measured retrieval score', () => {
       /* Rounded to two places, and it has to be a number the eval produced. */
       const report = JSON.parse(
-        fs.readFileSync(path.join(EVAL, 'concordance.json'), 'utf8')
+        fs.readFileSync(path.join(EVAL, 'corpus300.json'), 'utf8')
       );
       render(<Landing />);
       expect(

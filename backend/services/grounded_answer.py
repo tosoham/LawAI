@@ -37,7 +37,7 @@ from typing import Any
 
 from pydantic import ValidationError
 
-from models.claims import ClaimVerdict, StructuredAnswer
+from models.claims import Claim, ClaimVerdict, StructuredAnswer
 
 from .answer_metrics import AnswerMetrics, compute
 from .audience import Audience, register_layer
@@ -133,6 +133,20 @@ def parse_synthesis(raw: str) -> StructuredAnswer:
     A malformed response yields an empty answer rather than an exception: the
     caller then abstains, which is the correct outcome for a turn that produced
     nothing checkable. Raising here would turn a bad generation into a 500.
+
+    **One bad claim does not discard the others.** Validating the whole payload
+    at once meant a single unrecognised ``epistemic_class`` took the entire
+    answer down: judge mode was observed emitting ``"doctrine"`` on claim 3 --
+    a reasonable guess, since the graph context has a DOCTRINE block -- and
+    claims 0, 1 and 2 went with it, producing an abstention on "what governs
+    bail in a non-bailable offence?". Claims are therefore validated one at a
+    time and the unusable ones dropped.
+
+    This gives nothing away. Every claim that survives parsing is still
+    verified individually afterwards, so salvaging cannot admit an unsupported
+    claim -- it only stops a formatting error from destroying claims that would
+    have passed. It is the same rule the verifier follows: failures are
+    removed, not hedged, and not allowed to take their neighbours with them.
     """
     body = _strip_fence(raw)
     payload = None
@@ -155,7 +169,22 @@ def parse_synthesis(raw: str) -> StructuredAnswer:
         return StructuredAnswer.model_validate(payload)
     except ValidationError as error:
         logger.warning(f"synthesis JSON did not match the claim schema: {error}")
+
+    if not isinstance(payload, dict) or not isinstance(payload.get("claims"), list):
         return StructuredAnswer()
+
+    claims = []
+    for index, raw_claim in enumerate(payload["claims"]):
+        try:
+            claims.append(Claim.model_validate(raw_claim))
+        except ValidationError as error:
+            logger.warning(f"dropping unusable claim {index}: {error}")
+    if claims:
+        logger.info(
+            f"salvaged {len(claims)} of {len(payload['claims'])} claims from a "
+            "partially malformed synthesis"
+        )
+    return StructuredAnswer(claims=claims)
 
 
 SYNTHESIS_SYSTEM = """You are a legal analyst working on Indian criminal law under \

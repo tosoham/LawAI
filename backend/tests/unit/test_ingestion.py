@@ -258,13 +258,60 @@ class TestIngestedCorpus:
             assert meta["source_url"].startswith("https://indiankanoon.org/doc/")
 
     def test_every_manifest_entry_was_ingested(self):
-        """A skipped judgement means a document id drifted; fail rather than shrink."""
+        """
+        A skipped judgement means a document id drifted; fail rather than shrink.
+
+        A **subset** check, not an equality one. It was equality while the
+        corpus was exactly the thirty pinned authorities, and
+        ``discover_judgments.py`` then added 270 more -- at which point
+        equality would have failed for the one reason that is not a problem.
+        What has to hold is that no *pinned* judgement has gone missing: those
+        are what the doctrine lineage rests on, and a drifted document id would
+        silently remove one.
+        """
         path = PROCESSED_DIR / "sc_judgements.json"
         if not path.exists():
             pytest.skip("judgements not ingested")
         records = json.loads(path.read_text())
         ingest_judgments = _load_script("ingest_judgments")
-        assert len(records) == len(ingest_judgments.JUDGEMENTS)
+
+        ingested_ids = {
+            record["metadata"]["source_url"].rstrip("/").rsplit("/", 1)[-1]
+            for record in records
+        }
+        missing = [
+            spec.case_name
+            for spec in ingest_judgments.JUDGEMENTS
+            if spec.doc_id not in ingested_ids
+        ]
+        assert not missing, f"pinned judgements missing from the corpus: {missing}"
+
+    def test_discovered_judgements_never_claim_relevant_sections(self):
+        """
+        The invariant discovery rests on, checked against the real corpus.
+
+        ``relevant_sections`` becomes a ``judgement --interprets--> section``
+        edge, asserting the case is an authority *on* that provision. That
+        cannot be derived from a judgement's text -- measured over the pinned
+        thirty, reading the act out of each citation recovers 1 of 27, and
+        taking each judgement's most-mentioned act is worse than useless.
+        Discovered cases therefore record ``cited_sections``, a checkable claim
+        about the document, and must never populate the stronger key.
+        """
+        path = PROCESSED_DIR / "sc_judgements.json"
+        if not path.exists():
+            pytest.skip("judgements not ingested")
+        records = json.loads(path.read_text())
+
+        offenders = [
+            record["metadata"]["case_name"]
+            for record in records
+            if record["metadata"].get("verification") == "attributes"
+            and record["metadata"].get("relevant_sections")
+        ]
+        assert not offenders, (
+            "discovered judgements claiming relevant_sections: " f"{offenders[:5]}"
+        )
 
     def test_landmark_authorities_are_present(self):
         path = PROCESSED_DIR / "sc_judgements.json"
