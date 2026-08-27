@@ -47,6 +47,23 @@ BACKEND_DIR = Path(__file__).resolve().parent.parent
 GOLDEN_PATH = BACKEND_DIR / "tests" / "fixtures" / "golden_queries.json"
 EVAL_DIR = BACKEND_DIR / "eval"
 
+#: Per-class floors, checked by --gate. Set below the committed baseline, not
+#: at it: this harness is deterministic, but a corpus change moves every class
+#: a little and a gate that fires on noise gets removed. These are "something
+#: is wrong", not "something changed" -- use --compare for that.
+#:
+#: Per class rather than overall, because an overall mean hides a class. The
+#: term_of_art regression in CHALLENGES 3.8 cost 0.250 of recall@3 in one class
+#: while the overall moved 0.029, which looks like nothing.
+FLOORS: dict[str, dict[str, float]] = {
+    "citation": {"recall@3": 0.95, "r_precision": 0.90},
+    "judgement": {"recall@3": 0.85, "r_precision": 0.55},
+    "plain": {"recall@3": 0.95, "r_precision": 0.80},
+    "repealed_code": {"recall@3": 0.85, "r_precision": 0.85},
+    "term_of_art": {"recall@3": 0.85, "r_precision": 0.75},
+}
+OVERALL_FLOORS = {"recall@3": 0.95, "map": 0.85, "mrr": 0.88}
+
 # Retrieve deep enough to score recall@10 while staying cheap.
 RETRIEVE_K = 20
 # The k values reported. 3 is what a user effectively sees; 10 is what a
@@ -86,32 +103,83 @@ def dedupe(keys: list[str]) -> list[str]:
 
 def score_query(ranked: list[str], expected: list[str]) -> dict[str, Any]:
     """
-    Score one query.
+    Score one query, several ways, because no single number says enough.
 
-    recall@k  did any expected id appear in the top k
-    rr        reciprocal rank of the first expected id (0 if absent)
-    ndcg@10   graded, so finding two expected sections beats finding one
+    recall@k      did *any* expected id appear in the top k. What a reader
+                  experiences: did the right law come back at all.
+    coverage@k    what *share* of the expected ids appeared in the top k. The
+                  honest recall for a multi-answer query -- recall@3 is 1.000
+                  the moment one of four authorities lands, which flatters.
+    precision@k   share of the top k that was expected. **Read with care**:
+                  where a query names one expected id, precision@3 cannot
+                  exceed 0.333 whatever retrieval does, so a low number there
+                  is arithmetic rather than a finding. Reported because it is
+                  standard and because it is meaningful for the widened
+                  judgement queries; `r_precision` below is the comparable one.
+    r_precision   precision at k = the number of expected ids. Scores 1.0 for a
+                  perfect ranking whatever the query's shape, so it is the one
+                  precision figure that compares across classes.
+    average_precision  precision at each hit, averaged -- rewards ranking *all*
+                  the correct authorities highly, not just the first. MAP is the
+                  mean of these.
+    rr            reciprocal rank of the first expected id (0 if absent).
+    ndcg@10       graded, with the ideal computed over however many ids the
+                  query actually expects.
     """
     wanted = set(expected)
     positions = [i for i, key in enumerate(ranked) if key in wanted]
+    found = len(positions)
+    total = len(wanted)
 
     rr = 1.0 / (positions[0] + 1) if positions else 0.0
 
     dcg = sum(1.0 / math.log2(i + 2) for i in positions if i < 10)
-    ideal = sum(1.0 / math.log2(i + 2) for i in range(min(len(wanted), 10)))
+    ideal = sum(1.0 / math.log2(i + 2) for i in range(min(total, 10)))
     ndcg = dcg / ideal if ideal else 0.0
+
+    # Precision at each rank where something correct was found, averaged over
+    # the number expected. A query whose authorities land at 1, 2 and 3 scores
+    # 1.0; the same three at 4, 8 and 12 scores far less, which is the point.
+    average_precision = (
+        sum((rank + 1) / (position + 1) for rank, position in enumerate(positions))
+        / total
+        if total
+        else 0.0
+    )
+
+    r_precision = (
+        len([p for p in positions if p < total]) / total if total else 0.0
+    )
 
     return {
         "recall": {f"@{k}": bool(positions and positions[0] < k) for k in REPORT_AT},
+        "coverage": {
+            f"@{k}": (len([p for p in positions if p < k]) / total if total else 0.0)
+            for k in REPORT_AT
+        },
+        "precision": {
+            f"@{k}": len([p for p in positions if p < k]) / k for k in REPORT_AT
+        },
+        "r_precision": r_precision,
+        "average_precision": average_precision,
         "rr": rr,
         "ndcg@10": ndcg,
         "first_rank": (positions[0] + 1) if positions else None,
+        "expected_count": total,
+        "found": found,
         "returned": ranked[:10],
     }
 
 
 def aggregate(rows: list[dict[str, Any]]) -> dict[str, Any]:
-    """Mean the per-query scores. Empty input scores zero, not NaN."""
+    """
+    Mean the per-query scores. Empty input scores zero, not NaN.
+
+    Everything is meaned per class as well as overall, and the per-class table
+    is the one to read. The `term_of_art` regression in `CHALLENGES 3.8` cost
+    0.250 of recall@3 in one class while the overall mean moved 0.029 -- a
+    number small enough to look like noise, hiding a quarter of a class.
+    """
     if not rows:
         return {"n": 0}
     n = len(rows)
@@ -120,8 +188,41 @@ def aggregate(rows: list[dict[str, Any]]) -> dict[str, Any]:
         summary[f"recall@{k}"] = round(
             sum(r["score"]["recall"][f"@{k}"] for r in rows) / n, 4
         )
+        summary[f"coverage@{k}"] = round(
+            sum(r["score"]["coverage"][f"@{k}"] for r in rows) / n, 4
+        )
+        summary[f"precision@{k}"] = round(
+            sum(r["score"]["precision"][f"@{k}"] for r in rows) / n, 4
+        )
+    summary["r_precision"] = round(
+        sum(r["score"]["r_precision"] for r in rows) / n, 4
+    )
+    summary["map"] = round(
+        sum(r["score"]["average_precision"] for r in rows) / n, 4
+    )
+    # F1 over coverage rather than recall@5: recall@5 is a hit/miss flag, and
+    # an F1 built from a boolean and a fraction is not a harmonic mean of
+    # anything. Coverage and precision are both shares of the same ranking.
+    coverage5 = summary["coverage@5"]
+    precision5 = summary["precision@5"]
+    summary["f1@5"] = round(
+        2 * coverage5 * precision5 / (coverage5 + precision5)
+        if (coverage5 + precision5)
+        else 0.0,
+        4,
+    )
     summary["mrr"] = round(sum(r["score"]["rr"] for r in rows) / n, 4)
     summary["ndcg@10"] = round(sum(r["score"]["ndcg@10"] for r in rows) / n, 4)
+    # Where the first correct result landed, so a slip from rank 1 to rank 2 is
+    # visible before it crosses a k boundary and becomes a cliff.
+    ranks = [r["score"]["first_rank"] for r in rows if r["score"]["first_rank"]]
+    summary["first_rank"] = {
+        "1": sum(1 for r in ranks if r == 1),
+        "2-3": sum(1 for r in ranks if 2 <= r <= 3),
+        "4-10": sum(1 for r in ranks if 4 <= r <= 10),
+        "11+": sum(1 for r in ranks if r > 10),
+        "absent": n - len(ranks),
+    }
     return summary
 
 
@@ -187,20 +288,40 @@ def print_report(report: dict[str, Any]) -> None:
         f"rerank={config.get('rerank', False)}  "
         f"hybrid={config.get('hybrid', False)}"
     )
-    print("-" * 62)
-    print(f"{'class':<16}{'n':>4}{'R@1':>8}{'R@3':>8}{'R@10':>8}{'MRR':>8}{'nDCG':>8}")
-    for name, summary in report["by_class"].items():
-        print(
-            f"{name:<16}{summary['n']:>4}{summary['recall@1']:>8.3f}"
-            f"{summary['recall@3']:>8.3f}{summary['recall@10']:>8.3f}"
-            f"{summary['mrr']:>8.3f}{summary['ndcg@10']:>8.3f}"
+    header = (
+        f"{'class':<15}{'n':>3}{'R@1':>7}{'R@3':>7}{'Cov@5':>7}"
+        f"{'P@5':>7}{'R-Prec':>8}{'F1@5':>7}{'MAP':>7}{'MRR':>7}{'nDCG':>7}"
+    )
+
+    def row(name: str, summary: dict[str, Any]) -> str:
+        return (
+            f"{name:<15}{summary['n']:>3}{summary['recall@1']:>7.3f}"
+            f"{summary['recall@3']:>7.3f}{summary['coverage@5']:>7.3f}"
+            f"{summary['precision@5']:>7.3f}{summary['r_precision']:>8.3f}"
+            f"{summary['f1@5']:>7.3f}{summary['map']:>7.3f}"
+            f"{summary['mrr']:>7.3f}{summary['ndcg@10']:>7.3f}"
         )
+
+    print("-" * len(header))
+    print(header)
+    for name, summary in report["by_class"].items():
+        print(row(name, summary))
     overall = report["overall"]
-    print("-" * 62)
+    print("-" * len(header))
+    print(row("OVERALL", overall))
+
+    # P@5 is capped by arithmetic where a query expects one id -- 0.200 is the
+    # ceiling there, not a finding. R-Prec is the comparable figure.
     print(
-        f"{'OVERALL':<16}{overall['n']:>4}{overall['recall@1']:>8.3f}"
-        f"{overall['recall@3']:>8.3f}{overall['recall@10']:>8.3f}"
-        f"{overall['mrr']:>8.3f}{overall['ndcg@10']:>8.3f}"
+        "\nP@5 is bounded by how many ids a query expects (0.200 for a single-"
+        "answer query,\nwhatever retrieval does). R-Prec is precision at that "
+        "count and compares across classes."
+    )
+
+    ranks = overall["first_rank"]
+    print(
+        f"\nfirst correct result at rank:  1: {ranks['1']}   2-3: {ranks['2-3']}"
+        f"   4-10: {ranks['4-10']}   11+: {ranks['11+']}   absent: {ranks['absent']}"
     )
 
     missed = [r for r in report["queries"] if r["score"]["first_rank"] is None]
@@ -210,19 +331,51 @@ def print_report(report: dict[str, Any]) -> None:
             print(f"  [{row['class']:<13}] {row['query'][:58]:<58} want {row['expected']}")
 
 
+def check_gate(report: dict[str, Any]) -> list[str]:
+    """
+    Floors that mean "something is wrong", not "something changed".
+
+    Deliberately below the committed baseline. A gate set *at* the current
+    numbers fires on any corpus change and gets switched off within a month,
+    which is worse than no gate -- the same reasoning that keeps
+    `eval_grounding.py` from asserting float equality between runs.
+    """
+    failures: list[str] = []
+    for name, floors in FLOORS.items():
+        summary = report["by_class"].get(name)
+        if not summary:
+            continue
+        for metric, floor in floors.items():
+            value = summary.get(metric, 0.0)
+            if value < floor:
+                failures.append(f"{name} {metric} {value:.3f} < {floor:.3f}")
+    for metric, floor in OVERALL_FLOORS.items():
+        value = report["overall"].get(metric, 0.0)
+        if value < floor:
+            failures.append(f"OVERALL {metric} {value:.3f} < {floor:.3f}")
+    return failures
+
+
 def print_comparison(current: dict[str, Any], baseline: dict[str, Any]) -> None:
     """Diff two runs. Regressions are what this is for."""
     print("\nvs baseline")
     print("-" * 62)
-    print(f"{'class':<16}{'R@3':>10}{'MRR':>10}{'nDCG':>10}")
+    print(
+        f"{'class':<16}{'R@3':>9}{'Cov@5':>9}{'R-Prec':>9}"
+        f"{'MAP':>9}{'MRR':>9}{'nDCG':>9}"
+    )
     names = sorted(set(current["by_class"]) | set(baseline["by_class"]))
     for name in [*names, "OVERALL"]:
         now = current["overall"] if name == "OVERALL" else current["by_class"].get(name)
         was = baseline["overall"] if name == "OVERALL" else baseline["by_class"].get(name)
         if not now or not was:
             continue
+        # A metric the baseline predates is shown as "--", not as a rise from
+        # zero. The first run after adding one otherwise reports every new
+        # column as a large improvement, which is a lie that reads as a win.
         cells = "".join(
-            f"{now[m] - was[m]:>+10.3f}" for m in ("recall@3", "mrr", "ndcg@10")
+            f"{now[m] - was[m]:>+9.3f}" if m in now and m in was else f"{'--':>9}"
+            for m in ("recall@3", "coverage@5", "r_precision", "map", "mrr", "ndcg@10")
         )
         print(f"{name:<16}{cells}")
 
@@ -245,6 +398,11 @@ def main() -> int:
     parser.add_argument("--label", default="latest", help="name for this run's report file")
     parser.add_argument("--compare", help="label of an earlier run to diff against")
     parser.add_argument("--no-expand", action="store_true", help="disable query expansion")
+    parser.add_argument(
+        "--gate",
+        action="store_true",
+        help="exit non-zero if any class falls below its floor",
+    )
     parser.add_argument(
         "--rerank",
         action="store_true",
@@ -279,6 +437,16 @@ def main() -> int:
     out = EVAL_DIR / f"{args.label}.json"
     out.write_text(json.dumps(report, indent=2) + "\n")
     print(f"\nWrote {out.relative_to(BACKEND_DIR)}")
+
+    if args.gate:
+        failures = check_gate(report)
+        print("\n" + "=" * 50)
+        if failures:
+            print("GATE FAILED")
+            for failure in failures:
+                print(f"  - {failure}")
+            return 1
+        print("GATE PASSED")
     return 0
 
 
