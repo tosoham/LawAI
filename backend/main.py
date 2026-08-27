@@ -114,10 +114,10 @@ async def startup_event():
     """Initialize tools on application startup"""
     try:
         logger.info("Starting LawAI backend...")
-        logger.info("Initializing MCP tools...")
+        logger.info("Initializing agent tools...")
         rag_service = RAGService()
         initialize_tools(llm_service, rag_service)
-        logger.info("MCP tools initialized successfully")
+        logger.info("Agent tools initialized successfully")
         logger.info("LawAI backend ready!")
     except Exception as e:
         logger.error(f"Error during startup: {e}")

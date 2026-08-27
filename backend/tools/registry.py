@@ -1,7 +1,12 @@
 """
 Tool Registry
 
-Central registry for managing and accessing all MCP tools.
+Central registry for managing and accessing all agent tools.
+
+These are the tools the LangGraph agent dispatches to. They are *not* MCP
+tools and never have been -- the log lines and docstrings here said "MCP" for
+months before anything in this repository spoke the protocol. MCP is served
+separately by ``backend/mcp_server.py``, which adapts the same services.
 """
 
 import logging
@@ -13,7 +18,7 @@ logger = logging.getLogger(__name__)
 
 class ToolRegistry:
     """
-    Central registry for all MCP tools.
+    Central registry for all agent tools.
 
     Provides methods to register, retrieve, and list tools.
     Supports auto-discovery and tool metadata management.

@@ -15,6 +15,7 @@ measured from the committed data.
 | **[EVALUATION_AND_TESTING.md](EVALUATION_AND_TESTING.md)** | Golden set, metrics, abstention measurement, test pyramid, adversarial suite, what tests missed. | The topic is evaluation or testing. |
 | **[CHALLENGES_AND_SOLUTIONS.md](CHALLENGES_AND_SOLUTIONS.md)** | 60+ indexed problems as Symptom → Cause → Fix → Guard. | You want to skim, or find one specific bug. |
 | **[ATTRIBUTION_GAP.md](ATTRIBUTION_GAP.md)** | Why the system cannot verify, on its own, that a case is an authority on a section — the checks tried, measured and rejected, and what would actually close it. | You are about to automate case-to-section attribution. Read it first. |
+| **[MCP_SERVER.md](MCP_SERVER.md)** | Running LawAI as an MCP server, the tool surface, and why there is no raw-retrieval tool. | You want to use it from Claude Desktop or another MCP client. |
 | **[INTERVIEW_BRIEF.md](INTERVIEW_BRIEF.md)** | Talking points, expected follow-ups, numbers to memorise, honest answers to hard questions. | Preparing to discuss this project. |
 | [COMPLETE_IMPLEMENTATION_PLAN.md](COMPLETE_IMPLEMENTATION_PLAN.md) | The original hackathon-era plan. **Historical** — superseded, kept for provenance. | You want to see how the plan changed. |
 

@@ -320,6 +320,23 @@ The finding worth keeping is what it *cannot* do. `relevant_sections` means "is 
 - **Requests are rate limited, and the limit adapts upward.** `JUDICIARY_MIN_REQUEST_INTERVAL` is a floor (2.5s); a 429 widens the interval for the rest of the process and is never narrowed again, since the pace the source refused once it will refuse again. `Retry-After` is honoured over our own estimate. **A 429 is an instruction, not a failure** — it used to propagate as an exception, so a discovery run logged a failed search and moved to the next topic at the same pace, losing **21 of 36 topics** with each refusal arriving faster than the request that caused it. With backoff: 0 failed searches and 332 candidates instead of 133. Retries are bounded (`JUDICIARY_MAX_RETRIES`), because a caller that never gets an answer cannot fall back to the local corpus. Responses are TTL-cached and the source's robots.txt disallow list is parsed and honoured — it names several thousand individual documents.
 - `ENABLE_LIVE_JUDICIARY=false` turns the whole thing off for offline operation; everything else keeps working.
 
+## MCP server
+
+`backend/mcp_server.py` serves the same services over Model Context Protocol — stdio for
+Claude Desktop, `--http` for streamable HTTP. Ten tools, seven of which make no model call at
+all. See [`docs/MCP_SERVER.md`](docs/MCP_SERVER.md).
+
+- **Grounding travels with the tools.** `ask` returns typed claims, per-claim verdicts and the
+  abstention, never retrieved text — a model on the other end of the protocol will turn a
+  paragraph into a confident sentence about someone's liberty, and it would do so *outside* the
+  verifier. **There is deliberately no `search_corpus` tool**, and a test asserts its absence,
+  because an absence is what gets added back by someone who does not know why it is missing.
+- **Logging goes to stderr.** stdio transport speaks JSON-RPC on stdout; a log line written
+  there corrupts the stream and the client sees a protocol error rather than a log.
+- The tool registry in `tools/registry.py` is **not** MCP and never was, despite saying so in
+  its log lines for months. It holds the tools the LangGraph agent dispatches to; the wording
+  is now honest.
+
 ## API surface (`/api/v1`)
 
 - `agent/query`, `agent/query/stream` — main agent entry points. Optional `workspace` (settles the intent instead of inferring it) and `thread_id` (conversation, when memory is on); both ignored when absent, so every existing caller keeps working. The response carries `agent_trail` when more than one agent was involved.
@@ -363,6 +380,7 @@ Next.js **Pages Router** (`frontend/pages/`), not App Router. Two routes: `/` is
 | [`docs/EVALUATION_AND_TESTING.md`](docs/EVALUATION_AND_TESTING.md) | Golden set, grounding metrics, the abstention measurement, adversarial suite |
 | [`docs/CHALLENGES_AND_SOLUTIONS.md`](docs/CHALLENGES_AND_SOLUTIONS.md) | 60+ fixed bugs as Symptom → Cause → Fix → Guard |
 | [`docs/ATTRIBUTION_GAP.md`](docs/ATTRIBUTION_GAP.md) | Why case-to-section attribution cannot be verified automatically; the checks measured and rejected. **Read before attempting one.** |
+| [`docs/MCP_SERVER.md`](docs/MCP_SERVER.md) | Running LawAI over MCP, the tool surface, the Claude Desktop config |
 
 **Check `CHALLENGES_AND_SOLUTIONS.md` before removing anything that looks redundant.** Most of the odd-looking code in this repository is load-bearing and the entry says which failure it prevents.
 
