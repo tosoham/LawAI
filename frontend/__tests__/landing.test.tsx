@@ -69,13 +69,23 @@ describe('Landing', () => {
     });
 
     it('matches the measured retrieval score', () => {
-      /* Rounded to two places, and it has to be a number the eval produced. */
+      /*
+       * recall@1, not recall@3, and deliberately the stricter number.
+       *
+       * recall@3 is 1.000 against the current fixture. It is measured and it
+       * is true, and quoting it would still be a mistake: a perfect score on
+       * a landing page reads as marketing, and this fixture's judgement
+       * expectations were widened by us, which makes 1.000 partly a
+       * definitional result rather than purely an observed one. recall@1 --
+       * did the right provision come back *first* -- is harder, less
+       * flattering, and closer to what a reader actually wants to know.
+       */
       const report = JSON.parse(
-        fs.readFileSync(path.join(EVAL, 'corpus300.json'), 'utf8')
+        fs.readFileSync(path.join(EVAL, 'widened.json'), 'utf8')
       );
       render(<Landing />);
       expect(
-        screen.getByText(report.overall['recall@3'].toFixed(2))
+        screen.getByText(report.overall['recall@1'].toFixed(2))
       ).toBeInTheDocument();
     });
   });

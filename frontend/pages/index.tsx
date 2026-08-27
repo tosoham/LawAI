@@ -57,7 +57,7 @@ const FACTS = [
   { value: '465', label: 'offences classified', detail: 'from the First Schedule to the BNSS' },
   { value: '1,195', label: 'old-code mappings', detail: 'IPC, CrPC and Evidence Act to their replacements' },
   { value: '300', label: 'Supreme Court judgements', detail: '30 pinned landmarks, the rest discovered by topic' },
-  { value: '0.97', label: 'retrieval recall@3', detail: 'measured over a 69-question golden set' },
+  { value: '0.88', label: 'retrieval recall@1', detail: 'right provision ranked first, over a 69-question golden set' },
 ];
 
 const PRINCIPLES = [

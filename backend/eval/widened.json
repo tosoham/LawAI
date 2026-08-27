@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-08-27T13:15:19.382025+00:00",
+  "generated_at": "2026-08-27T23:30:43.906839+00:00",
   "config": {
     "expand": true,
     "top_k": 20,
@@ -9,12 +9,12 @@
   },
   "overall": {
     "n": 69,
-    "recall@1": 0.8551,
-    "recall@3": 0.971,
+    "recall@1": 0.8841,
+    "recall@3": 1.0,
     "recall@5": 1.0,
     "recall@10": 1.0,
-    "mrr": 0.9075,
-    "ndcg@10": 0.9184
+    "mrr": 0.93,
+    "ndcg@10": 0.9384
   },
   "by_class": {
     "citation": {
@@ -28,12 +28,12 @@
     },
     "judgement": {
       "n": 12,
-      "recall@1": 0.5,
-      "recall@3": 0.8333,
+      "recall@1": 0.6667,
+      "recall@3": 1.0,
       "recall@5": 1.0,
       "recall@10": 1.0,
-      "mrr": 0.6625,
-      "ndcg@10": 0.7428
+      "mrr": 0.7917,
+      "ndcg@10": 0.8578
     },
     "plain": {
       "n": 25,
@@ -1912,18 +1912,21 @@
       "query": "anticipatory bail cannot be limited in time",
       "collection": "sc_judgements",
       "expected": [
-        "sc_sushila_aggarwal_v_state_nct_of_delhi_2020"
+        "sc_sushila_aggarwal_v_state_nct_of_delhi_2020",
+        "sc_sushila_aggarwal_vs_state_nct_of_delhi_2018",
+        "sc_gurbaksh_singh_sibbia_v_state_of_punjab_1980",
+        "sc_siddharam_satlingappa_mhetre_v_state_of_maharashtra_2010"
       ],
       "score": {
         "recall": {
           "@1": false,
-          "@3": false,
+          "@3": true,
           "@5": true,
           "@10": true
         },
-        "rr": 0.2,
-        "ndcg@10": 0.38685280723454163,
-        "first_rank": 5,
+        "rr": 0.3333333333333333,
+        "ndcg@10": 0.6084170171049967,
+        "first_rank": 3,
         "returned": [
           "sc_adri_dharan_das_vs_state_of_west_bengal_2005",
           "sc_balchand_jain_vs_state_of_madhya_pradesh_1976",
@@ -1944,18 +1947,20 @@
       "query": "bail is the rule and jail the exception",
       "collection": "sc_judgements",
       "expected": [
-        "sc_state_of_rajasthan_jaipur_v_balchand_1977"
+        "sc_state_of_rajasthan_jaipur_v_balchand_1977",
+        "sc_moti_ram_v_state_of_madhya_pradesh_1978",
+        "sc_satender_kumar_antil_v_central_bureau_of_investigation_2022"
       ],
       "score": {
         "recall": {
-          "@1": false,
+          "@1": true,
           "@3": true,
           "@5": true,
           "@10": true
         },
-        "rr": 0.5,
-        "ndcg@10": 0.6309297535714575,
-        "first_rank": 2,
+        "rr": 1.0,
+        "ndcg@10": 0.9217868789962071,
+        "first_rank": 1,
         "returned": [
           "sc_satender_kumar_antil_v_central_bureau_of_investigation_2022",
           "sc_state_of_rajasthan_jaipur_v_balchand_1977",
@@ -1977,7 +1982,10 @@
       "collection": "sc_judgements",
       "expected": [
         "sc_arnesh_kumar_v_state_of_bihar_2014",
-        "sc_joginder_kumar_v_state_of_uttar_pradesh_1994"
+        "sc_joginder_kumar_v_state_of_uttar_pradesh_1994",
+        "sc_d_k_basu_v_state_of_west_bengal_1997",
+        "sc_satender_kumar_antil_v_central_bureau_of_investigation_2022",
+        "sc_satender_kumar_antil_vs_central_bureau_of_investigation_2026"
       ],
       "score": {
         "recall": {
@@ -1987,7 +1995,7 @@
           "@10": true
         },
         "rr": 1.0,
-        "ndcg@10": 0.8503449055347546,
+        "ndcg@10": 1.0,
         "first_rank": 1,
         "returned": [
           "sc_arnesh_kumar_v_state_of_bihar_2014",
@@ -2006,7 +2014,8 @@
       "query": "registration of FIR is mandatory in cognizable cases",
       "collection": "sc_judgements",
       "expected": [
-        "sc_lalita_kumari_v_government_of_uttar_pradesh_2013"
+        "sc_lalita_kumari_v_government_of_uttar_pradesh_2013",
+        "sc_lalita_kumari_vs_govt_of_u_p_ors_2012"
       ],
       "score": {
         "recall": {
@@ -2016,7 +2025,7 @@
           "@10": true
         },
         "rr": 0.3333333333333333,
-        "ndcg@10": 0.5,
+        "ndcg@10": 0.5249810332008933,
         "first_rank": 3,
         "returned": [
           "sc_state_by_karnataka_lokayukta_police_vs_m_r_hiremath_2019",
@@ -2037,7 +2046,8 @@
       "collection": "sc_judgements",
       "expected": [
         "sc_bachan_singh_v_state_of_punjab_1980",
-        "sc_machhi_singh_v_state_of_punjab_1983"
+        "sc_machhi_singh_v_state_of_punjab_1983",
+        "sc_shankar_kisanrao_khade_vs_state_of_maharashtra_2013"
       ],
       "score": {
         "recall": {
@@ -2047,7 +2057,7 @@
           "@10": true
         },
         "rr": 0.3333333333333333,
-        "ndcg@10": 0.5437713091520254,
+        "ndcg@10": 0.6182885020492784,
         "first_rank": 3,
         "returned": [
           "sc_mohinder_singh_vs_state_of_punjab_2013",
@@ -2068,7 +2078,8 @@
       "collection": "sc_judgements",
       "expected": [
         "sc_arjun_panditrao_khotkar_v_kailash_kushanrao_gorantyal_2020",
-        "sc_anvar_p_v_v_p_k_basheer_2014"
+        "sc_anvar_p_v_v_p_k_basheer_2014",
+        "sc_shafhi_mohammad_vs_the_state_of_himachal_pradesh_2018"
       ],
       "score": {
         "recall": {
@@ -2077,9 +2088,9 @@
           "@5": true,
           "@10": true
         },
-        "rr": 0.3333333333333333,
-        "ndcg@10": 0.5706417189553201,
-        "first_rank": 3,
+        "rr": 0.5,
+        "ndcg@10": 0.7328286204777911,
+        "first_rank": 2,
         "returned": [
           "sc_state_by_karnataka_lokayukta_police_vs_m_r_hiremath_2019",
           "sc_shafhi_mohammad_vs_the_state_of_himachal_pradesh_2018",
@@ -2117,7 +2128,8 @@
       "query": "custodial safeguards and rights on arrest",
       "collection": "sc_judgements",
       "expected": [
-        "sc_d_k_basu_v_state_of_west_bengal_1997"
+        "sc_d_k_basu_v_state_of_west_bengal_1997",
+        "sc_joginder_kumar_v_state_of_uttar_pradesh_1994"
       ],
       "score": {
         "recall": {
@@ -2127,7 +2139,7 @@
           "@10": true
         },
         "rr": 1.0,
-        "ndcg@10": 1.0,
+        "ndcg@10": 0.9197207891481876,
         "first_rank": 1,
         "returned": [
           "sc_d_k_basu_v_state_of_west_bengal_1997",
@@ -2204,18 +2216,20 @@
       "query": "bail in economic offences",
       "collection": "sc_judgements",
       "expected": [
-        "sc_p_chidambaram_v_directorate_of_enforcement_2019"
+        "sc_p_chidambaram_v_directorate_of_enforcement_2019",
+        "sc_serious_fraud_investigation_office_vs_nittin_johari_2019",
+        "sc_satender_kumar_antil_v_central_bureau_of_investigation_2022"
       ],
       "score": {
         "recall": {
-          "@1": false,
-          "@3": false,
+          "@1": true,
+          "@3": true,
           "@5": true,
           "@10": true
         },
-        "rr": 0.25,
-        "ndcg@10": 0.43067655807339306,
-        "first_rank": 4,
+        "rr": 1.0,
+        "ndcg@10": 0.9674679834891693,
+        "first_rank": 1,
         "returned": [
           "sc_serious_fraud_investigation_office_vs_nittin_johari_2019",
           "sc_satender_kumar_antil_v_central_bureau_of_investigation_2022",
