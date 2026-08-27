@@ -300,6 +300,7 @@ Next.js **Pages Router** (`frontend/pages/`), not App Router. Two routes: `/` is
 | [`docs/RAG_PIPELINE.md`](docs/RAG_PIPELINE.md) | Chunking, batching, embedding, the four retrieval layers and the ablation |
 | [`docs/EVALUATION_AND_TESTING.md`](docs/EVALUATION_AND_TESTING.md) | Golden set, grounding metrics, the abstention measurement, adversarial suite |
 | [`docs/CHALLENGES_AND_SOLUTIONS.md`](docs/CHALLENGES_AND_SOLUTIONS.md) | 60+ fixed bugs as Symptom → Cause → Fix → Guard |
+| [`docs/ATTRIBUTION_GAP.md`](docs/ATTRIBUTION_GAP.md) | Why case-to-section attribution cannot be verified automatically; the checks measured and rejected. **Read before attempting one.** |
 
 **Check `CHALLENGES_AND_SOLUTIONS.md` before removing anything that looks redundant.** Most of the odd-looking code in this repository is load-bearing and the entry says which failure it prevents.
 
