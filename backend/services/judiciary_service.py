@@ -43,7 +43,17 @@ BASE_URL = "https://indiankanoon.org"
 USER_AGENT = "LawAI/1.0 (legal research assistant; +https://github.com/tosoham/LawAI)"
 
 DEFAULT_TIMEOUT = float(os.getenv("JUDICIARY_TIMEOUT_SECONDS", "20"))
-MIN_REQUEST_INTERVAL = float(os.getenv("JUDICIARY_MIN_REQUEST_INTERVAL", "1.0"))
+MIN_REQUEST_INTERVAL = float(os.getenv("JUDICIARY_MIN_REQUEST_INTERVAL", "2.5"))
+# The ceiling the adaptive interval may widen to, and how fast it widens. A
+# discovery run at one request per second drew 429 on 21 of 36 searches; the
+# floor above was raised on that evidence, and the rest is the source's to
+# decide at run time.
+MAX_REQUEST_INTERVAL = float(os.getenv("JUDICIARY_MAX_REQUEST_INTERVAL", "30.0"))
+BACKOFF_FACTOR = float(os.getenv("JUDICIARY_BACKOFF_FACTOR", "2.0"))
+# How many times a single request may be retried after a 429 before the caller
+# is told it failed. Bounded, because a caller that never gets an answer cannot
+# fall back to the local corpus.
+MAX_RETRIES = int(os.getenv("JUDICIARY_MAX_RETRIES", "3"))
 SEARCH_CACHE_TTL = float(os.getenv("JUDICIARY_SEARCH_CACHE_TTL", "900"))      # 15 min
 JUDGEMENT_CACHE_TTL = float(os.getenv("JUDICIARY_DOC_CACHE_TTL", "86400"))    # 24 h
 MAX_JUDGEMENT_CHARS = int(os.getenv("JUDICIARY_MAX_DOC_CHARS", "20000"))
@@ -141,6 +151,11 @@ class JudiciaryService:
         self._doc_cache = _Cache(JUDGEMENT_CACHE_TTL)
         self._disallowed: set[str] | None = None
         self._last_request_at = 0.0
+        # Widened by _back_off when the source says we are going too fast, and
+        # never narrowed again within the process: the pace it refused once it
+        # will refuse again, and a run that recovers only to re-trip is worse
+        # for the source than one that simply slows down.
+        self._interval = MIN_REQUEST_INTERVAL
         self._request_lock = threading.Lock()
         self._reachable: bool | None = None
         self._last_error: str | None = None
@@ -148,12 +163,75 @@ class JudiciaryService:
     # -- politeness ------------------------------------------------------
 
     def _throttle(self) -> None:
-        """Space out requests; this is a free public service."""
+        """
+        Space out requests; this is a free public service.
+
+        The interval is a floor that rises when the server says it should. A
+        corpus-discovery run at one request per second drew **429 on 21 of 36
+        searches** -- the source's own statement that the pace was too fast --
+        and once it starts refusing, every subsequent request in the run is
+        wasted work for both sides. ``_back_off`` widens the floor for the rest
+        of the process on each 429, so a long run settles at a rate the source
+        tolerates rather than hammering at one it has already declined.
+        """
         with self._request_lock:
             elapsed = time.monotonic() - self._last_request_at
-            if elapsed < MIN_REQUEST_INTERVAL:
-                time.sleep(MIN_REQUEST_INTERVAL - elapsed)
+            wait = max(MIN_REQUEST_INTERVAL, self._interval) - elapsed
+            if wait > 0:
+                time.sleep(wait)
             self._last_request_at = time.monotonic()
+
+    def _back_off(self, retry_after: str | None = None) -> float:
+        """
+        Widen the request interval after a 429, and say how long to wait now.
+
+        ``Retry-After`` is honoured when the server sends one: it is the
+        source telling us exactly what it wants, and guessing over the top of
+        an explicit instruction is the rude version of this.
+        """
+        with self._request_lock:
+            self._interval = min(self._interval * BACKOFF_FACTOR, MAX_REQUEST_INTERVAL)
+            interval = self._interval
+        if retry_after:
+            try:
+                return max(float(retry_after), interval)
+            except ValueError:
+                pass
+        return interval
+
+    def _get(self, url: str, **kwargs: Any) -> requests.Response:
+        """
+        A throttled GET that retries when the source says to slow down.
+
+        A 429 is not a failure, it is an instruction, and the old behaviour
+        treated it as the first: the exception propagated, the caller logged a
+        failed search and moved straight on to the next one at the same pace.
+        A discovery run lost 21 of 36 topics that way, each failure arriving
+        faster than the request that caused it.
+
+        Retries are bounded. A caller that never gets an answer cannot fall
+        back to the local corpus, and blocking a request path indefinitely to
+        be polite to a source is its own kind of rude.
+        """
+        for attempt in range(MAX_RETRIES + 1):
+            self._throttle()
+            response = self.session.get(url, **kwargs)
+            if response.status_code != 429:
+                response.raise_for_status()
+                return response
+
+            if attempt == MAX_RETRIES:
+                response.raise_for_status()
+
+            wait = self._back_off(response.headers.get("Retry-After"))
+            logger.warning(
+                f"429 from {url}; waiting {wait:.1f}s and widening the request "
+                f"interval to {self._interval:.1f}s "
+                f"(attempt {attempt + 1}/{MAX_RETRIES})"
+            )
+            time.sleep(wait)
+
+        raise RuntimeError("unreachable")  # pragma: no cover
 
     def _load_disallowed(self) -> set[str] | None:
         """
@@ -169,9 +247,7 @@ class JudiciaryService:
 
         disallowed: set[str] = set()
         try:
-            self._throttle()
-            response = self.session.get(f"{BASE_URL}/robots.txt", timeout=DEFAULT_TIMEOUT)
-            response.raise_for_status()
+            response = self._get(f"{BASE_URL}/robots.txt", timeout=DEFAULT_TIMEOUT)
             applies = False
             for line in response.text.splitlines():
                 line = line.strip()
@@ -306,14 +382,12 @@ class JudiciaryService:
             return cached
 
         try:
-            self._throttle()
             logger.info(f"Live case law search: {form_input}")
-            response = self.session.get(
+            response = self._get(
                 f"{BASE_URL}/search/",
                 params={"formInput": form_input},
                 timeout=DEFAULT_TIMEOUT,
             )
-            response.raise_for_status()
         except Exception as exc:
             logger.error(f"Live case law search failed: {exc}")
             self._record_outcome(str(exc))
@@ -408,10 +482,8 @@ class JudiciaryService:
 
         url = f"{BASE_URL}/doc/{doc_id}/"
         try:
-            self._throttle()
             logger.info(f"Fetching judgement {doc_id}")
-            response = self.session.get(url, timeout=DEFAULT_TIMEOUT)
-            response.raise_for_status()
+            response = self._get(url, timeout=DEFAULT_TIMEOUT)
         except Exception as exc:
             logger.error(f"Fetching judgement {doc_id} failed: {exc}")
             self._record_outcome(str(exc))

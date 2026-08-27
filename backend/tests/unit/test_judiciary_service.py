@@ -324,3 +324,88 @@ class TestHealthReportsReachability:
         service._record_outcome(None)
         assert service.health_check() == {**service.health_check(), "reachable": True}
         assert service.health_check()["last_error"] is None
+
+
+class TestRateLimitBackoff:
+    """
+    A 429 is an instruction, not a failure.
+
+    The old behaviour treated it as the second: the exception propagated, the
+    caller logged a failed search and moved on to the next topic at the same
+    pace. A corpus-discovery run lost 21 of 36 topics that way, each refusal
+    arriving faster than the request that caused it.
+    """
+
+    @staticmethod
+    def _service_returning(statuses, monkeypatch):
+        """A service whose successive GETs return the given status codes."""
+        monkeypatch.setattr("services.judiciary_service.time.sleep", lambda _: None)
+        session = MagicMock()
+        responses = []
+        for status in statuses:
+            response = MagicMock()
+            response.status_code = status
+            response.text = SEARCH_HTML
+            response.headers = {}
+            response.raise_for_status = MagicMock(
+                side_effect=None if status == 200 else RuntimeError(f"{status}")
+            )
+            responses.append(response)
+        session.get.side_effect = responses
+        service = JudiciaryService(session=session)
+        service._disallowed = set()
+        return service, session
+
+    def test_a_429_is_retried_rather_than_surfaced(self, monkeypatch):
+        service, session = self._service_returning([429, 200], monkeypatch)
+        response = service._get("https://example.test/")
+        assert response.status_code == 200
+        assert session.get.call_count == 2
+
+    def test_the_interval_widens_after_a_429(self, monkeypatch):
+        service, _ = self._service_returning([429, 200], monkeypatch)
+        before = service._interval
+        service._get("https://example.test/")
+        assert service._interval > before
+
+    def test_retries_are_bounded(self, monkeypatch):
+        """
+        A caller that never gets an answer cannot fall back to the local
+        corpus, so retrying forever to be polite is its own kind of rude.
+        """
+        from services.judiciary_service import MAX_RETRIES
+
+        service, session = self._service_returning(
+            [429] * (MAX_RETRIES + 1), monkeypatch
+        )
+        with pytest.raises(RuntimeError):
+            service._get("https://example.test/")
+        assert session.get.call_count == MAX_RETRIES + 1
+
+    def test_retry_after_is_honoured_over_our_own_guess(self):
+        """The source telling us exactly what it wants beats our estimate."""
+        service = JudiciaryService(session=MagicMock())
+        assert service._back_off(retry_after="120") == 120.0
+
+    def test_a_junk_retry_after_falls_back_to_the_interval(self):
+        service = JudiciaryService(session=MagicMock())
+        assert service._back_off(retry_after="Wed, 21 Oct 2026 07:28:00 GMT") > 0
+
+    def test_the_interval_has_a_ceiling(self):
+        from services.judiciary_service import MAX_REQUEST_INTERVAL
+
+        service = JudiciaryService(session=MagicMock())
+        for _ in range(50):
+            service._back_off()
+        assert service._interval == MAX_REQUEST_INTERVAL
+
+    def test_the_interval_never_narrows_again(self, monkeypatch):
+        """
+        The pace it refused once it will refuse again. A run that recovers
+        only to re-trip is worse for the source than one that slows down.
+        """
+        service, _ = self._service_returning([429, 200, 200], monkeypatch)
+        service._get("https://example.test/")
+        widened = service._interval
+        service._get("https://example.test/")
+        assert service._interval == widened
