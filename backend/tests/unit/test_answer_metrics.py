@@ -7,8 +7,15 @@ falls; it stops quoting to avoid being checked, fidelity falls rather than
 holding steady over a shrinking denominator; it answers a statute question
 mostly by reasoning, inference share rises.
 """
-from models.claims import Claim, EpistemicClass, Position, StructuredAnswer
-from services.answer_metrics import aggregate, compute
+from models.claims import (
+    Claim,
+    ClaimSource,
+    EpistemicClass,
+    Position,
+    SourceKind,
+    StructuredAnswer,
+)
+from services.answer_metrics import AnswerMetrics, aggregate, compute
 from services.claim_verifier import VerificationContext, verify
 from services.legal_graph import get_legal_graph
 
@@ -215,3 +222,59 @@ class TestAggregate:
 
     def test_an_empty_run_reports_itself(self):
         assert aggregate([]) == {"n": 0}
+
+
+class TestUnverifiableAttribution:
+    """
+    The gap Phase 3 opened, made visible because it cannot be gated.
+
+    `interprets` edges are transcribed from curated `relevant_sections`, which
+    only the 30 pinned judgements carry. At 300 judgements 273 have none, so a
+    holding claim citing one of those for a section cannot be checked for the
+    relation at all. A text-mention check was measured against the 34 curated
+    pairs and rejected 41% of them, so it is counted rather than rejected.
+    """
+
+    @staticmethod
+    def _holding(judgement, section="BNS 103"):
+        return Claim(
+            text="x",
+            epistemic_class=EpistemicClass.HOLDING,
+            sources=[
+                ClaimSource(kind=SourceKind.JUDGEMENT, ref=judgement),
+                ClaimSource(kind=SourceKind.SECTION, ref=section),
+            ],
+        )
+
+    def test_a_curated_case_with_edges_is_verifiable(self):
+        answer = StructuredAnswer(
+            claims=[self._holding("sc_bachan_singh_v_state_of_punjab_1980")]
+        )
+        assert compute(answer).unverifiable_attribution == 0
+
+    def test_a_discovered_case_without_edges_is_counted(self):
+        from services.legal_graph import get_legal_graph
+
+        graph = get_legal_graph()
+        discovered = next(
+            j for j in graph.judgements if not graph.interprets.get(j)
+        )
+        answer = StructuredAnswer(claims=[self._holding(discovered)])
+        assert compute(answer).unverifiable_attribution == 1
+
+    def test_a_holding_citing_no_section_is_not_counted(self):
+        """Nothing to be wrong about: with no section cited there is no
+        case-to-section relation to leave unchecked."""
+        claim = Claim(
+            text="x",
+            epistemic_class=EpistemicClass.HOLDING,
+            sources=[
+                ClaimSource(
+                    kind=SourceKind.JUDGEMENT, ref="sc_bachan_singh_v_state_of_punjab_1980"
+                )
+            ],
+        )
+        assert compute(StructuredAnswer(claims=[claim])).unverifiable_attribution == 0
+
+    def test_it_reaches_the_serialised_metrics(self):
+        assert "unverifiable_attribution" in AnswerMetrics().to_dict()

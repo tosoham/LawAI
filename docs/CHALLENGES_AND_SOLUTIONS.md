@@ -694,6 +694,36 @@ doing the opposite.
 
 ---
 
+### 4.19 A verification guarantee that fell from 90% coverage to 9%, silently ⚑
+
+**Symptom.** None. Every metric improved. That is what makes this the worst entry in the file.
+**Cause.** `_verify_attributed_to_a_case` catches "a real case cited for a section it has
+nothing to do with" by requiring a `judgement --interprets--> section` edge, written
+`if stray and recorded:` — which **fails open when a judgement has no edges at all**. Edges are
+transcribed from curated `relevant_sections`; only the 30 pinned judgements carry them. Growing
+the corpus to 300 took coverage from 27-of-30 to **27-of-300**.
+**The fix that was built, measured, and thrown away.** A text-mention check: a case that never
+names the section it is cited for is not an authority on it — weaker than the edge, checkable by
+string match, with the old numbering translated through the concordance (a 2019 anticipatory-bail
+case says "Section 438 Cr.P.C.", never "482"). Scored against the 34 curated (case, section)
+pairs, the only ground truth available: **it rejected 14 of them, 41%.** The narrowest
+variant — reject only when the judgement cites some section and none match, letter suffixes
+folded — still rejected **32%**.
+**Why it cannot be tuned.** State of Rajasthan v. Balchand is *the* authority for "bail is the
+rule, jail the exception" and cites no section number anywhere in its 5,609 characters. Satender
+Kumar Antil reasons through sections 437 and 439 while being an authority on anticipatory bail
+too. **A judgement is an authority on provisions it may never number.** The presence of a
+citation is simply not evidence of the relation.
+**What shipped instead.** The half that is sound — a **verbatim check of quoted judgement text**,
+which only became possible when the corpus started holding whole judgements — plus
+`AnswerMetrics.unverifiable_attribution`, counting claims whose attribution nothing can confirm.
+**The lesson.** *Measure the fix against ground truth before shipping it, especially when it
+closes a real hole.* A one-in-three false-rejection rate would have deleted true statements from
+answers — the same failure as 3.9, 4.16 and the BNS 105 nesting bug — and it would have been
+invisible, because the metric it was meant to improve would have gone up.
+
+---
+
 ## 5. The legal graph
 
 ### 5.1 An inferred edge is invisible once it exists ⚑

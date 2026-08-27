@@ -279,24 +279,82 @@ def _verify_attributed_to_a_case(
     if unknown:
         return False, f"cites {', '.join(unknown)}, which is not in the corpus"
 
+    # A quotation from a judgement is checked the way a quotation from a
+    # section is. Nothing did this before, because until the corpus held whole
+    # judgements there was nothing to check against; ``JudgementNode.text``
+    # now carries them. Same rule as the statute check: whole document rather
+    # than the chunk that ranked, and trailing punctuation stripped from the
+    # span only.
+    if claim.verbatim_span:
+        span = _normalise(claim.verbatim_span).rstrip(".,;: ")
+        bodies = [
+            context.graph.judgements[j].text
+            for j in judgements
+            if j in context.graph.judgements
+        ]
+        if bodies and not any(span in _normalise(body) for body in bodies if body):
+            return False, (
+                f"the quoted words do not appear in {', '.join(judgements)}. Quote "
+                "the judgement exactly or drop verbatim_span and paraphrase"
+            )
+
     sections = _sections_of(claim)
     if not sections:
         return True, ""
 
     # The subtle one: a real case cited for a section it has nothing to do
-    # with. Both halves check out on their own, and only the edge catches it.
+    # with. Both halves check out on their own, and only this catches it.
+    #
+    # It rests on the interprets edge, and that stopped covering the corpus
+    # when the corpus grew. Edges are transcribed from curated
+    # `relevant_sections`, which only the 30 pinned judgements carry, so at 300
+    # judgements `recorded` is empty for 273 of them -- the check went from
+    # covering 90% of the corpus to 9%, silently, while every grounding metric
+    # improved over the same change.
+    #
+    # **A text-mention check was built to close that and then measured and
+    # abandoned.** The idea: a case that never names the section it is cited
+    # for is not an authority on it -- weaker than the edge, but checkable by
+    # string match. Scored against the 34 curated (case, section) pairs, which
+    # are the only ground truth there is, it rejected **14 of them (41%)**, and
+    # the narrowest variant -- only rejecting when the judgement cites some
+    # section and none match, with the old numbering translated through the
+    # concordance and letter suffixes folded -- still rejected 32%.
+    #
+    # The failures are not a tuning problem. State of Rajasthan v. Balchand is
+    # the authority for "bail is the rule, jail the exception" and cites no
+    # section number anywhere in its 5,609 characters. Satender Kumar Antil
+    # reasons through sections 437 and 439 while being an authority on
+    # anticipatory bail too. **A judgement is an authority on provisions it may
+    # never number**, so the presence of a citation is simply not evidence of
+    # the relation, and a check with a one-in-three false-rejection rate on
+    # ground truth deletes true statements -- the failure mode this project has
+    # now hit four separate times.
+    #
+    # So the gap stays open and is *counted* instead: see
+    # `unverifiable_attribution` in `answer_metrics`. Measure what cannot be
+    # gated. Closing it properly is a data task -- hand-curating
+    # `relevant_sections` for discovered cases -- not a code one.
     for judgement in judgements:
         if judgement in context.live_judgements:
-            # A live result has no graph edges yet; the case existing is all
-            # that can be checked, and its provenance is reported separately.
+            # A live result has no graph edges and no stored text; the case
+            # existing is all that can be checked, and its provenance is
+            # reported separately.
             continue
         recorded = set(context.graph.interprets.get(judgement, []))
-        stray = [key for key in sections if key not in recorded]
-        if stray and recorded:
-            return False, (
-                f"cites {judgement} for {', '.join(stray)}, which it is not recorded "
-                f"as interpreting (it bears on {', '.join(sorted(recorded))})"
-            )
+        if recorded:
+            stray = [key for key in sections if key not in recorded]
+            if stray:
+                return False, (
+                    f"cites {judgement} for {', '.join(stray)}, which it is not "
+                    f"recorded as interpreting (it bears on "
+                    f"{', '.join(sorted(recorded))})"
+                )
+            continue
+
+        # No edge, and nothing sound to put in its place. Counted rather than
+        # rejected -- see `unverifiable_attribution` in `answer_metrics`.
+        continue
     return True, ""
 
 

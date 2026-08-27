@@ -121,6 +121,35 @@ class JudgementNode:
     subject: str
     source_url: str
 
+    text: str = ""
+    """
+    The judgement's full text, for verification.
+
+    Carried for the same reason ``SectionNode.text`` is: a claim is checked
+    against the whole document, not against whichever chunk happened to rank.
+    It became necessary when the corpus went from 30 judgements to 300 --
+    ``interprets`` edges are transcribed from curated ``relevant_sections`` and
+    only 27 judgements have any, so the edge check that catches "a real case
+    cited for a section it has nothing to do with" fell from covering 90% of
+    the corpus to 9% and fails open on the rest. The text is what is left to
+    check against, and unlike an inferred edge it is a fact about the document.
+
+    ~8 MB held for 300 judgements, which is the same order as the JSON already
+    being loaded to build this graph.
+    """
+
+    cited_sections: tuple[str, ...] = ()
+    """
+    Sections the judgement's own text demonstrably cites, where the citation
+    named its act.
+
+    Deliberately *not* ``interprets``. This says the document mentions the
+    provision; it does not say the case is an authority on it. Discovery
+    measured that the stronger claim cannot be derived -- reading the act out
+    of each citation recovers 1 of 27 over the pinned judgements -- so the two
+    are kept apart here exactly as they are kept apart in the corpus.
+    """
+
 
 @dataclass(frozen=True)
 class DoctrineNode:
@@ -395,6 +424,15 @@ def build_graph() -> LegalGraph:
             citation=primary_citation(metadata.get("citation")),
             subject=metadata.get("subject", ""),
             source_url=metadata.get("source_url", ""),
+            text=record.get("text", ""),
+            cited_sections=tuple(
+                key
+                for key in (
+                    raw.strip()
+                    for raw in (metadata.get("cited_sections") or "").split(",")
+                )
+                if key
+            ),
         )
         for raw in (metadata.get("relevant_sections") or "").split(","):
             key = raw.strip()

@@ -314,6 +314,70 @@ class TestHoldingAndInterpretation:
         assert not verified
         assert "not recorded as interpreting" in reason
 
+    def test_a_misquoted_judgement_fails(self, context):
+        """
+        A quotation from a judgement is checked the way one from a section is.
+        Nothing did this until the corpus held whole judgements -- there was
+        nothing to check against.
+        """
+        verified, reason = verify_claim(
+            claim(
+                text="Bachan Singh laid down the rarest of rare test.",
+                epistemic_class=EpistemicClass.HOLDING,
+                sources=["BNS 103", "sc_bachan_singh_v_state_of_punjab_1980"],
+                verbatim_span="the death penalty is hereby abolished in all cases",
+            ),
+            context,
+        )
+        assert not verified
+        assert "quoted words do not appear" in reason
+
+    def test_a_faithful_quotation_from_a_judgement_verifies(self, context):
+        span = get_legal_graph().judgements[
+            "sc_bachan_singh_v_state_of_punjab_1980"
+        ].text[200:280]
+        verified, reason = verify_claim(
+            claim(
+                epistemic_class=EpistemicClass.HOLDING,
+                sources=["BNS 103", "sc_bachan_singh_v_state_of_punjab_1980"],
+                verbatim_span=span,
+            ),
+            context,
+        )
+        assert verified, reason
+
+    def test_a_case_with_no_recorded_edges_is_not_rejected_on_that_ground(
+        self, context
+    ):
+        """
+        The gap Phase 3 opened, deliberately left open rather than closed
+        badly.
+
+        `interprets` edges come from curated `relevant_sections`, which only
+        the 30 pinned judgements carry, so 273 of 300 have none. A text-mention
+        check was built to close it and measured against the 34 curated pairs,
+        the only ground truth there is: it rejected 41% of them, and its
+        narrowest variant still rejected 32%. State of Rajasthan v. Balchand is
+        the authority for "bail is the rule, jail the exception" and cites no
+        section number at all -- a judgement is an authority on provisions it
+        may never number.
+
+        Rejecting here would delete true statements, so the gap is counted
+        instead: `AnswerMetrics.unverifiable_attribution`.
+        """
+        discovered = next(
+            j for j in get_legal_graph().judgements
+            if not get_legal_graph().interprets.get(j)
+        )
+        verified, reason = verify_claim(
+            claim(
+                epistemic_class=EpistemicClass.HOLDING,
+                sources=["BNS 103", discovered],
+            ),
+            context,
+        )
+        assert verified, reason
+
     def test_an_invented_case_fails(self, context):
         verified, reason = verify_claim(
             claim(
