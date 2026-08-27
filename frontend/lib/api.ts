@@ -5,6 +5,8 @@
 
 import axios, { AxiosInstance, AxiosError } from 'axios';
 
+import type { WorkspaceId } from '@/lib/workspaces';
+
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 const API_VERSION = process.env.NEXT_PUBLIC_API_VERSION || 'v1';
 
@@ -70,6 +72,16 @@ apiClient.interceptors.response.use(
 export interface AgentQueryRequest {
   query: string;
   stream?: boolean;
+  /**
+   * Which workspace the query was typed in.
+   *
+   * The backend settles the intent from this rather than inferring it from
+   * keywords. Today only Ask reaches this endpoint -- the other workspaces
+   * call their own -- so it mostly stops the classifier guessing at intents
+   * that cannot arrive here. It becomes load-bearing if the UI ever offers one
+   * input for everything.
+   */
+  workspace?: WorkspaceId;
 }
 
 /** One citable hit, already formatted by the backend. */

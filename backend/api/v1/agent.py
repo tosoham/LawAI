@@ -23,6 +23,15 @@ class AgentQueryRequest(BaseModel):
     """Request model for agent query"""
     query: str = Field(..., description="User query", min_length=1, max_length=5000)
     stream: bool = Field(default=False, description="Enable streaming response")
+    workspace: str | None = Field(
+        default=None,
+        description=(
+            "Which UI workspace the query was typed in: chat, search, "
+            "research, draft or analyze. Optional, so every existing caller "
+            "keeps working. Where it is given, it settles the intent rather "
+            "than leaving it to be inferred from keywords."
+        ),
+    )
 
 
 class AgentQueryResponse(BaseModel):
@@ -90,7 +99,7 @@ async def process_query(request: AgentQueryRequest):
         logger.info(f"Received agent query: {request.query[:100]}...")
 
         agent_service = get_agent_service()
-        result = await agent_service.process_query(request.query)
+        result = await agent_service.process_query(request.query, workspace=request.workspace)
 
         return AgentQueryResponse(
             response=result["response"],
@@ -142,7 +151,7 @@ async def process_query_stream(request: AgentQueryRequest):
 
         async def generate():
             try:
-                async for chunk in agent_service.process_query_stream(request.query):
+                async for chunk in agent_service.process_query_stream(request.query, workspace=request.workspace):
                     yield chunk
             except Exception as e:
                 logger.error(f"Error in streaming: {e}")

@@ -217,3 +217,58 @@ class TestReducerChoice:
         annotations = AgentState.__annotations__
         assert operator.add in getattr(annotations["evidence"], "__metadata__", ())
         assert getattr(annotations["tool_results"], "__metadata__", ())
+
+
+class TestWorkspaceSignal:
+    """
+    The UI knows which workspace a query was typed in. The classifier was
+    guessing it from keywords.
+
+    Honest scope note: the five workspaces already route by *endpoint* --
+    Corpus calls /search, Draft calls /documents/draft -- so today only "Ask"
+    reaches the agent and this mostly stops the classifier inferring intents
+    that cannot legitimately arrive. It becomes load-bearing the moment the UI
+    offers one input for everything.
+    """
+
+    def test_the_workspace_is_carried_on_the_state(self):
+        assert create_initial_state("q", workspace="draft")["workspace"] == "draft"
+
+    def test_it_defaults_to_unknown(self):
+        assert create_initial_state("q")["workspace"] is None
+
+    @pytest.mark.parametrize(
+        ("workspace", "intent"),
+        [
+            ("draft", "draft_document"),
+            ("analyze", "analyze_document"),
+            ("research", "live_research"),
+            ("search", "rag_search"),
+        ],
+    )
+    def test_a_specific_workspace_settles_the_intent(self, workspace, intent):
+        """A user in the Draft workspace is drafting. There is nothing to
+        infer, and inferring it is strictly worse than being told."""
+        from agents.intent_classifier import IntentClassifier
+
+        assert IntentClassifier().classify("tell me about bail", workspace) == intent
+
+    def test_the_ask_workspace_still_uses_keywords(self):
+        """Ask is where a user may reasonably ask anything, so there the
+        keywords still decide."""
+        from agents.intent_classifier import IntentClassifier
+
+        classifier = IntentClassifier()
+        assert classifier.classify("tell me about bail", "chat") == "rag_search"
+        assert classifier.classify("draft me a bail application", "chat") == (
+            "draft_document"
+        )
+
+    @pytest.mark.parametrize("workspace", [None, "", "nonsense", "  "])
+    def test_an_unknown_workspace_falls_through_rather_than_failing(self, workspace):
+        """Every existing caller sends nothing, and must keep working."""
+        from agents.intent_classifier import IntentClassifier
+
+        assert IntentClassifier().classify("tell me about bail", workspace) == (
+            "rag_search"
+        )

@@ -79,6 +79,12 @@ class AgentState(TypedDict):
     # and why nothing existing reads them. `create_initial_state` seeds the
     # accumulating ones so a reducer never meets a missing key.
 
+    workspace: str | None
+    """Which UI workspace the query came from, when the caller knows.
+
+    Passed rather than inferred: a user in the Draft workspace is drafting, and
+    guessing that from keywords is strictly worse than being told."""
+
     complexity: str
     """What triage decided: simple, complex or contested. Simple keeps the
     existing single-pass path, and that is what stops fan-out becoming the
@@ -101,7 +107,9 @@ class AgentState(TypedDict):
     to have seen the other."""
 
 
-def create_initial_state(user_query: str) -> AgentState:
+def create_initial_state(
+    user_query: str, workspace: str | None = None
+) -> AgentState:
     """
     Create initial agent state from user query.
 
@@ -119,6 +127,7 @@ def create_initial_state(user_query: str) -> AgentState:
         final_response="",
         error=None,
         metadata={},
+        workspace=workspace,
         # Seeded even on the router path, so a reducer never meets a missing
         # key and so nothing downstream has to guard every read.
         complexity=Complexity.SIMPLE.value,

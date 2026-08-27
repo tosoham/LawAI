@@ -87,7 +87,7 @@ export const ChatInterface: React.FC = () => {
     setIsThinking(true);
 
     try {
-      const result: AgentQueryResponse = await api.agent.query({ query: question });
+      const result: AgentQueryResponse = await api.agent.query({ query: question, workspace: 'chat' });
       setMessages((previous) => [
         ...previous,
         {

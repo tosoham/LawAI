@@ -49,12 +49,15 @@ class AgentService:
 
         logger.info("AgentService initialized successfully")
 
-    async def process_query(self, query: str) -> dict[str, Any]:
+    async def process_query(
+        self, query: str, workspace: str | None = None
+    ) -> dict[str, Any]:
         """
         Process a user query through the agent.
 
         Args:
             query: User query string
+            workspace: Which UI workspace the query came from, when known
 
         Returns:
             Agent response with:
@@ -67,7 +70,7 @@ class AgentService:
             logger.info(f"Processing query: {query[:100]}...")
 
             # Agent.process is now async
-            result = await self.agent.process(query)
+            result = await self.agent.process(query, workspace=workspace)
 
             logger.info(f"Query processed successfully. Intent: {result.get('intent')}")
 
@@ -82,12 +85,15 @@ class AgentService:
                 "error": str(e)
             }
 
-    async def process_query_stream(self, query: str) -> AsyncGenerator[str, None]:
+    async def process_query_stream(
+        self, query: str, workspace: str | None = None
+    ) -> AsyncGenerator[str, None]:
         """
         Process a user query with streaming response.
 
         Args:
             query: User query string
+            workspace: Which UI workspace the query came from, when known
 
         Yields:
             Response chunks in SSE format
@@ -98,7 +104,7 @@ class AgentService:
             logger.info(f"Processing query with streaming: {query[:100]}...")
 
             # Process query asynchronously
-            result = await self.agent.process(query)
+            result = await self.agent.process(query, workspace=workspace)
 
             response = result.get("response", "")
 

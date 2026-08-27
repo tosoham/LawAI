@@ -172,7 +172,9 @@ class LegalAgent:
         """
         try:
             query = state["user_query"]
-            intent = self.intent_classifier.classify(query)
+            intent = self.intent_classifier.classify(
+                query, workspace=state.get("workspace")
+            )
 
             logger.info(f"Classified intent: {intent} for query: {query[:50]}...")
 
@@ -738,12 +740,15 @@ class LegalAgent:
 
         return corpus, live
 
-    async def process(self, query: str) -> dict[str, Any]:
+    async def process(
+        self, query: str, workspace: str | None = None
+    ) -> dict[str, Any]:
         """
         Process a user query through the agent.
 
         Args:
             query: User query
+            workspace: Which UI workspace it came from, when known
 
         Returns:
             Agent response with the answer, the classified intent, the sources
@@ -752,7 +757,7 @@ class LegalAgent:
         from agents.state import create_initial_state
 
         # Create initial state
-        initial_state = create_initial_state(query)
+        initial_state = create_initial_state(query, workspace=workspace)
 
         # Run graph asynchronously
         final_state = await self.graph.ainvoke(initial_state)

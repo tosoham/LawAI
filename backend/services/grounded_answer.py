@@ -29,9 +29,7 @@ question and try.
 """
 from __future__ import annotations
 
-import json
 import logging
-import re
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -49,6 +47,7 @@ from .legal_graph import (
     section_key,
 )
 from .llm_service import llm_service
+from .model_json import load_json_payload
 from .rag_service import RAGService, with_disclaimer
 from .retrieval.offence_lookup import find_offences
 from .retrieval.structured_filter import parse_citation
@@ -56,8 +55,6 @@ from .vector_service import EXACT_MATCH_DISTANCE, get_vector_service
 
 logger = logging.getLogger(__name__)
 
-# Models wrap JSON in a fence more often than not, whatever the prompt says.
-_FENCE = re.compile(r"^\s*```(?:json)?\s*(.*?)\s*```\s*$", re.DOTALL)
 # Enough headroom for a structured answer; the default cap truncates one
 # mid-object and loses the whole thing to a parse error.
 SYNTHESIS_MAX_TOKENS = 2048
@@ -104,28 +101,6 @@ class GroundedAnswer:
         return self.structured.abstained
 
 
-def _strip_fence(text: str) -> str:
-    match = _FENCE.match(text or "")
-    return match.group(1) if match else (text or "").strip()
-
-
-def _extract_json(body: str) -> str | None:
-    """
-    Pull the JSON value out of a response that wrapped it in something.
-
-    Worth doing rather than failing: a model that prefaces its object with a
-    sentence has still produced a perfectly good answer, and treating that as a
-    malformed generation turned answerable questions into abstentions
-    intermittently -- four runs in five on one of them, for a reason that had
-    nothing to do with the law.
-    """
-    for opener, closer in (("{", "}"), ("[", "]")):
-        start, end = body.find(opener), body.rfind(closer)
-        if start != -1 and end > start:
-            return body[start : end + 1]
-    return None
-
-
 def parse_synthesis(raw: str) -> StructuredAnswer:
     """
     Parse the model's structured output.
@@ -148,19 +123,8 @@ def parse_synthesis(raw: str) -> StructuredAnswer:
     have passed. It is the same rule the verifier follows: failures are
     removed, not hedged, and not allowed to take their neighbours with them.
     """
-    body = _strip_fence(raw)
-    payload = None
-    for candidate in (body, _extract_json(body)):
-        if not candidate:
-            continue
-        try:
-            payload = json.loads(candidate)
-            break
-        except json.JSONDecodeError:
-            continue
-
+    payload = load_json_payload(raw)
     if payload is None:
-        logger.warning(f"synthesis did not return JSON: {body[:300]!r}")
         return StructuredAnswer()
 
     if isinstance(payload, list):

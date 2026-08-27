@@ -83,6 +83,24 @@ class IntentClassifier:
     # "current case law on BNS 111" is answered from the snapshot.
     TRIGGER_WEIGHT: ClassVar[dict] = {IntentType.LIVE_RESEARCH: 2}
 
+    #: Which workspace of the UI a query came from, and what that settles.
+    #:
+    #: The five workspaces already route by *endpoint* -- Corpus calls
+    #: /search, Live research calls /research, Draft calls /documents/draft --
+    #: so in practice only "Ask" (`chat`) reaches the agent today, and this
+    #: mapping mostly exists to stop the classifier guessing at intents that
+    #: cannot legitimately arrive. It becomes load-bearing the moment the UI
+    #: offers one input box for everything, which is the direction it is going.
+    #:
+    #: `chat` is deliberately absent: the Ask workspace is where a user may
+    #: reasonably ask anything, so there the keywords still decide.
+    WORKSPACE_INTENT: ClassVar[dict] = {
+        "search": IntentType.RAG_SEARCH,
+        "research": IntentType.LIVE_RESEARCH,
+        "draft": IntentType.DRAFT_DOCUMENT,
+        "analyze": IntentType.ANALYZE_DOCUMENT,
+    }
+
     # Order used to resolve equal keyword scores; most specific intent first.
     _TIE_BREAK_ORDER = (
         IntentType.CHAT,
@@ -102,16 +120,27 @@ class IntentClassifier:
         """
         self.llm_service = llm_service
 
-    def classify(self, query: str) -> str:
+    def classify(self, query: str, workspace: str | None = None) -> str:
         """
         Classify user query into an intent.
 
         Args:
             query: User query string
+            workspace: Which UI workspace the query was typed in, when the
+                caller knows. A user in the Draft workspace is drafting; there
+                is nothing to infer, and inferring it from keywords is strictly
+                worse than being told. Unknown or absent values fall through to
+                the keyword path rather than erroring, so every existing caller
+                keeps working unchanged.
 
         Returns:
             Intent type as string
         """
+        settled = self.WORKSPACE_INTENT.get((workspace or "").strip().lower())
+        if settled is not None:
+            logger.info(f"Intent from workspace {workspace!r}: {settled.value}")
+            return settled.value
+
         query_lower = query.lower()
 
         # Score each intent based on keyword matches
