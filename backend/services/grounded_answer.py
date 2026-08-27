@@ -434,12 +434,22 @@ class GroundedAnswerService:
         collection: str | list[str] = "bns_sections",
         top_k: int = 5,
         audience: Audience = Audience.CITIZEN,
+        retrieved: dict[str, Any] | None = None,
     ) -> GroundedAnswer:
         """
         Answer one question, or say honestly that it cannot be answered.
 
         ``audience`` selects the register the answer is written in. It changes
         the explanation and nothing else -- see ``services.audience``.
+
+        ``retrieved`` lets a caller supply material this method would otherwise
+        fetch itself, which is how the multi-agent path feeds in what its
+        specialists gathered in parallel. Passing it skips **retrieval only**:
+        the citation pre-check still runs, and so do graph expansion, the
+        synthesis prompt, verification, the single regeneration attempt, the
+        abstention rule and the metrics. A fanned-out answer is therefore
+        checked by exactly the same machinery as a single-pass one, which is
+        the property that makes adding agents safe.
         """
         collections = [collection] if isinstance(collection, str) else list(collection)
         trace: dict[str, Any] = {
@@ -454,9 +464,21 @@ class GroundedAnswerService:
             trace["steps"].append({"step": "citation_precheck", "outcome": "refused"})
             return self._abstain(query, refusal, trace)
 
-        search_results = self._retrieve(query, collections, top_k)
+        if retrieved is None:
+            search_results = self._retrieve(query, collections, top_k)
+            source = "single pass"
+        else:
+            # Already gathered, by specialists running in parallel. Everything
+            # downstream is unchanged: the same graph expansion, the same
+            # prompt, the same verifier, the same abstention rule. That is the
+            # whole point of specialists returning *evidence* rather than
+            # answers -- the fan-out changes what reaches this prompt and
+            # nothing about what is checked after it.
+            search_results = retrieved
+            source = "gathered by specialists"
         trace["steps"].append({
             "step": "retrieve",
+            "source": source,
             "ids": list(search_results.get("ids", [])),
             "distances": [round(d, 4) for d in search_results.get("distances", [])],
         })

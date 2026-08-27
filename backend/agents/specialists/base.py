@@ -140,3 +140,60 @@ def run_specialist(
                 )
             ]
         )
+
+
+def merge_evidence(evidence: list[Evidence]) -> dict[str, list]:
+    """
+    Fold what several specialists found into the shape retrieval returns.
+
+    Deduplicated by chunk id, because two specialists asked adjacent questions
+    and will overlap -- a statute specialist chasing BNSS 482 and a case-law
+    one chasing anticipatory bail both surface the same section. Left in, the
+    duplicate would occupy two of the prompt's slots and read to the model as
+    corroboration, which is exactly the wrong inference: it is one chunk found
+    twice, not two sources agreeing.
+
+    Ordered by distance, best first. Fan-out completion order is arbitrary, so
+    without an explicit sort the prompt's ordering would depend on which
+    specialist happened to finish first -- and the model reads the top of the
+    context most carefully.
+
+    Only ``sections`` and ``judgements`` evidence is merged here. Classification
+    and doctrine reach the prompt through the graph-expansion block instead,
+    where they are rendered under their own headings; flattening them into the
+    retrieved chunks is exactly how a First Schedule row becomes something the
+    model quotes as if it were statutory text.
+    """
+    merged: dict[str, list] = {
+        "ids": [],
+        "documents": [],
+        "metadatas": [],
+        "distances": [],
+    }
+    seen: set[str] = set()
+    rows: list[tuple[float, str, str, dict]] = []
+
+    for item in evidence:
+        if item.kind not in ("sections", "judgements"):
+            continue
+        documents = item.payload.get("documents") or []
+        metadatas = item.payload.get("metadatas") or []
+        distances = item.payload.get("distances") or []
+        for index, document in enumerate(documents):
+            metadata = metadatas[index] if index < len(metadatas) else {}
+            distance = distances[index] if index < len(distances) else 1.0
+            key = (
+                f"{metadata.get('parent_id') or metadata.get('id') or ''}"
+                f"#{metadata.get('chunk_index', index)}"
+            )
+            if key in seen:
+                continue
+            seen.add(key)
+            rows.append((distance, key, document, metadata))
+
+    for distance, key, document, metadata in sorted(rows, key=lambda r: r[0]):
+        merged["ids"].append(key)
+        merged["documents"].append(document)
+        merged["metadatas"].append(metadata)
+        merged["distances"].append(distance)
+    return merged

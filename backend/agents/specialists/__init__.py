@@ -15,6 +15,7 @@ from agents.specialists.base import (
     MAX_RETRIEVALS,
     RetrievalBudget,
     SpecialistResult,
+    merge_evidence,
     run_specialist,
 )
 
@@ -22,5 +23,6 @@ __all__ = [
     "MAX_RETRIEVALS",
     "RetrievalBudget",
     "SpecialistResult",
+    "merge_evidence",
     "run_specialist",
 ]

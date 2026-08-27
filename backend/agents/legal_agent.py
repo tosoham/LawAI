@@ -9,10 +9,17 @@ import logging
 from typing import Any
 
 from langgraph.graph import END, StateGraph
+from langgraph.types import Send
 
 from agents.citations import format_citation, source_payload
+from agents.contested import develop_positions
+from agents.contracts import Complexity
 from agents.intent_classifier import IntentClassifier
+from agents.planner import plan_query
+from agents.specialists import RetrievalBudget, merge_evidence, run_specialist
 from agents.state import AgentState, IntentType, set_error, update_state
+from agents.triage import triage
+from services.audience import Audience
 from services.grounded_answer import GroundedAnswer, get_grounded_answer_service
 from services.legal_graph import ACT_LONG_NAMES, get_legal_graph
 from services.vector_service import VectorService
@@ -123,6 +130,10 @@ class LegalAgent:
 
         # Add nodes
         graph.add_node("classify_intent", self._classify_intent_node)
+        graph.add_node("triage", self._triage_node)
+        graph.add_node("plan", self._plan_node)
+        graph.add_node("run_specialist", self._specialist_node)
+        graph.add_node("gather", self._gather_node)
         graph.add_node("execute_rag_search", self._execute_rag_search_node)
         graph.add_node("execute_chat", self._execute_chat_node)
         graph.add_node("execute_draft", self._execute_draft_node)
@@ -133,11 +144,26 @@ class LegalAgent:
         # Set entry point
         graph.set_entry_point("classify_intent")
 
-        # Add conditional edges from classify_intent
+        # Triage sits between classification and routing: it can only escalate
+        # a question *about the law*, so it needs the intent first, and routing
+        # needs its verdict.
+        graph.add_edge("classify_intent", "triage")
+
+        # The multi-agent path. `plan` fans out with Send() to as many copies
+        # of `run_specialist` as the plan names; `gather` runs once they have
+        # all reported, which LangGraph arranges by making it their only edge.
         graph.add_conditional_edges(
-            "classify_intent",
+            "plan", self._dispatch_specialists, ["run_specialist", "gather"]
+        )
+        graph.add_edge("run_specialist", "gather")
+        graph.add_edge("gather", "format_response")
+
+        # Add conditional edges from triage
+        graph.add_conditional_edges(
+            "triage",
             self._route_by_intent,
             {
+                "plan": "plan",
                 IntentType.RAG_SEARCH.value: "execute_rag_search",
                 IntentType.CHAT.value: "execute_chat",
                 IntentType.DRAFT_DOCUMENT.value: "execute_draft",
@@ -190,19 +216,210 @@ class LegalAgent:
             logger.error(f"Intent classification error: {e}", exc_info=True)
             return set_error(state, f"Intent classification failed: {e!s}")
 
+    async def _triage_node(self, state: AgentState) -> AgentState:
+        """
+        Node: decide how much machinery this question deserves.
+
+        Cheap and model-free, so it runs on every query without changing what
+        an ordinary one costs. Measured over the fixture, 69 of 69 answerable
+        golden queries and all 6 adversarial ones come out ``simple``.
+        """
+        complexity, reason = triage(state["user_query"])
+        logger.info(f"Triage: {complexity.value} ({reason})")
+        return update_state(
+            state,
+            complexity=complexity.value,
+            metadata={
+                **state.get("metadata", {}),
+                "triage": {"complexity": complexity.value, "reason": reason},
+            },
+        )
+
     def _route_by_intent(self, state: AgentState) -> str:
         """
-        Route to appropriate tool based on intent.
+        Route to a tool, or to the multi-agent path.
 
-        Args:
-            state: Current agent state
-
-        Returns:
-            Next node name
+        Only a question *about the law* is ever escalated. A draft, an
+        analysis, a greeting or a live-research request goes to its own node
+        whatever triage thought: those are not research questions, and fanning
+        one out would buy nothing but latency.
         """
         intent = state.get("intent", IntentType.UNKNOWN.value)
+        complexity = state.get("complexity", Complexity.SIMPLE.value)
+
+        researchable = intent in (IntentType.RAG_SEARCH.value, IntentType.UNKNOWN.value)
+        if researchable and complexity != Complexity.SIMPLE.value:
+            logger.info(f"Routing to the multi-agent path ({complexity})")
+            return "plan"
+
         logger.info(f"Routing to intent: {intent}")
         return intent
+
+    async def _plan_node(self, state: AgentState) -> AgentState:
+        """Node: choose which specialists to run."""
+        complexity = Complexity(state.get("complexity", Complexity.SIMPLE.value))
+        plan = await asyncio.to_thread(
+            plan_query, state["user_query"], complexity
+        )
+        return update_state(
+            state,
+            plan=plan,
+            metadata={
+                **state.get("metadata", {}),
+                "plan": [
+                    {"specialist": s.specialist.value, "reason": s.reason}
+                    for s in plan.steps
+                ],
+            },
+        )
+
+    def _dispatch_specialists(self, state: AgentState) -> list:
+        """
+        Fan out to one ``run_specialist`` per plan step.
+
+        ``Send`` carries the step on the message rather than on the state,
+        because every copy runs against the same state and would otherwise have
+        no way to know which step is its own. Returning the gather node
+        directly for an empty plan keeps the graph from stalling on a fan-out
+        of nothing.
+        """
+        plan = state.get("plan")
+        if plan is None or not plan.steps:
+            return ["gather"]
+        return [
+            Send("run_specialist", {**state, "_step": step}) for step in plan.steps
+        ]
+
+    async def _specialist_node(self, state: AgentState) -> dict[str, Any]:
+        """
+        Node: run one specialist.
+
+        Returns a **partial** update rather than the whole state. Several of
+        these run in the same superstep and their `evidence` lists are merged
+        by the reducer; returning the full state would re-append whatever was
+        already there.
+        """
+        step = state["_step"]
+        result = await asyncio.to_thread(
+            run_specialist, step, state["user_query"], RetrievalBudget()
+        )
+        return {
+            "evidence": result.evidence,
+            "errors": result.errors,
+            "tool_results": {
+                step.specialist.value: {
+                    "retrievals": result.retrievals,
+                    "model_calls": result.model_calls,
+                    "evidence": len(result.evidence),
+                }
+            },
+        }
+
+    async def _gather_node(self, state: AgentState) -> AgentState:
+        """
+        Node: turn what the specialists found into a verified answer.
+
+        The evidence is folded back into the shape ``GroundedAnswerService``
+        already consumes and handed to it. Everything after this point --
+        graph expansion, the synthesis prompt, per-claim verification, the one
+        regeneration attempt, abstention, metrics -- is the single-pass code
+        path, unchanged and unbypassed. Specialists changed what reaches the
+        prompt; they changed nothing about what is checked afterwards.
+        """
+        retrieved = merge_evidence(state.get("evidence") or [])
+        if not retrieved.get("documents"):
+            # Nothing found. Falling through to the ordinary path rather than
+            # abstaining here: a fan-out that came back empty says the plan was
+            # wrong, not that the corpus cannot answer the question.
+            logger.info("specialists found nothing; falling back to a single pass")
+            return await self._execute_rag_search_node(state)
+
+        positions: list[Any] = []
+        if state.get("complexity") == Complexity.CONTESTED.value:
+            # The debate runs on what the specialists gathered rather than
+            # retrieving for itself: both advocates must argue from the same
+            # material, or the disagreement between them is partly a
+            # disagreement about what they were shown.
+            positions, contest_errors = await asyncio.to_thread(
+                develop_positions,
+                state["user_query"],
+                self._contested_sides(state),
+                self.rag_context(retrieved),
+            )
+            state = update_state(state, errors=contest_errors)
+
+        grounded = await asyncio.to_thread(
+            get_grounded_answer_service().answer,
+            state["user_query"],
+            CORPUS_COLLECTIONS,
+            5,
+            Audience.CITIZEN,
+            retrieved,
+        )
+        payload = _grounded_payload(grounded)
+        if positions:
+            # Reported alongside the verified answer, never merged into it. The
+            # advocates' prose is unverified argument; the claims beside it went
+            # through the verifier. Flattening the two would make an argument
+            # indistinguishable from a checked statement of law, which is the
+            # single distinction this system exists to preserve.
+            payload["positions"] = [
+                {
+                    "label": p.label,
+                    "summary": p.summary,
+                    "authority": p.authority,
+                    "rebuttal": p.rebuttal,
+                    "supported": p.supported,
+                }
+                for p in positions
+            ]
+
+        return update_state(
+            state,
+            positions=positions,
+            tool_results={"rag_search": payload},
+            metadata={
+                **state.get("metadata", {}),
+                "specialist_errors": [e.model_dump() for e in state.get("errors") or []],
+            },
+        )
+
+    def _contested_sides(self, state: AgentState) -> tuple[str, str]:
+        """
+        The two readings to develop, taken from curated data where it exists.
+
+        `data/curated/doctrines.json` records where authority splits and names
+        both sides without declaring a winner -- exactly the input this needs,
+        and exactly what a model should not be asked to invent. Where the
+        question is contested for another reason (a constitutional challenge
+        with no curated doctrine behind it), the sides fall back to the generic
+        pair, because a question can be genuinely open without this repository
+        having catalogued it.
+        """
+        graph = get_legal_graph()
+        for doctrine in graph.doctrines.values():
+            if not doctrine.contested:
+                continue
+            if any(key in state["user_query"] for key in doctrine.applies_to):
+                note = doctrine.contest_note or doctrine.summary
+                return (f"{doctrine.name}: {note}", f"The contrary reading of {doctrine.name}")
+        return (
+            "the provision should be read narrowly",
+            "the provision should be read broadly",
+        )
+
+    @staticmethod
+    def rag_context(retrieved: dict[str, Any]) -> str:
+        """The gathered material as text, for an advocate to argue from."""
+        lines: list[str] = []
+        for index, document in enumerate(retrieved.get("documents", [])[:12]):
+            metadata = retrieved.get("metadatas", [])[index] if index < len(
+                retrieved.get("metadatas", [])
+            ) else {}
+            label = metadata.get("short_name") or metadata.get("case_name") or "?"
+            number = metadata.get("section_number") or metadata.get("parent_id") or ""
+            lines.append(f"[{label} {number}] {document[:800]}")
+        return "\n\n".join(lines)
 
     async def _execute_rag_search_node(self, state: AgentState) -> AgentState:
         """
