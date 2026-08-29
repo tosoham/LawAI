@@ -154,6 +154,17 @@ Four findings from running it that are easy to reintroduce:
 
 **The trace panel** (`components/legal/TracePanel.tsx`) is collapsed by default and always one click away: metrics, and every claim the verifier rejected with its reason. "Nothing was removed" is stated rather than left as an absence — otherwise the section's presence reads as a bad sign and its absence as a clean bill of health.
 
+## Accounts and saved conversations
+
+Until this existed a conversation lived in React state: a refresh lost it, and there were no accounts, so there was nothing to lose it *from*. Fine for a demo, wrong for a legal tool, where the thing a person most wants to return to is the answer about their own matter.
+
+- **Google only, and no password anywhere.** `services/auth.py` verifies the ID token with `verify_oauth2_token` — signature, issuer, audience, expiry — rather than decoding it. A JWT payload is base64, not encryption, so reading claims out of an unverified token is trusting whatever the caller wrote. Users are keyed on Google's `sub`, not email: an address can be reassigned inside a Workspace domain, and the new holder would inherit the previous person's conversations.
+- **The session is a signed cookie carrying a row id**, not a JWT. A JWT saves a database read and cannot be revoked before expiry; a signed id costs one indexed lookup and means deleting the row ends the session. `httponly` (XSS cannot exfiltrate it), `samesite=lax` (CSRF cover), `secure` unless `AUTH_INSECURE_COOKIES=true`, which exists for `http://localhost` and is named to be uncomfortable elsewhere.
+- **Every thread query filters by the signed-in user, in the query.** A thread id is a small integer; an endpoint fetching by id alone would serve one person's legal questions to anyone counting upwards. Someone else's thread is **404, not 403** — 403 confirms the id is real, which is what an enumeration attack wants. Five tests try to get round it.
+- **The structured half of an answer is stored with the message** — claims, verdicts, sources, agent trail, as JSON. Without it a reloaded conversation shows prose and loses the claim types, citations and the record of what was removed, which is the part that makes an answer defensible. Kept whole rather than normalised because it is rendered, never queried.
+- **SQLite by default** (`DATABASE_URL`), on the same volume as the vector store, so a deployment is one service with one volume to back up. Writers serialise; this workload is reads plus a few small writes per conversation, so that limit is far away. When it is not, the URL changes and nothing else does.
+- **Optional throughout.** No `GOOGLE_CLIENT_ID` means no sign-in and every other feature works — only history needs identity.
+
 ## Production feedback
 
 `services/feedback.py` records answers worth revisiting, and `scripts/review_feedback.py` is where a person turns them into fixture rows. Off by default (`ENABLE_FEEDBACK_CAPTURE`) because it writes user-typed text to disk.

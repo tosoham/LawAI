@@ -110,12 +110,14 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
 
 # Import and include routers
 from api.v1.agent import router as agent_router
+from api.v1.auth import router as auth_router
 from api.v1.chat import router as chat_router
 from api.v1.documents import router as documents_router
 from api.v1.feedback import router as feedback_router
 from api.v1.offences import router as offences_router
 from api.v1.research import router as research_router
 from api.v1.search import router as search_router
+from api.v1.threads import router as threads_router
 
 app.include_router(chat_router, prefix="/api/v1")
 app.include_router(search_router, prefix="/api/v1")
@@ -124,6 +126,8 @@ app.include_router(agent_router, prefix="/api/v1")
 app.include_router(research_router, prefix="/api/v1")
 app.include_router(offences_router, prefix="/api/v1")
 app.include_router(feedback_router, prefix="/api/v1")
+app.include_router(auth_router, prefix="/api/v1")
+app.include_router(threads_router, prefix="/api/v1")
 
 # Initialize tools on startup
 from services.llm_service import llm_service
@@ -136,6 +140,16 @@ async def startup_event():
     """Initialize tools on application startup"""
     try:
         logger.info("Starting LawAI backend...")
+
+        # Conversation storage. Created here rather than by a migration step
+        # because the schema is three tables and a fresh deployment should come
+        # up without a second command. The moment a column has to change on a
+        # database with rows in it, this needs Alembic instead.
+        from models.db import init_db
+
+        init_db()
+        logger.info("Conversation store ready")
+
         logger.info("Initializing agent tools...")
         rag_service = RAGService()
         initialize_tools(llm_service, rag_service)

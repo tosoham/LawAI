@@ -27,6 +27,15 @@ const apiClient: AxiosInstance = axios.create({
   headers: {
     'Content-Type': 'application/json',
   },
+  /*
+   * The session is an httpOnly cookie, which the browser will not attach to a
+   * cross-origin request unless asked. The frontend is :3000 and the API is
+   * :8000, so every request here is cross-origin — without this, sign-in
+   * appears to work and every subsequent call arrives anonymous. The backend
+   * sets allow_credentials with an explicit origin list, which is what makes
+   * this legal.
+   */
+  withCredentials: true,
 });
 
 // Request interceptor for logging
@@ -101,6 +110,36 @@ export interface AgentTrail {
   retrievals: number;
   errors: { specialist: string | null; stage: string; message: string }[];
   positions: ContestedPosition[];
+}
+
+export interface Identity {
+  signed_in: boolean;
+  email: string;
+  name: string;
+  picture: string;
+}
+
+export interface AuthConfig {
+  enabled: boolean;
+  client_id: string;
+}
+
+export interface ThreadSummary {
+  id: number;
+  title: string;
+  updated_at: string;
+}
+
+export interface StoredMessage {
+  id: number;
+  role: 'user' | 'assistant';
+  content: string;
+  payload?: Record<string, unknown> | null;
+  created_at: string;
+}
+
+export interface ThreadDetail extends ThreadSummary {
+  messages: StoredMessage[];
 }
 
 export interface FeedbackRequest {
@@ -479,6 +518,31 @@ export interface ResearchHealth {
 }
 
 // API Client
+export const auth = {
+  config: async (): Promise<AuthConfig> => (await apiClient.get('/auth/config')).data,
+  me: async (): Promise<Identity> => (await apiClient.get('/auth/me')).data,
+  signIn: async (credential: string): Promise<Identity> =>
+    (await apiClient.post('/auth/google', { credential })).data,
+  signOut: async (): Promise<void> => {
+    await apiClient.post('/auth/logout');
+  },
+};
+
+export const threads = {
+  list: async (): Promise<ThreadSummary[]> => (await apiClient.get('/threads')).data,
+  create: async (): Promise<ThreadDetail> => (await apiClient.post('/threads')).data,
+  get: async (id: number): Promise<ThreadDetail> =>
+    (await apiClient.get(`/threads/${id}`)).data,
+  append: async (
+    id: number,
+    message: { role: 'user' | 'assistant'; content: string; payload?: unknown }
+  ): Promise<StoredMessage> =>
+    (await apiClient.post(`/threads/${id}/messages`, message)).data,
+  remove: async (id: number): Promise<void> => {
+    await apiClient.delete(`/threads/${id}`);
+  },
+};
+
 export const api = {
   /**
    * Agent endpoints

@@ -38,6 +38,14 @@ services:
       # restart -- a queue that empties on deploy is not a queue.
       ENABLE_FEEDBACK_CAPTURE: ${ENABLE_FEEDBACK_CAPTURE:-false}
       FEEDBACK_LOG_PATH: /data/feedback/events.jsonl
+      # Accounts and saved conversations. Empty GOOGLE_CLIENT_ID runs the whole
+      # app without sign-in; only history needs identity. The database is on the
+      # same volume as the index, so a conversation survives a restart -- and
+      # so that a deployment is one service with one volume to back up.
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+      SESSION_SECRET: ${SESSION_SECRET:-}
+      AUTH_INSECURE_COOKIES: ${AUTH_INSECURE_COOKIES:-false}
+      DATABASE_URL: ${DATABASE_URL:-sqlite:////data/lawai.db}
       RELOAD: "False"
     ports:
       - "${BACKEND_PORT:-8000}:8000"

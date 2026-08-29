@@ -11,14 +11,16 @@
 
 import React, { useEffect, useRef, useState } from 'react';
 import ReactMarkdown from 'react-markdown';
-import api, {
+import useAuth from '@/hooks/useAuth';
+import api, { threads as threadsApi } from '@/lib/api';
+import type {
   AgentQueryResponse,
   AgentSource,
   AgentTrail,
   AnswerVerification,
   LiveJudgment,
-  stripAppendedBlocks,
 } from '@/lib/api';
+import { stripAppendedBlocks } from '@/lib/api';
 import {
   ChatIcon,
   CheckIcon,
@@ -70,6 +72,59 @@ export const ChatInterface: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [reportingId, setReportingId] = useState<string | null>(null);
+  const { identity, config: authConfig, signIn, signOut } = useAuth();
+  const [threadId, setThreadId] = useState<number | null>(null);
+
+  /*
+   * Load the most recent conversation when someone signs in, and clear it when
+   * they sign out. Signing out must not leave the previous account's questions
+   * on screen — on a shared machine that is the whole point of signing out.
+   */
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      if (!identity.signed_in) {
+        setMessages([]);
+        setThreadId(null);
+        return;
+      }
+      try {
+        const list = await threadsApi.list();
+        const thread = list.length ? await threadsApi.get(list[0].id) : await threadsApi.create();
+        if (cancelled) return;
+        setThreadId(thread.id);
+        setMessages(
+          (thread.messages ?? []).map((m) => ({
+            id: `s_${m.id}`,
+            role: m.role,
+            content: m.content,
+            ...((m.payload ?? {}) as Partial<Message>),
+          }))
+        );
+      } catch {
+        // History is an enhancement. Failing to load it must not stop someone
+        // asking a question.
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [identity.signed_in]);
+
+  /** Persist one turn, when there is somewhere to persist it to. */
+  const remember = async (
+    role: 'user' | 'assistant',
+    content: string,
+    payload?: unknown
+  ) => {
+    if (!threadId) return;
+    try {
+      await threadsApi.append(threadId, { role, content, payload });
+    } catch {
+      // The answer is already on screen. Losing the copy is worse than the
+      // question failing, but not worth failing the question over.
+    }
+  };
 
   const endRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -91,6 +146,7 @@ export const ChatInterface: React.FC = () => {
     setIsThinking(true);
 
     try {
+      await remember('user', question);
       const result: AgentQueryResponse = await api.agent.query({ query: question, workspace: 'chat' });
       setMessages((previous) => [
         ...previous,
@@ -107,6 +163,13 @@ export const ChatInterface: React.FC = () => {
           trail: result.agent_trail,
         },
       ]);
+      await remember('assistant', stripAppendedBlocks(result.response), {
+        intent: result.intent,
+        sources: result.sources,
+        liveSources: result.live_sources,
+        verification: result.verification,
+        trail: result.agent_trail,
+      });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'The request failed');
     } finally {
@@ -165,6 +228,42 @@ export const ChatInterface: React.FC = () => {
 
   return (
     <div className="flex h-full flex-col">
+      {/*
+        Sign-in sits above the conversation rather than in a settings page:
+        the reason to sign in is that the conversation is kept, so the offer
+        belongs where the conversation is. Hidden entirely when the deployment
+        has no Google client configured — every other feature works without an
+        account.
+      */}
+      {authConfig.enabled && (
+        <div className="flex items-center justify-end gap-2 border-b border-line px-4 py-2 md:px-6">
+          {identity.signed_in ? (
+            <>
+              <span className="text-xs text-muted" data-testid="signed-in-as">
+                {identity.email}
+              </span>
+              <button type="button" onClick={signOut} className="btn-ghost btn-sm">
+                Sign out
+              </button>
+            </>
+          ) : (
+            <>
+              <span className="text-xs text-muted">
+                Sign in to keep your conversations
+              </span>
+              <button
+                type="button"
+                onClick={signIn}
+                className="btn-ghost btn-sm"
+                data-testid="sign-in"
+              >
+                Sign in with Google
+              </button>
+            </>
+          )}
+        </div>
+      )}
+
       <div className="min-h-0 flex-1 overflow-y-auto px-4 py-5 md:px-6">
         <div className="mx-auto max-w-3xl space-y-5">
           {messages.length === 0 && !isThinking && (
