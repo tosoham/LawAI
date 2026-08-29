@@ -86,10 +86,44 @@ COPY backend /app/backend
 
 WORKDIR /app/backend
 
+# Optionally bake the vector index into the image.
+#
+#   docker build --build-arg BAKE_INDEX=true ...
+#
+# Off by default, and the default is the interesting decision. Baking makes a
+# first start instant instead of ~12 minutes, which matters for a deployment
+# and is why this exists. But the layer invalidates whenever `services/` or
+# `scripts/` changes, so every local rebuild during development would re-embed
+# 9,896 chunks -- paying twelve minutes at build time to save twelve minutes at
+# a start that happens once. CI builds pass the flag; `docker compose up
+# --build` does not, and keeps the volume-seeding path it always had.
+#
+# The seed is written to /opt/chroma_seed rather than to CHROMADB_PATH: the
+# latter is a mounted volume at run time, so anything written there during the
+# build is masked the moment the volume appears. The entrypoint copies it
+# across on a first start.
+#
+# The original argument against baking was that an index is derived data and
+# baking it would re-run the whole embedding pass on any layer change. That was
+# right when a seed took five minutes and `init_vector_db.py` rebuilt
+# everything. It now reconciles against a manifest and rebuilds only what moved,
+# so a baked index that is slightly stale is topped up rather than redone -- on
+# the run that produced this, 1,624 chunks were reused and only the changed
+# collection was rebuilt.
+ARG BAKE_INDEX=false
+RUN if [ "$BAKE_INDEX" = "true" ]; then \
+        echo "Baking the vector index into the image (~12 minutes)..." && \
+        CHROMADB_PATH=/opt/chroma_seed python scripts/init_vector_db.py && \
+        du -sh /opt/chroma_seed; \
+    else \
+        echo "BAKE_INDEX not set; the store will be seeded into the volume on first start."; \
+    fi
+
 RUN chmod +x docker-entrypoint.sh \
     && useradd --create-home --uid 10001 lawai \
     && mkdir -p /data \
-    && chown -R lawai:lawai /data /app
+    && chown -R lawai:lawai /data /app \
+    && if [ -d /opt/chroma_seed ]; then chown -R lawai:lawai /opt/chroma_seed; fi
 USER lawai
 
 EXPOSE 8000

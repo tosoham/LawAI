@@ -103,6 +103,17 @@ export interface AgentTrail {
   positions: ContestedPosition[];
 }
 
+export interface FeedbackRequest {
+  query: string;
+  /** What was wrong, in the reader's own words. */
+  note?: string;
+}
+
+export interface FeedbackResponse {
+  recorded: boolean;
+  message: string;
+}
+
 export interface AgentQueryRequest {
   query: string;
   stream?: boolean;
@@ -478,6 +489,18 @@ export const api = {
      */
     query: async (request: AgentQueryRequest): Promise<AgentQueryResponse> => {
       const response = await apiClient.post('/agent/query', request);
+      return response.data;
+    },
+
+    /**
+     * Report an answer as wrong.
+     *
+     * The one failure the system cannot notice on its own: a confident answer
+     * that is simply incorrect. Every claim in it passed verification, so
+     * nothing internal flags it — only the reader knows.
+     */
+    report: async (request: FeedbackRequest): Promise<FeedbackResponse> => {
+      const response = await apiClient.post('/feedback', request);
       return response.data;
     },
 

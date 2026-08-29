@@ -82,7 +82,7 @@ describe('Landing', () => {
        * page does not claim it.
        */
       const report = JSON.parse(
-        fs.readFileSync(path.join(EVAL, 'widened.json'), 'utf8')
+        fs.readFileSync(path.join(EVAL, 'metrics.json'), 'utf8')
       );
       render(<Landing />);
       expect(

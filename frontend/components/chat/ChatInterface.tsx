@@ -43,6 +43,7 @@ interface Message {
   liveSources?: LiveJudgment[];
   verification?: AnswerVerification | null;
   trail?: AgentTrail | null;
+  reported?: boolean;
 }
 
 /** How the classified intent is described to the user. */
@@ -68,6 +69,7 @@ export const ChatInterface: React.FC = () => {
   const [isThinking, setIsThinking] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [reportingId, setReportingId] = useState<string | null>(null);
 
   const endRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -119,6 +121,35 @@ export const ChatInterface: React.FC = () => {
     if (event.key === 'Enter' && !event.shiftKey) {
       event.preventDefault();
       ask(input);
+    }
+  };
+
+  /**
+   * Report an answer as wrong.
+   *
+   * Deliberately a note rather than a rating. "3 out of 5" says a reader was
+   * unhappy and nothing about why, and it cannot become a test; a sentence
+   * saying what was wrong can. The prompt is optional — a bare report still
+   * queues the query, which is enough to reproduce it.
+   */
+  const report = async (message: Message) => {
+    const question = messages.find(
+      (m, index) => m.role === 'user' && messages[index + 1]?.id === message.id
+    )?.content;
+    if (!question || message.reported) return;
+
+    const note = window.prompt('What was wrong with this answer?') ?? '';
+    setReportingId(message.id);
+    try {
+      await api.agent.report({ query: question, note });
+      setMessages((previous) =>
+        previous.map((m) => (m.id === message.id ? { ...m, reported: true } : m))
+      );
+    } catch {
+      // Reporting is a courtesy, not part of the answer. A failure here must
+      // not present as the answer having gone wrong.
+    } finally {
+      setReportingId(null);
     }
   };
 
@@ -197,6 +228,16 @@ export const ChatInterface: React.FC = () => {
                         <CopyIcon size={13} /> Copy
                       </>
                     )}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => report(message)}
+                    disabled={message.reported || reportingId === message.id}
+                    className="btn-ghost btn-sm"
+                    title="Report this answer as wrong"
+                    data-testid="report-answer"
+                  >
+                    {message.reported ? 'Reported' : 'Report'}
                   </button>
                 </header>
 

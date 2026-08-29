@@ -31,8 +31,25 @@
 # suite, which does not need the corpus).
 set -e
 
+STORE="${CHROMADB_PATH:-/data/chroma_db}"
+
+# A baked index, if this image was built with --build-arg BAKE_INDEX=true.
+#
+# Copied in rather than pointed at, because the store is written to at run time
+# (chromadb creates its tenant and sqlite files on first connect) and /opt is
+# part of the read-only image. Copied only when the volume is empty: a volume
+# with contents is either current, in which case init below is a no-op, or
+# stale, in which case init rebuilds what moved -- and clobbering it with the
+# baked copy would throw away that reconciliation.
+if [ -d /opt/chroma_seed ] && [ -z "$(ls -A "${STORE}" 2>/dev/null)" ]; then
+    echo "[entrypoint] Seeding ${STORE} from the index baked into this image."
+    mkdir -p "${STORE}"
+    cp -a /opt/chroma_seed/. "${STORE}/"
+    echo "[entrypoint] Done. init below will confirm it matches this corpus."
+fi
+
 if [ "${SKIP_DB_INIT}" = "true" ]; then
-    echo "[entrypoint] SKIP_DB_INIT=true - leaving ${CHROMADB_PATH:-/data/chroma_db} alone"
+    echo "[entrypoint] SKIP_DB_INIT=true - leaving ${STORE} alone"
 else
     echo "[entrypoint] Reconciling the vector store with this image's corpus."
     echo "[entrypoint] A first build embeds ~3,200 chunks and takes a few minutes;"

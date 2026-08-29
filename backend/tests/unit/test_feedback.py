@@ -194,3 +194,66 @@ class TestCandidatesAreNotGoldenQueries:
             ]
         )
         assert len(json.loads(capsys.readouterr().out)["queries"]) == 1
+
+
+class TestTheEndpoint:
+    """
+    The one failure the system cannot notice on its own.
+
+    Abstained / claims-removed / nothing-retrieved all mean *the system spotted
+    something*. None of them catches a confident answer that is simply wrong --
+    every claim in it passed verification, so nothing internal flags it. Only
+    the reader knows, which is the whole reason this endpoint exists.
+    """
+
+    @pytest.fixture
+    def client(self):
+        from fastapi.testclient import TestClient
+
+        import main
+
+        return TestClient(main.app)
+
+    def test_a_report_is_recorded(self, client):
+        response = client.post(
+            "/api/v1/feedback",
+            json={"query": "is murder bailable", "note": "wrong trying court"},
+        )
+        assert response.status_code == 202
+        assert response.json()["recorded"] is True
+
+        events = feedback.read_events()
+        assert events[-1]["signals"] == ["user_reported"]
+        assert events[-1]["note"] == "wrong trying court"
+
+    def test_a_bare_report_still_queues_the_query(self, client):
+        """Enough to reproduce it, which is what a reviewer needs."""
+        response = client.post("/api/v1/feedback", json={"query": "is theft bailable"})
+        assert response.status_code == 202
+        assert feedback.read_events()[-1]["query"] == "is theft bailable"
+
+    def test_an_empty_query_is_refused(self, client):
+        assert client.post("/api/v1/feedback", json={"query": ""}).status_code == 422
+
+    def test_capture_disabled_is_told_plainly_not_failed(self, client, monkeypatch):
+        """
+        A deployment that has not turned capture on made a deliberate choice
+        about storing user text. A client should be told, not shown an error.
+        """
+        monkeypatch.delenv("ENABLE_FEEDBACK_CAPTURE", raising=False)
+        response = client.post("/api/v1/feedback", json={"query": "q"})
+
+        assert response.status_code == 202
+        assert response.json()["recorded"] is False
+
+    def test_the_summary_serves_no_queries_or_notes(self, client):
+        """
+        Serving them would turn a diagnostic store into a way to read other
+        people's questions. A reviewer reads those locally.
+        """
+        client.post("/api/v1/feedback", json={"query": "a private matter", "note": "x"})
+        body = client.get("/api/v1/feedback/summary").json()
+
+        assert body["enabled"] is True
+        assert "a private matter" not in str(body)
+        assert body["by_signal"]["user_reported"] >= 1
