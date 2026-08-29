@@ -73,19 +73,39 @@ async def log_requests(request: Request, call_next):
 # Add validation error handler
 @app.exception_handler(RequestValidationError)
 async def validation_exception_handler(request: Request, exc: RequestValidationError):
-    """Handle validation errors with detailed logging"""
-    logger.error(f"Validation error for {request.method} {request.url.path}")
-    logger.error(f"Validation errors: {exc.errors()}")
-    logger.error(f"Request body: {exc.body}")
+    """
+    Report *which* field was wrong, never what was in it.
+
+    This used to return `exc.errors()` and `str(exc.body)` verbatim, which put
+    the whole request back in the response and in the logs. On this API the
+    request body is a legal question or a set of case details -- a draft
+    request rejected for a missing field echoed "Jane Doe, PAN ABCDE1234F"
+    twice, once in `input` and once in `body`, into a response and a log line
+    that will outlive the request by however long logs are kept.
+
+    A caller needs the field and the reason to fix their call. They already
+    know what they sent.
+    """
+    fields = [
+        {
+            "field": ".".join(str(part) for part in error.get("loc", ())),
+            "problem": error.get("msg", ""),
+            "type": error.get("type", ""),
+        }
+        for error in exc.errors()
+    ]
+    logger.warning(
+        f"Validation error on {request.method} {request.url.path}: "
+        f"{[f['field'] for f in fields]}"
+    )
 
     return JSONResponse(
         status_code=422,
         content={
             "error": "Validation Error",
             "message": "Request validation failed",
-            "details": exc.errors(),
-            "body": str(exc.body)
-        }
+            "details": fields,
+        },
     )
 
 # Import and include routers
