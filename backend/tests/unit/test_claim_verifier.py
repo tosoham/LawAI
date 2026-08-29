@@ -576,11 +576,16 @@ class TestRegenerationFeedback:
         _, verdicts = verify(answer, VerificationContext(get_legal_graph()))
         assert "more cautiously" in regeneration_feedback(answer, verdicts)
 
-    def test_a_failed_quotation_invites_a_paraphrase_rather_than_a_deletion(self):
+    def test_a_failed_quotation_never_reaches_a_regeneration_attempt(self):
         """
-        Without this the model drops the point altogether, and "what is the
-        punishment for theft" comes back as an abstention because the
-        quotation was a few words out. A paraphrase is still checked.
+        This used to assert that the feedback *invited* a paraphrase, because
+        without that the model dropped the point and "what is the punishment
+        for theft" came back as an abstention over a few words.
+
+        It is now handled a stage earlier and better: `verify` drops the failed
+        quotation itself and keeps the statement, so there is nothing to
+        regenerate. That costs no model call and cannot be ignored by the
+        model, which an instruction always can be.
         """
         answer = StructuredAnswer(
             claims=[
@@ -592,8 +597,12 @@ class TestRegenerationFeedback:
                 )
             ]
         )
-        _, verdicts = verify(answer, VerificationContext(get_legal_graph()))
-        assert "paraphrase" in regeneration_feedback(answer, verdicts)
+        context = VerificationContext(graph=get_legal_graph())
+        verified, verdicts = verify(answer, context)
+
+        assert verdicts[0].verified
+        assert verdicts[0].quote_dropped == "may extend to eleven years"
+        assert regeneration_feedback(verified, verdicts) == ""
 
     def test_nothing_to_say_when_everything_verified(self):
         answer = StructuredAnswer(
@@ -669,3 +678,95 @@ class TestQuotationEdges:
             context,
         )
         assert not verified
+
+
+class TestMisquotedButTrue:
+    """
+    A claim deleted for its quotation marks, not for what it said.
+
+    The section exists, it is the one cited, and the statement is right -- only
+    `verbatim_span` does not appear in the text. Offered as a paraphrase the
+    same claim verifies unchanged, because a paraphrase is a legitimate thing
+    for a claim to be. Deleting it threw away a true statement of law to punish
+    a formatting error, which is the failure this project has now hit five
+    times: BNS 105 nesting, the BNS/BNSS act names, the attribution check, the
+    parse salvage, and this.
+    """
+
+    def _statute(self, **kwargs):
+        kwargs.setdefault("text", "Murder is punished with death.")
+        kwargs.setdefault("sources", ["BNS 103"])
+        return StructuredAnswer(
+            claims=[claim(epistemic_class=EpistemicClass.STATUTE, **kwargs)]
+        )
+
+    def test_a_bad_quotation_loses_the_quote_not_the_claim(self, context):
+        answer, verdicts = verify(
+            self._statute(verbatim_span="shall be sentenced to community service"),
+            context,
+        )
+
+        assert verdicts[0].verified
+        assert answer.claims[0].epistemic_class is EpistemicClass.STATUTE
+        assert answer.claims[0].verbatim_span == ""
+
+    def test_the_discarded_quotation_is_recorded(self):
+        """Silently un-quoting a sentence is its own small dishonesty."""
+        context = VerificationContext(graph=get_legal_graph())
+        _, verdicts = verify(
+            self._statute(verbatim_span="a quotation that is not in the section"),
+            context,
+        )
+
+        assert verdicts[0].quote_dropped == "a quotation that is not in the section"
+
+    def test_a_good_quotation_is_left_alone(self, context):
+        answer, verdicts = verify(
+            self._statute(verbatim_span="death or imprisonment for life"), context
+        )
+
+        assert verdicts[0].verified
+        assert not verdicts[0].quote_dropped
+        assert answer.claims[0].verbatim_span == "death or imprisonment for life"
+
+    def test_the_salvage_cannot_rescue_an_invented_section(self, context):
+        """
+        The check that keeps this from becoming a way round verification. A
+        claim failing for any reason *other* than its quotation still fails --
+        the span is dropped and the claim is re-checked, not waved through.
+        """
+        answer, verdicts = verify(
+            self._statute(sources=["BNS 999"], verbatim_span="anything"), context
+        )
+
+        assert not verdicts[0].verified
+        assert answer.claims[0].epistemic_class is EpistemicClass.UNSUPPORTED
+
+    def test_a_statute_claim_citing_nothing_still_fails(self, context):
+        answer, verdicts = verify(
+            self._statute(sources=[], verbatim_span="anything"), context
+        )
+
+        assert not verdicts[0].verified
+        assert answer.claims[0].epistemic_class is EpistemicClass.UNSUPPORTED
+
+    def test_the_sentinel_never_reaches_a_reader(self, context):
+        """QUOTE_FAILED is an internal signal, not a message."""
+        _, verdicts = verify(
+            self._statute(sources=[], verbatim_span="anything"), context
+        )
+        assert "__" not in verdicts[0].reason
+
+    def test_a_misquoted_judgement_keeps_its_holding(self, context):
+        answer, verdicts = verify(
+            StructuredAnswer(claims=[claim(
+                epistemic_class=EpistemicClass.HOLDING,
+                sources=["BNS 103", "sc_bachan_singh_v_state_of_punjab_1980"],
+                verbatim_span="words that are not in the judgement at all",
+            )]),
+            context,
+        )
+
+        assert verdicts[0].verified
+        assert verdicts[0].quote_dropped
+        assert answer.claims[0].epistemic_class is EpistemicClass.HOLDING

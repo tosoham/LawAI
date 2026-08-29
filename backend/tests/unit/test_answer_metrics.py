@@ -149,7 +149,10 @@ class TestUnsupported:
         answer would delete every failure from the record and score a perfect
         fidelity for having caught them.
         """
-        answer = StructuredAnswer(claims=[statute("not in the section at all")])
+        # A section that does not exist, rather than a misquotation: a bad
+        # quotation is no longer unsupported -- the span is dropped and the
+        # statement kept -- so it is the wrong example for this property.
+        answer = StructuredAnswer(claims=[statute(sources=("BNS 999",))])
         _, verdicts = verify(answer, context())
         metrics = compute(answer, verdicts)
         assert metrics.by_class == {"statute": 1}
@@ -212,7 +215,7 @@ class TestAggregate:
     def test_unsupported_is_totalled_not_averaged(self):
         """One unsupported claim in fifty answers is one too many, and a mean
         would round it into invisibility."""
-        answer = StructuredAnswer(claims=[statute("wrong words entirely")])
+        answer = StructuredAnswer(claims=[statute(sources=("BNS 999",))])
         _, verdicts = verify(answer, context())
         bad = compute(answer, verdicts)
         clean = compute(StructuredAnswer(claims=[statute()]))
@@ -278,3 +281,25 @@ class TestUnverifiableAttribution:
 
     def test_it_reaches_the_serialised_metrics(self):
         assert "unverifiable_attribution" in AnswerMetrics().to_dict()
+
+
+class TestMisquoteDoesNotScorePerfectly:
+    def test_a_dropped_quotation_still_costs_fidelity(self):
+        """
+        The hole the salvage opened, closed.
+
+        A claim whose quotation was dropped is verified -- the statement stands
+        -- but the model *misquoted*, and fidelity measures quoting accurately.
+        Counting it as a match would score a model that quotes badly at 1.0,
+        which is the same gaming this metric exists to prevent from the other
+        side: it is measured over every statute claim so that a model which
+        stops quoting to avoid being checked shows up as a drop. One that
+        quotes wrongly has to show up too.
+        """
+        answer = StructuredAnswer(claims=[statute("words not in the section")])
+        _, verdicts = verify(answer, context())
+
+        assert verdicts[0].verified, "the statement stands"
+        assert verdicts[0].quote_dropped, "but the quotation went"
+        assert compute(answer, verdicts).verbatim_fidelity == 0.0
+        assert compute(answer, verdicts).unsupported == 0

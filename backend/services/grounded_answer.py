@@ -40,6 +40,7 @@ from models.claims import Claim, ClaimVerdict, StructuredAnswer
 from .answer_metrics import AnswerMetrics, compute
 from .audience import Audience, register_layer
 from .claim_verifier import VerificationContext, regeneration_feedback, verify
+from .feedback import capture
 from .legal_graph import (
     GraphContext,
     get_legal_graph,
@@ -535,6 +536,15 @@ class GroundedAnswerService:
             # Without the text recorded here, "2 statements were removed"
             # cannot be traced back to which two, which is the first question
             # asked whenever the grounding gate fails.
+            # A quotation removed from a claim that otherwise stands. Not a
+            # rejection -- the statement survived -- but the reader is told,
+            # because silently un-quoting a sentence is its own small dishonesty
+            # and the model's misquote is worth seeing.
+            "quotes_dropped": [
+                {"index": v.index, "span": v.quote_dropped}
+                for v in verdicts
+                if v.quote_dropped
+            ],
             "rejected": [
                 {
                     "index": verdict.index,
@@ -568,7 +578,7 @@ class GroundedAnswerService:
                 "they could not be supported against the corpus._"
             )
 
-        return GroundedAnswer(
+        result = GroundedAnswer(
             query=query,
             answer=with_disclaimer(prose),
             structured=surviving,
@@ -578,6 +588,12 @@ class GroundedAnswerService:
             graph_context=_graph_payload(graph),
             trace=trace,
         )
+        # Captured *after* the answer is built and never in front of it: a
+        # feedback store that can fail a legal answer is worse than no feedback
+        # store. `capture` swallows its own errors and returns None when
+        # nothing tripped a signal.
+        capture(result, query)
+        return result
 
     def _abstain(
         self,
@@ -591,7 +607,7 @@ class GroundedAnswerService:
         trace["abstained"] = reason
         resolved = metrics or AnswerMetrics(abstained=True)
         resolved.abstained = True
-        return GroundedAnswer(
+        result = GroundedAnswer(
             query=query,
             answer=with_disclaimer(reason),
             structured=structured,
@@ -599,6 +615,12 @@ class GroundedAnswerService:
             metrics=resolved,
             trace=trace,
         )
+        # An abstention is the most informative event this system produces: it
+        # is either a question genuinely outside the corpus, or retrieval
+        # missing something it should have found, and only a person reading the
+        # query can say which.
+        capture(result, query)
+        return result
 
 
 def _graph_trace(graph: GraphContext) -> dict[str, Any]:

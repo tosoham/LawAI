@@ -220,6 +220,25 @@ class ClaimVerdict(BaseModel):
     reclassified_to: EpistemicClass | None = None
     """Set when a claim could not stand as the class it was emitted as."""
 
+    quote_dropped: str = ""
+    """
+    The quotation that was removed, where a claim was true but misquoted.
+
+    A statute claim whose cited section exists and is the right one, carrying a
+    ``verbatim_span`` that does not appear in it, used to be deleted whole. But
+    the failure is in the quotation marks, not in the statement: the same words
+    offered as a paraphrase pass the verifier unchanged, because a paraphrase
+    is a legitimate thing for a claim to be. Deleting the claim threw away a
+    true statement of law to punish a formatting error -- the failure mode this
+    project has now hit five times.
+
+    So the span is dropped, the claim survives as a paraphrase, and the
+    discarded quotation is recorded here. The metrics still count the misquote:
+    ``verbatim_fidelity`` is measured over what synthesis *emitted*, so a model
+    that quotes badly still shows up as a drop. What changes is that the reader
+    gets the provision instead of nothing.
+    """
+
 
 class StructuredAnswer(BaseModel):
     """What synthesis produces, and what prose is rendered from."""

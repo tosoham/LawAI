@@ -163,6 +163,7 @@ def _verify_statute(claim: Claim, context: VerificationContext) -> tuple[bool, s
         for text in (context.section_texts.get(key), _section_text(context, key)):
             if text and span in _normalise(text):
                 return True, ""
+
     return False, f"quoted text does not appear in {', '.join(sections)}"
 
 
@@ -433,6 +434,35 @@ def verify(
 
     for index, claim in enumerate(answer.claims):
         verified, reason = verify_claim(claim, context)
+
+        if not verified and claim.verbatim_span:
+            # Was the quotation the *only* thing wrong? Asked by re-checking
+            # the claim without it, which is the definition rather than a proxy
+            # for it: a paraphrase needs no span, so if the claim passes once
+            # the span is gone, the span was the whole failure.
+            #
+            # Re-checked rather than assumed, so this can never become a way to
+            # skip verification -- a claim citing BNS 999 fails with or without
+            # its quotation and stays failed.
+            paraphrased = claim.model_copy(update={"verbatim_span": ""})
+            if verify_claim(paraphrased, context)[0]:
+                logger.info(
+                    f"claim {index}: quotation dropped, statement kept "
+                    f"({claim.verbatim_span[:60]!r})"
+                )
+                verdicts.append(
+                    ClaimVerdict(
+                        index=index,
+                        verified=True,
+                        original_class=claim.epistemic_class,
+                        reason="the quotation did not match, so it was removed; "
+                        "the statement itself checks out",
+                        quote_dropped=claim.verbatim_span,
+                    )
+                )
+                claims.append(paraphrased)
+                continue
+
         verdicts.append(
             ClaimVerdict(
                 index=index,
@@ -473,22 +503,17 @@ def regeneration_feedback(
     if not failures:
         return ""
     lines = ["These claims did not verify and must be corrected or dropped:"]
-    misquoted = False
     for verdict in failures:
         claim = answer.claims[verdict.index]
         lines.append(f"- [{claim.epistemic_class.value}] {claim.text!r}: {verdict.reason}")
-        misquoted = misquoted or "quoted text does not appear" in verdict.reason
 
-    if misquoted:
-        # Without this the model drops the point altogether and an answerable
-        # question -- "what is the punishment for theft" -- comes back as an
-        # abstention because the quotation was a few words out. A paraphrase is
-        # still checked: the cited section has to exist and be the right one.
-        lines.append(
-            "Where a quotation did not match, you may keep the point and paraphrase "
-            "it instead: omit verbatim_span and state the substance. Only quote "
-            "words you can reproduce exactly."
-        )
+    # There used to be a paragraph here inviting a paraphrase where a quotation
+    # had failed, because without it the model dropped the point and an
+    # answerable question came back as an abstention. It is gone because it can
+    # no longer fire: `verify` now drops a failed quotation itself and keeps the
+    # statement, so a quote-only failure never reaches a regeneration attempt.
+    # Doing it in the verifier is strictly better -- it costs no model call and
+    # cannot be ignored.
     lines.append(
         "Do not restate a failed claim more cautiously. Either support it, or leave "
         "it out."

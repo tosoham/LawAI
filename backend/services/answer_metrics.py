@@ -139,6 +139,16 @@ def compute(
     verified_indices = (
         {v.index for v in verdicts if v.verified} if verdicts is not None else None
     )
+    # A claim whose quotation was dropped is verified -- the statement stands --
+    # but it was *misquoted*, and fidelity is the measure of quoting accurately.
+    # Counting it as a match would score a model that quotes badly at 1.0, which
+    # is the same hole this metric exists to close from the other side: it is
+    # measured over every statute claim so that a model which stops quoting to
+    # avoid being checked shows up as a drop. A model that quotes wrongly must
+    # show up too.
+    misquoted_indices = (
+        {v.index for v in verdicts if v.quote_dropped} if verdicts is not None else set()
+    )
     metrics.unsupported = (
         sum(1 for v in verdicts if not v.verified)
         if verdicts is not None
@@ -160,7 +170,12 @@ def compute(
     # Measured against every statute claim, not only the quoted ones: a model
     # that stops quoting to avoid being checked must show up as a drop here,
     # not as an unchanged score over a shrinking denominator.
-    matched = [i for i in quoted if verified_indices is None or i in verified_indices]
+    matched = [
+        i
+        for i in quoted
+        if (verified_indices is None or i in verified_indices)
+        and i not in misquoted_indices
+    ]
     metrics.verbatim_fidelity = _share(len(matched), len(statute))
 
     interpretations = answer.by_class(EpistemicClass.INTERPRETATION)

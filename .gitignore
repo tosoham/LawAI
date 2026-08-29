@@ -121,3 +121,6 @@ site/
 # Retrieval eval runs. Committed baselines are the gate every retrieval change
 # must beat; ad-hoc runs (default label "latest") are scratch.
 backend/eval/latest.json
+
+# Captured production feedback: user-typed text, never committed.
+backend/feedback/
