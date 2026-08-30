@@ -45,6 +45,14 @@ services:
       GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
       SESSION_SECRET: ${SESSION_SECRET:-}
       AUTH_INSECURE_COOKIES: ${AUTH_INSECURE_COOKIES:-false}
+      # Turn REQUIRE_SIGN_IN on for any public URL: an unauthenticated POST in
+      # front of a paid model key is an open tap. COOKIE_SAMESITE must be
+      # `none` when the frontend and API are on different sites, or the session
+      # cookie is never sent and sign-in silently does nothing.
+      REQUIRE_SIGN_IN: ${REQUIRE_SIGN_IN:-false}
+      COOKIE_SAMESITE: ${COOKIE_SAMESITE:-lax}
+      API_RATE_LIMIT: ${API_RATE_LIMIT:-100}
+      API_RATE_LIMIT_PERIOD: ${API_RATE_LIMIT_PERIOD:-60}
       DATABASE_URL: ${DATABASE_URL:-sqlite:////data/lawai.db}
       RELOAD: "False"
     ports:

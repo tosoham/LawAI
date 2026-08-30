@@ -12,6 +12,7 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
 from agents.agent_service import get_agent_service
+from services.auth import PayingUser
 
 logger = logging.getLogger(__name__)
 
@@ -100,7 +101,7 @@ class AgentInfoResponse(BaseModel):
 
 
 @router.post("/query", response_model=AgentQueryResponse)
-async def process_query(request: AgentQueryRequest):
+async def process_query(request: AgentQueryRequest, _: PayingUser = None):
     """
     Process a user query through the agent.
 
@@ -154,7 +155,7 @@ async def options_query_stream():
 
 
 @router.post("/query/stream")
-async def process_query_stream(request: AgentQueryRequest):
+async def process_query_stream(request: AgentQueryRequest, _: PayingUser = None):
     """
     Process a user query with streaming response.
 

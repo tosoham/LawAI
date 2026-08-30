@@ -50,6 +50,22 @@ def google_client_id() -> str:
     return os.getenv("GOOGLE_CLIENT_ID", "").strip()
 
 
+def require_sign_in() -> bool:
+    """
+    Whether answering a question needs an account.
+
+    Off by default so localhost and any deployment without Google credentials
+    keep working exactly as before. On, it is what turns "anyone on the
+    internet" into "accounts you allow" -- the whole difference between bounded
+    and unbounded spend on a paid model key.
+
+    Only meaningful when sign-in is actually available; `main.py` refuses to
+    start if this is on without a client id, because the alternative is an app
+    that serves 401 to everyone and looks broken rather than misconfigured.
+    """
+    return os.getenv("REQUIRE_SIGN_IN", "false").strip().lower() in {"1", "true", "yes"}
+
+
 def auth_enabled() -> bool:
     """
     Whether sign-in is available.
@@ -140,15 +156,49 @@ def upsert_user(session: Session, claims: dict) -> User:
     return user
 
 
+def _cookie_policy() -> tuple[str, bool]:
+    """
+    ``samesite`` and ``secure`` for this deployment.
+
+    ``lax`` is right when the browser talks to one site -- localhost, or an API
+    under the same hostname as the app -- and it is free CSRF cover.
+
+    It is **wrong** when the frontend and the API are on different sites, which
+    is exactly what a Vercel frontend and a Hugging Face Space backend are. A
+    `Lax` cookie is simply not sent cross-site, so sign-in would appear to
+    succeed and every request after it would arrive anonymous: the same silent
+    shape as the missing `withCredentials`, and just as hard to see.
+
+    `none` gives up what `lax` provided, and the compensating control is the
+    explicit CORS origin list in `main.py` -- never `*`, which is also the only
+    reason a credentialed cross-origin request is permitted at all. Browsers
+    reject `SameSite=None` without `Secure`, so that pairing is forced here
+    rather than left to a configuration mistake.
+    """
+    samesite = os.getenv("COOKIE_SAMESITE", "lax").strip().lower()
+    if samesite not in {"lax", "strict", "none"}:
+        logger.warning(f"COOKIE_SAMESITE={samesite!r} is not valid; using lax")
+        samesite = "lax"
+    insecure = os.getenv("AUTH_INSECURE_COOKIES", "false").lower() in {"1", "true", "yes"}
+    if samesite == "none" and insecure:
+        logger.warning(
+            "COOKIE_SAMESITE=none requires a Secure cookie; ignoring "
+            "AUTH_INSECURE_COOKIES. Browsers reject the combination outright."
+        )
+        insecure = False
+    return samesite, not insecure
+
+
 def issue_session(response: Response, user: User) -> None:
     """Sign the user's id into a cookie."""
+    samesite, secure = _cookie_policy()
     response.set_cookie(
         SESSION_COOKIE,
         _serializer().dumps(user.id),
         max_age=SESSION_MAX_AGE,
         httponly=True,
-        samesite="lax",
-        secure=os.getenv("AUTH_INSECURE_COOKIES", "false").lower() not in {"1", "true", "yes"},
+        samesite=samesite,
+        secure=secure,
         path="/",
     )
 
@@ -197,3 +247,35 @@ def require_user(user: CurrentUser) -> User:
             status_code=status.HTTP_401_UNAUTHORIZED, detail="Sign in to continue."
         )
     return user
+
+
+def paying_user(user: CurrentUser) -> User | None:
+    """
+    Identity for a route that spends money, and the rate limit that bounds it.
+
+    Returns the user when sign-in is required, ``None`` when it is not -- so a
+    localhost or credential-free deployment behaves exactly as it did before
+    accounts existed.
+
+    The rate limit is keyed by account where there is one and by a single
+    shared bucket where there is not. That shared bucket is deliberately blunt:
+    a deployment spending money without sign-in cannot tell callers apart, and
+    one global cap is more honest than an IP key that punishes an office NAT
+    and misses a phone moving between cells.
+    """
+    from services.rate_limit import enforce
+
+    if require_sign_in():
+        if user is None:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Sign in to ask a question.",
+            )
+        enforce(f"user:{user.id}")
+        return user
+
+    enforce(f"user:{user.id}" if user else "anonymous")
+    return user
+
+
+PayingUser = Annotated["User | None", Depends(paying_user)]

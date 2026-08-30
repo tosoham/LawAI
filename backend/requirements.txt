@@ -53,5 +53,8 @@ mcp>=2.0
 
 # Accounts and conversation storage.
 sqlalchemy>=2.0
+# Postgres driver. SQLite is the default; DATABASE_URL points at Postgres
+# where the disk is ephemeral -- a free Hugging Face Space, for one.
+psycopg[binary]>=3.1
 google-auth>=2.0
 itsdangerous>=2.0

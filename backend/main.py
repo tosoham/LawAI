@@ -141,6 +141,18 @@ async def startup_event():
     try:
         logger.info("Starting LawAI backend...")
 
+        # A misconfiguration that would otherwise present as "the app is
+        # broken": REQUIRE_SIGN_IN with no way to sign in serves 401 to
+        # everybody, forever, with nothing in the response explaining why.
+        from services.auth import auth_enabled, require_sign_in
+
+        if require_sign_in() and not auth_enabled():
+            raise RuntimeError(
+                "REQUIRE_SIGN_IN is on but GOOGLE_CLIENT_ID is not set, so "
+                "nobody can sign in and every question would be refused. Set "
+                "GOOGLE_CLIENT_ID, or turn REQUIRE_SIGN_IN off."
+            )
+
         # Conversation storage. Created here rather than by a migration step
         # because the schema is three tables and a fresh deployment should come
         # up without a second command. The moment a column has to change on a
@@ -155,6 +167,12 @@ async def startup_event():
         initialize_tools(llm_service, rag_service)
         logger.info("Agent tools initialized successfully")
         logger.info("LawAI backend ready!")
+    except RuntimeError:
+        # Configuration errors are fatal on purpose. The swallow below exists
+        # so a missing LLM key still leaves /health up; a deployment that
+        # refuses every question is not "limited functionality", it is broken
+        # in a way nobody would diagnose from a healthy container.
+        raise
     except Exception as e:
         logger.error(f"Error during startup: {e}")
         # Don't fail startup, allow health checks to work

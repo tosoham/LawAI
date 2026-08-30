@@ -165,6 +165,14 @@ Until this existed a conversation lived in React state: a refresh lost it, and t
 - **SQLite by default** (`DATABASE_URL`), on the same volume as the vector store, so a deployment is one service with one volume to back up. Writers serialise; this workload is reads plus a few small writes per conversation, so that limit is far away. When it is not, the URL changes and nothing else does.
 - **Optional throughout.** No `GOOGLE_CLIENT_ID` means no sign-in and every other feature works — only history needs identity.
 
+## Spending controls
+
+Two things that were fine on localhost and are not fine on a public URL, both found while planning the deployment rather than while writing the code.
+
+- **`API_RATE_LIMIT` was read by nothing.** It sat in `.env.example` from the beginning, documented and configurable and entirely imaginary. `services/rate_limit.py` now implements it: a fixed window, in process, keyed by account. Not a token bucket and not Redis — one Space is one process, so a dict is the whole of the shared state. Keyed by account rather than IP because an IP is shared by an office NAT and changes for a phone between cells, so it punishes the wrong people and misses the right ones.
+- **`REQUIRE_SIGN_IN`** gates the routes that call a model (`/agent/query`, `/search/rag`, `/search/grounded`) via `services.auth.paying_user`. Off by default so localhost is unchanged; **on for any public URL**, because an unauthenticated POST in front of a paid key is an open tap and each pull also costs 8–13 seconds of a single-process service. The deterministic routes stay open — they cost nothing and demonstrate the system without spending. `main.py` **refuses to start** if this is on with no `GOOGLE_CLIENT_ID`: serving 401 to everyone forever looks broken rather than misconfigured, and the broad `except` around startup must not swallow it.
+- **`COOKIE_SAMESITE`** must be `none` when the frontend and API are on different sites — a Vercel frontend with a Hugging Face Space backend, say. A `Lax` cookie is simply not sent cross-site, so sign-in appears to succeed and every request after it arrives anonymous: the same silent shape as the missing `withCredentials`. `none` forces `Secure` regardless of `AUTH_INSECURE_COOKIES`, since browsers reject the pair outright. What `Lax` was providing is given up, and the compensating control is the explicit CORS origin list — never `*`, which is also the only reason a credentialed cross-origin request is allowed at all.
+
 ## Production feedback
 
 `services/feedback.py` records answers worth revisiting, and `scripts/review_feedback.py` is where a person turns them into fixture rows. Off by default (`ENABLE_FEEDBACK_CAPTURE`) because it writes user-typed text to disk.

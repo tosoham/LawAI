@@ -10,6 +10,7 @@ from fastapi import APIRouter, HTTPException, status
 from models.requests import RAGSearchRequest
 from models.responses import ErrorResponse, GroundedAnswerResponse
 from services.audience import parse_audience
+from services.auth import PayingUser
 from services.grounded_answer import get_grounded_answer_service
 from services.rag_service import get_rag_service
 from services.vector_service import VectorService
@@ -54,7 +55,7 @@ def resolve_collection(name: str) -> str:
 # "/search/rag" is canonical (it is what the frontend calls); "/search" is kept
 # so older clients do not break.
 @router.post("", response_model=dict[str, Any], include_in_schema=False)
-def rag_search(request: RAGSearchRequest) -> dict[str, Any]:
+def rag_search(request: RAGSearchRequest, _: PayingUser = None) -> dict[str, Any]:
     """
     Perform RAG (Retrieval-Augmented Generation) search
 
@@ -187,7 +188,9 @@ def _get_collection_description(collection_key: str) -> str:
         "metrics and an auditable trace."
     ),
 )
-def grounded_search(request: RAGSearchRequest) -> GroundedAnswerResponse:
+def grounded_search(
+    request: RAGSearchRequest, _: PayingUser = None
+) -> GroundedAnswerResponse:
     """
     Answer a question with every claim checked, or say it cannot be answered.
 
