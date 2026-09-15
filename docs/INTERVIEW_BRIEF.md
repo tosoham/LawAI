@@ -288,7 +288,7 @@ Three layers, and say all three:
 
 ### "What's your testing strategy?"
 
-**763 backend tests (755 pass, 8 skip), 106 frontend.** Structure:
+**1,202 backend tests (1,136 pass, 8 skip, 58 live), 116 frontend.** Structure:
 
 - **Unit** — services, verifier, parsers, graph, metrics.
 - **Data integrity** — because the corpus *is* the guarantee: **21 offences transcribed by
@@ -453,7 +453,7 @@ streaming would discard the structured `sources`. Single-node ChromaDB with no r
 | Graph | **931** cross-refs, 34 interprets edges, 288 classified sections |
 | Retrieval | recall@3 **0.652 → 0.928**; citation 0.250 → **1.000**; term_of_art 0.500 → **0.875**; repealed 0.125 → **1.000** |
 | Abstention evidence | answerable worst **0.577**, adversarial best **0.423** — overlapping |
-| Tests | **763 backend** (755 pass / 8 skip), **106 frontend** |
+| Tests | **1,202 backend** (1,136 pass / 8 skip / 58 live), **116 frontend** |
 | Injection | **6/6 held** |
 
 ---

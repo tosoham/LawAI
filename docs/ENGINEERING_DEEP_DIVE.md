@@ -61,9 +61,9 @@ Evidence Act respectively.
 
 1,059 statutory sections + 30 judgements = **1,089 documents → 3,184 embedded chunks**.
 
-**Scale of the codebase:** 48 backend Python modules plus 11 scripts, 28 backend test files
-(**763 collected, 755 passing, 8 skipped** — the 8 are end-to-end tests needing a running
-server), 20 frontend components, 9 frontend test suites (**106 passing**).
+**Scale of the codebase:** 57 backend Python modules plus 13 scripts, 44 backend test files
+(**1,202 collected, 1,136 passing, 8 skipped, 58 live** — the 8 are end-to-end tests needing a
+running server), 20 frontend components, 9 frontend test suites (**116 passing**).
 
 ---
 
@@ -299,6 +299,12 @@ body.
 **Recorded limitation:** Indian Kanoon serves Bhajan Lal abridged (~27k chars, ending near
 paragraph 12), so its famous seven-category list at paragraph 102 is **not in the corpus**.
 The entry's `subject` describes what is actually stored, not what the case is famous for.
+
+**How the pinned ids were found.** Plain search returns *citing* cases, not the judgement.
+Indian Kanoon's `title:(...)` operator combined with `fromdate:D-M-YYYY` / `todate:D-M-YYYY`
+and `doctypes:supremecourt` resolves a landmark exactly. **Never use India Code's search**:
+`indiacode.nic.in/robots.txt` disallows `/discover` and `/simple-search`; its direct document
+URLs are allowed.
 
 ---
 
@@ -971,9 +977,9 @@ nDCG@10, overall and per class. Reports committed in `backend/eval/`.
 **Answer eval** — per-answer metrics (§8.7) aggregated over the golden set, with
 `unsupported` as the build gate.
 
-**Test suite** — **763 backend tests collected, 755 passing, 8 skipped** (the 8 need a
+**Test suite** — **1,202 backend tests collected, 1,136 passing, 8 skipped, 58 live** (the 8 need a
 running server). Live-LLM tests are marked `live` and skip automatically without
-`AIML_API_KEY`, so a plain `pytest` run is green with no credentials. Plus **106 frontend
+`AIML_API_KEY`, so a plain `pytest` run is green with no credentials. Plus **116 frontend
 tests**.
 
 `tests/integration/test_grounded_answer_live.py` is the hard gate: **all six adversarial

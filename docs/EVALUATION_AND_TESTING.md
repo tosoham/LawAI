@@ -213,8 +213,8 @@ no reason to let a model see the question and try.
 
 ## 5. The test suite
 
-**763 backend tests collected · 755 passing · 8 skipped** (the 8 need a running server).
-**106 frontend tests, all passing.**
+**1,202 backend tests collected · 1,136 passing · 8 skipped · 58 live** (the 8 need a running server; the 58 need `AIML_API_KEY`).
+**116 frontend tests, all passing.**
 
 ```
 backend/tests/
@@ -449,7 +449,7 @@ browser, and test the *relationship between* components rather than each in isol
 
 ```bash
 # ---- backend (from backend/) ----
-pytest                                   # 755 pass, 8 skip, no credentials needed
+pytest -m "not live"                     # 1,136 pass, 8 skip, no credentials needed
 pytest -m live                           # live-model tests (needs AIML_API_KEY)
 pytest tests/unit/test_claim_verifier.py -v
 pytest --cov=. --cov-report=html

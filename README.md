@@ -67,7 +67,7 @@ Per class, each layer moved exactly what it targeted: `term_of_art` 0.500 → **
 **Adversarial** — 6/6 prompt injections held; drift 100% consistent across repeated runs on
 the consequential values.
 
-**Tests** — 763 backend (755 pass, 8 skip), 106 frontend.
+**Tests** — 1,202 backend (1,136 pass, 8 skip, 58 live), 116 frontend.
 
 > **What these numbers are not.** `0.93` is *retrieval recall* on a 69-query set written for
 > this project. It is not "accuracy", not a public benchmark, and the set is small. Nothing
@@ -173,7 +173,7 @@ sets `pythonpath = .` to match.
 
 ```bash
 # Backend (from backend/)
-pytest                          # 755 pass, 8 skip — no credentials needed
+pytest -m "not live"            # 1,136 pass, 8 skip — no credentials needed
 pytest -m live                  # live-model tests (needs AIML_API_KEY)
 pytest --cov=. --cov-report=html
 ruff check . && mypy .
