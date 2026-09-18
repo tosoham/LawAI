@@ -1,3 +1,15 @@
+---
+title: LawAI
+emoji: "⚖️"
+colorFrom: blue
+colorTo: gray
+sdk: docker
+app_port: 8000
+short_description: Indian criminal law under the 2023 codes, with every claim checked
+pinned: false
+startup_duration_timeout: 1h
+---
+
 # LawAI
 
 **A legal AI for Indian criminal law that tells you when it cannot answer.**

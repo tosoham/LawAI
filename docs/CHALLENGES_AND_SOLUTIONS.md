@@ -865,7 +865,7 @@ enough, it still revalidates.
 
 **Cause.** BuildKit looks for **`<dockerfile>.dockerignore`** within the context. Since the
 context is the repo root, a `backend/.dockerignore` is never read.
-**Fix.** `backend/Dockerfile.dockerignore`.
+**Fix.** `backend/Dockerfile.dockerignore`. (The Dockerfile has since moved to the repo root for Hugging Face Spaces, so the file is now the plain root `.dockerignore` — the rule it taught is unchanged: the name is resolved against the *context*, not the Dockerfile's directory.)
 
 ### 8.6 `NEXT_PUBLIC_*` is inlined at build time
 

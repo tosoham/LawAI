@@ -16,7 +16,7 @@ services:
       # resolved as backend/../data/processed and must keep that relative
       # position inside the image.
       context: .
-      dockerfile: backend/Dockerfile
+      dockerfile: Dockerfile
     image: lawai-backend:latest
     container_name: lawai-backend
     env_file:

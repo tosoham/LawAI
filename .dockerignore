@@ -1,0 +1,43 @@
+# The build context is the repo root, so these paths are repo-relative.
+#
+# This was `backend/Dockerfile.dockerignore` while the Dockerfile lived in
+# `backend/`: BuildKit looks for "<dockerfile>.dockerignore" beside the
+# Dockerfile *within the context*, so a `backend/.dockerignore` would have done
+# nothing at all. With the Dockerfile at the context root the plain name is
+# correct again, and it is the one every builder honours -- including Hugging
+# Face's, which is the reason the Dockerfile moved.
+
+# Generated / huge
+**/venv/
+**/__pycache__/
+**/*.py[cod]
+**/node_modules/
+**/.next/
+backend/chroma_db/
+chroma_db/
+data/raw/
+
+# Never bake credentials into an image layer.
+**/.env
+**/.env.local
+**/.env.*.local
+
+# Test and tooling artefacts
+**/.pytest_cache/
+**/.coverage
+**/htmlcov/
+**/.mypy_cache/
+**/.ruff_cache/
+**/tsconfig.tsbuildinfo
+
+# VCS and editors
+.git/
+.gitignore
+**/.vscode/
+**/.idea/
+**/*.swp
+
+# Docs and scratch
+docs/
+*.md
+!backend/**/*.md

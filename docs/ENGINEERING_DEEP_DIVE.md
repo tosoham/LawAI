@@ -899,7 +899,7 @@ mirrored TypeScript types in `frontend/lib/api.ts`.
 - **The backend build context is the repo root, not `backend/`.** `data_loader.py` resolves
   the corpus as `backend/../data/processed`, so the image must preserve that relative layout
   (`/app/backend` + `/app/data/processed`).
-- **The ignore file is `backend/Dockerfile.dockerignore`**, not `backend/.dockerignore`.
+- **The ignore file is the root `.dockerignore`** (it was `backend/Dockerfile.dockerignore` until the Dockerfile moved to the repo root for Hugging Face).
   BuildKit looks for `<dockerfile>.dockerignore` within the context; since the context is
   the repo root, a `backend/.dockerignore` would be **silently ignored**.
 - **`NEXT_PUBLIC_*` is inlined at build time**, so `NEXT_PUBLIC_API_URL` is a build arg and

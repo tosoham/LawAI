@@ -1,5 +1,11 @@
 # LawAI backend image.
 #
+# It sits at the repo root rather than in `backend/` because a Hugging Face
+# Docker Space builds the `Dockerfile` at the root of the Space repo. The COPY
+# paths were always repo-relative -- the corpus is resolved as
+# `backend/../data/processed`, so the image has to preserve that layout -- so
+# moving the file changed nothing except where the builder finds it.
+#
 # Two things drive the shape of this file:
 #
 #   1. sentence-transformers pulls in torch. The default wheel carries the CUDA
@@ -119,8 +125,11 @@ RUN if [ "$BAKE_INDEX" = "true" ]; then \
         echo "BAKE_INDEX not set; the store will be seeded into the volume on first start."; \
     fi
 
+# uid 1000 is not arbitrary: a Hugging Face Space runs the container as user
+# 1000, and files owned by anyone else are unwritable there -- the entrypoint
+# would fail to seed the store and the Space would die on its first start.
 RUN chmod +x docker-entrypoint.sh \
-    && useradd --create-home --uid 10001 lawai \
+    && useradd --create-home --uid 1000 lawai \
     && mkdir -p /data \
     && chown -R lawai:lawai /data /app \
     && if [ -d /opt/chroma_seed ]; then chown -R lawai:lawai /opt/chroma_seed; fi
